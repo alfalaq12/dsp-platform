@@ -1,0 +1,54 @@
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: '/api',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Add token to requests
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Handle auth errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('username');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
+// Auth
+export const login = (credentials) => api.post('/login', credentials);
+
+// Schemas
+export const getSchemas = () => api.get('/schemas');
+export const createSchema = (data) => api.post('/schemas', data);
+export const updateSchema = (id, data) => api.put(`/schemas/${id}`, data);
+export const deleteSchema = (id) => api.delete(`/schemas/${id}`);
+
+// Networks
+export const getNetworks = () => api.get('/networks');
+export const createNetwork = (data) => api.post('/networks', data);
+export const updateNetwork = (id, data) => api.put(`/networks/${id}`, data);
+export const deleteNetwork = (id) => api.delete(`/networks/${id}`);
+
+// Jobs
+export const getJobs = () => api.get('/jobs');
+export const createJob = (data) => api.post('/jobs', data);
+export const updateJob = (id, data) => api.put(`/jobs/${id}`, data);
+export const deleteJob = (id) => api.delete(`/jobs/${id}`);
+export const runJob = (id) => api.post(`/jobs/${id}/run`);
+
+export default api;

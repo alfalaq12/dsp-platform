@@ -1,0 +1,38 @@
+[Unit]
+Description=DSP Platform Master Server
+Documentation=https://github.com/your-org/dsp-platform
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=dsp
+Group=dsp
+WorkingDirectory=/opt/dsp-platform
+ExecStart=/opt/dsp-platform/dsp-master
+Restart=on-failure
+RestartSec=10s
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/dsp-platform/data /opt/dsp-platform/logs
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dsp-master
+
+# Environment variables (uncomment and modify as needed)
+# Environment="LOG_LEVEL=info"
+# Environment="LOG_FILE=/opt/dsp-platform/logs/master.log"
+# Environment="DB_HOST=localhost"
+# Environment="DB_PORT=5432"
+# Environment="DB_NAME=dsp_platform"
+# Environment="DB_USER=dsp_user"
+# Environment="DB_PASSWORD=your_secure_password"
+# Environment="JWT_SECRET=your_jwt_secret_key"
+
+[Install]
+WantedBy=multi-user.target

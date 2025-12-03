@@ -1,0 +1,35 @@
+[Unit]
+Description=DSP Platform Tenant Agent
+Documentation=https://github.com/your-org/dsp-platform
+After=network.target
+
+[Service]
+Type=simple
+User=dsp
+Group=dsp
+WorkingDirectory=/opt/dsp-agent
+ExecStart=/opt/dsp-agent/dsp-agent
+Restart=on-failure
+RestartSec=10s
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/dsp-agent/data /opt/dsp-agent/logs
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dsp-agent
+
+# Environment variables (uncomment and modify as needed)
+# Environment="LOG_LEVEL=info"
+# Environment="LOG_FILE=/opt/dsp-agent/logs/agent.log"
+# Environment="MASTER_URL=https://master-server.example.com"
+# Environment="AGENT_ID=agent-001"
+# Environment="AGENT_TOKEN=your_agent_token"
+
+[Install]
+WantedBy=multi-user.target

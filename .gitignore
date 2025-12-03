@@ -1,0 +1,78 @@
+# Binaries
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+dsp-master
+dsp-agent
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+dsp.db
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Build artifacts
+dist/
+build/
+tmp/
+
+# Dependencies
+vendor/
+
+# Frontend (Node.js)
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/dist/
+frontend/.vite/
+frontend/.cache/
+
+# Deployment specific
+deployment/linux/*.pem
+deployment/windows/*.pem
+*.key
+*.crt
+*.pem
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# NSSM downloaded files
+nssm/
+
+# Windows service logs
+deployment/windows/logs/
