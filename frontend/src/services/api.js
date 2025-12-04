@@ -7,11 +7,13 @@ const api = axios.create({
   },
 });
 
-// Add token to requests
+// Add token to requests and update last activity
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+    // Update last activity timestamp on every API request
+    localStorage.setItem('lastActivity', Date.now().toString());
   }
   return config;
 });

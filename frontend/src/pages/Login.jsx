@@ -18,6 +18,7 @@ function Login() {
             const response = await login(formData);
             localStorage.setItem('token', response.data.token);
             localStorage.setItem('username', response.data.username);
+            localStorage.setItem('lastActivity', Date.now().toString());
             navigate('/');
         } catch (err) {
             setError(err.response?.data?.error || 'Login failed');

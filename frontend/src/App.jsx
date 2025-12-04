@@ -5,10 +5,14 @@ import Schema from './pages/Schema';
 import Network from './pages/Network';
 import Jobs from './pages/Jobs';
 import MainLayout from './components/Layout/MainLayout';
+import useSessionTimeout from './hooks/useSessionTimeout';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
     const token = localStorage.getItem('token');
+    // Use session timeout hook (30 minutes = 1800000ms)
+    useSessionTimeout(30 * 60 * 1000);
+
     return token ? children : <Navigate to="/login" />;
 };
 
