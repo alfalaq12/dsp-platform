@@ -273,7 +273,7 @@ func (al *AgentListener) handleDataResponse(msg core.AgentMessage, clientAddr st
 	}
 
 	errorMsg := ""
-	if e, ok := msg.Data["error"].(string); ok {
+	if e, ok := msg.Data["error"].(string); ok && e != "" {
 		errorMsg = e
 		status = "failed"
 	}
