@@ -14,7 +14,7 @@ function Sidebar({ isOpen, onClose }) {
             {/* Mobile Overlay */}
             {isOpen && (
                 <div
-                    className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+                    className="fixed inset-0 bg-black/60 z-40 lg:hidden backdrop-blur-sm"
                     onClick={onClose}
                 />
             )}
@@ -22,18 +22,18 @@ function Sidebar({ isOpen, onClose }) {
             {/* Sidebar */}
             <aside className={`
                 fixed lg:static inset-y-0 left-0 z-50
-                w-64 bg-slate-800 border-r border-slate-700 flex flex-col
+                w-64 bg-panda-dark-100 border-r border-panda-dark-300 flex flex-col
                 transform transition-transform duration-300 ease-in-out
                 ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
             `}>
-                <div className="p-6 border-b border-slate-700 flex items-start justify-between">
+                <div className="p-6 border-b border-panda-dark-300 flex items-start justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold text-white">DSP Platform</h1>
-                        <p className="text-sm text-slate-400 mt-1">Data Sync</p>
+                        <h1 className="text-2xl font-bold text-panda-gold">DSP Platform</h1>
+                        <p className="text-sm text-panda-text-muted mt-1">Data Sync</p>
                     </div>
                     <button
                         onClick={onClose}
-                        className="lg:hidden text-slate-400 hover:text-white transition-colors"
+                        className="lg:hidden text-panda-text-muted hover:text-panda-gold transition-colors"
                         aria-label="Close sidebar"
                     >
                         <X className="w-6 h-6" />
@@ -51,9 +51,9 @@ function Sidebar({ isOpen, onClose }) {
                                         end
                                         onClick={onClose}
                                         className={({ isActive }) =>
-                                            `flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${isActive
-                                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/50'
-                                                : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                                            `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${isActive
+                                                ? 'bg-panda-gold text-panda-dark font-semibold shadow-lg shadow-panda-gold/30'
+                                                : 'text-panda-text-muted hover:bg-panda-dark-300 hover:text-panda-gold'
                                             }`
                                         }
                                     >
@@ -66,18 +66,18 @@ function Sidebar({ isOpen, onClose }) {
                     </ul>
                 </nav>
 
-                <div className="p-4 border-t border-slate-700">
-                    <div className="flex items-center gap-3 px-4 py-3 bg-slate-900/50 rounded-lg">
-                        <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
-                            <span className="text-white font-semibold">
+                <div className="p-4 border-t border-panda-dark-300">
+                    <div className="flex items-center gap-3 px-4 py-3 bg-panda-dark/50 rounded-xl border border-panda-dark-300">
+                        <div className="w-10 h-10 bg-gradient-to-br from-panda-gold to-panda-gold-light rounded-full flex items-center justify-center shadow-lg shadow-panda-gold/20">
+                            <span className="text-panda-dark font-bold">
                                 {localStorage.getItem('username')?.charAt(0).toUpperCase() || 'U'}
                             </span>
                         </div>
                         <div className="flex-1">
-                            <p className="text-sm font-medium text-white">
+                            <p className="text-sm font-medium text-panda-text">
                                 {localStorage.getItem('username') || 'User'}
                             </p>
-                            <p className="text-xs text-slate-400">Administrator</p>
+                            <p className="text-xs text-panda-text-muted">Administrator</p>
                         </div>
                     </div>
                 </div>

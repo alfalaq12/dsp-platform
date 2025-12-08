@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Plus, Edit, Trash2, Network as NetworkIcon, Circle } from 'lucide-react';
+import { Plus, Edit, Trash2, Network as NetworkIcon, Circle, Eye, Loader2 } from 'lucide-react';
 import { getNetworks, createNetwork, updateNetwork, deleteNetwork } from '../services/api';
+import { useToast, ToastContainer, ConfirmModal, ViewModal } from '../components/Toast';
 
 function Network() {
     const [networks, setNetworks] = useState([]);
@@ -11,6 +12,13 @@ function Network() {
         ip_address: '',
         type: 'source',
     });
+
+    // New states for enhanced UX
+    const [isLoading, setIsLoading] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [selectedNetwork, setSelectedNetwork] = useState(null);
+    const [deleteTarget, setDeleteTarget] = useState(null);
+    const { toasts, addToast, removeToast } = useToast();
 
     useEffect(() => {
         loadNetworks();
@@ -29,16 +37,22 @@ function Network() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setIsSubmitting(true);
         try {
             if (editingId) {
                 await updateNetwork(editingId, formData);
+                addToast('Network updated successfully!', 'success');
             } else {
                 await createNetwork(formData);
+                addToast('Network created successfully!', 'success');
             }
             loadNetworks();
             resetForm();
         } catch (error) {
             console.error('Failed to save network:', error);
+            addToast('Failed to save network. Please try again.', 'error');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -52,14 +66,19 @@ function Network() {
         setShowForm(true);
     };
 
-    const handleDelete = async (id) => {
-        if (window.confirm('Delete this network?')) {
-            try {
-                await deleteNetwork(id);
-                loadNetworks();
-            } catch (error) {
-                console.error('Failed to delete network:', error);
-            }
+    const handleDeleteConfirm = async () => {
+        if (!deleteTarget) return;
+        setIsLoading(true);
+        try {
+            await deleteNetwork(deleteTarget.id);
+            addToast(`Network "${deleteTarget.name}" deleted successfully!`, 'success');
+            loadNetworks();
+        } catch (error) {
+            console.error('Failed to delete network:', error);
+            addToast('Failed to delete network. Please try again.', 'error');
+        } finally {
+            setIsLoading(false);
+            setDeleteTarget(null);
         }
     };
 
@@ -71,6 +90,10 @@ function Network() {
 
     return (
         <div className="space-y-6">
+            {/* Toast Notifications */}
+            <ToastContainer toasts={toasts} removeToast={removeToast} />
+
+            {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold text-white mb-2">Network Management</h1>
@@ -78,37 +101,67 @@ function Network() {
                 </div>
                 <button
                     onClick={() => setShowForm(!showForm)}
-                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition"
+                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white rounded-xl transition shadow-lg shadow-purple-500/20 btn-pulse-glow"
                 >
                     <Plus className="w-5 h-5" />
                     New Network
                 </button>
             </div>
 
+            {/* Create/Edit Form */}
             {showForm && (
-                <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
+                <div className="bg-slate-800/80 backdrop-blur-sm border border-slate-700 rounded-2xl p-6 modal-scale-in">
+                    <h2 className="text-xl font-semibold text-white mb-4">
+                        {editingId ? 'Edit Network' : 'Create New Network'}
+                    </h2>
                     <form onSubmit={handleSubmit} className="space-y-4">
-                        <input
-                            type="text"
-                            value={formData.name}
-                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                            className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white"
-                            placeholder="Name"
-                            required
-                        />
-                        <input
-                            type="text"
-                            value={formData.ip_address}
-                            onChange={(e) => setFormData({ ...formData, ip_address: e.target.value })}
-                            className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white"
-                            placeholder="IP Address"
-                            required
-                        />
-                        <div className="flex gap-3">
-                            <button type="submit" className="px-6 py-2 bg-purple-600 text-white rounded-lg">
-                                {editingId ? 'Update' : 'Add'}
+                        <div>
+                            <label className="block text-sm font-medium text-slate-300 mb-2">Name</label>
+                            <input
+                                type="text"
+                                value={formData.name}
+                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+                                placeholder="Network Name"
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-300 mb-2">IP Address</label>
+                            <input
+                                type="text"
+                                value={formData.ip_address}
+                                onChange={(e) => setFormData({ ...formData, ip_address: e.target.value })}
+                                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+                                placeholder="192.168.1.1"
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-300 mb-2">Type</label>
+                            <select
+                                value={formData.type}
+                                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+                            >
+                                <option value="source">Source</option>
+                                <option value="target">Target</option>
+                            </select>
+                        </div>
+                        <div className="flex gap-3 pt-2">
+                            <button
+                                type="submit"
+                                disabled={isSubmitting}
+                                className="flex items-center justify-center gap-2 px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed min-w-[120px]"
+                            >
+                                {isSubmitting && <span className="spinner-border"></span>}
+                                {editingId ? 'Update' : 'Create'}
                             </button>
-                            <button type="button" onClick={resetForm} className="px-6 py-2 bg-slate-700 text-white rounded-lg">
+                            <button
+                                type="button"
+                                onClick={resetForm}
+                                className="px-6 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl transition"
+                            >
                                 Cancel
                             </button>
                         </div>
@@ -116,32 +169,121 @@ function Network() {
                 </div>
             )}
 
+            {/* Networks Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {networks.map((network) => (
-                    <div key={network.id} className="bg-slate-800 border border-slate-700 rounded-xl p-6">
+                    <div
+                        key={network.id}
+                        className="bg-slate-800/80 backdrop-blur-sm border border-slate-700 rounded-2xl p-6 card-hover"
+                    >
                         <div className="flex justify-between mb-4">
                             <div>
                                 <h3 className="text-lg font-semibold text-white">{network.name}</h3>
                                 <p className="text-sm text-slate-400">{network.ip_address}</p>
                             </div>
-                            <div className="flex gap-2">
-                                <button onClick={() => handleEdit(network)} className="p-2 text-blue-400">
+                            <div className="flex gap-1">
+                                <button
+                                    onClick={() => setSelectedNetwork(network)}
+                                    className="action-btn action-btn-view"
+                                    title="View Details"
+                                >
+                                    <Eye className="w-4 h-4" />
+                                </button>
+                                <button
+                                    onClick={() => handleEdit(network)}
+                                    className="action-btn action-btn-edit"
+                                    title="Edit"
+                                >
                                     <Edit className="w-4 h-4" />
                                 </button>
-                                <button onClick={() => handleDelete(network.id)} className="p-2 text-red-400">
+                                <button
+                                    onClick={() => setDeleteTarget(network)}
+                                    className="action-btn action-btn-delete"
+                                    title="Delete"
+                                >
                                     <Trash2 className="w-4 h-4" />
                                 </button>
                             </div>
                         </div>
-                        <div className="flex justify-between">
+                        <div className="flex justify-between items-center pt-4 border-t border-slate-700">
                             <span className="text-sm text-slate-400">Status</span>
-                            <span className={network.status === 'online' ? 'text-green-400' : 'text-red-400'}>
-                                <Circle className="w-2 h-2 fill-current inline" /> {network.status}
+                            <span className={`flex items-center gap-2 text-sm font-medium ${network.status === 'online' ? 'text-emerald-400' : 'text-red-400'}`}>
+                                <Circle className="w-2 h-2 fill-current" />
+                                {network.status || 'Unknown'}
+                            </span>
+                        </div>
+                        <div className="flex justify-between items-center pt-3">
+                            <span className="text-sm text-slate-400">Type</span>
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${network.type === 'source' ? 'bg-blue-500/20 text-blue-400' : 'bg-green-500/20 text-green-400'}`}>
+                                {network.type}
                             </span>
                         </div>
                     </div>
                 ))}
             </div>
+
+            {networks.length === 0 && (
+                <div className="text-center py-12 text-slate-400">
+                    <NetworkIcon className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>No networks yet. Create one to get started.</p>
+                </div>
+            )}
+
+            {/* View Detail Modal */}
+            <ViewModal
+                isOpen={!!selectedNetwork}
+                onClose={() => setSelectedNetwork(null)}
+                title="Network Details"
+            >
+                {selectedNetwork && (
+                    <div className="space-y-4">
+                        <div className="bg-slate-800/50 rounded-xl p-4">
+                            <div className="detail-row">
+                                <span className="detail-label">ID</span>
+                                <span className="detail-value">#{selectedNetwork.id}</span>
+                            </div>
+                            <div className="detail-row">
+                                <span className="detail-label">Name</span>
+                                <span className="detail-value">{selectedNetwork.name}</span>
+                            </div>
+                            <div className="detail-row">
+                                <span className="detail-label">IP Address</span>
+                                <span className="detail-value font-mono">{selectedNetwork.ip_address}</span>
+                            </div>
+                            <div className="detail-row">
+                                <span className="detail-label">Type</span>
+                                <span className={`px-3 py-1 rounded-full text-xs font-medium ${selectedNetwork.type === 'source' ? 'bg-blue-500/20 text-blue-400' : 'bg-green-500/20 text-green-400'}`}>
+                                    {selectedNetwork.type}
+                                </span>
+                            </div>
+                            <div className="detail-row">
+                                <span className="detail-label">Status</span>
+                                <span className={`flex items-center gap-2 ${selectedNetwork.status === 'online' ? 'text-emerald-400' : 'text-red-400'}`}>
+                                    <Circle className="w-2 h-2 fill-current" />
+                                    {selectedNetwork.status || 'Unknown'}
+                                </span>
+                            </div>
+                            <div className="detail-row">
+                                <span className="detail-label">Created At</span>
+                                <span className="detail-value">
+                                    {selectedNetwork.created_at ? new Date(selectedNetwork.created_at).toLocaleString('id-ID') : '-'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </ViewModal>
+
+            {/* Delete Confirmation Modal */}
+            <ConfirmModal
+                isOpen={!!deleteTarget}
+                onClose={() => setDeleteTarget(null)}
+                onConfirm={handleDeleteConfirm}
+                title="Delete Network"
+                message={`Are you sure you want to delete "${deleteTarget?.name}"? This action cannot be undone.`}
+                confirmText="Delete"
+                isLoading={isLoading}
+            />
         </div>
     );
 }

@@ -75,3 +75,20 @@ type LoginResponse struct {
 type JobRunRequest struct {
 	JobID uint `json:"job_id" binding:"required"`
 }
+
+// JobLog represents a job execution log entry
+type JobLog struct {
+	ID           uint      `json:"id" gorm:"primaryKey"`
+	JobID        uint      `json:"job_id" gorm:"not null;index"`
+	Status       string    `json:"status"` // running/completed/failed
+	StartedAt    time.Time `json:"started_at"`
+	CompletedAt  time.Time `json:"completed_at"`
+	Duration     int64     `json:"duration"` // in milliseconds
+	RecordCount  int       `json:"record_count"`
+	ErrorMessage string    `json:"error_message,omitempty"`
+	SampleData   string    `json:"sample_data,omitempty" gorm:"type:text"` // JSON string of sample records
+	CreatedAt    time.Time `json:"created_at"`
+
+	// Relations
+	Job Job `json:"job,omitempty" gorm:"foreignKey:JobID"`
+}

@@ -3,8 +3,10 @@ package server
 import (
 	"dsp-platform/internal/auth"
 	"dsp-platform/internal/core"
+	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"time"
 
@@ -252,25 +254,88 @@ func (h *Handler) RunJob(c *gin.Context) {
 	job.LastRun = time.Now()
 	h.db.Save(&job)
 
+	// Create job log entry
+	jobLog := core.JobLog{
+		JobID:     job.ID,
+		Status:    "running",
+		StartedAt: time.Now(),
+	}
+	h.db.Create(&jobLog)
+
 	// Execute job in goroutine for async processing
-	go func(j core.Job) {
+	go func(j core.Job, logID uint) {
+		startTime := time.Now()
 		log.Printf("Executing job %d: %s", j.ID, j.Name)
 		log.Printf("Schema: %s", j.Schema.SQLCommand)
 		log.Printf("Network: %s (%s)", j.Network.Name, j.Network.IPAddress)
 
-		// Simulate job execution
-		time.Sleep(3 * time.Second)
+		// Simulate job execution with some sample data
+		time.Sleep(time.Duration(2+rand.Intn(3)) * time.Second)
+
+		// Generate sample data for preview
+		sampleRecords := []map[string]interface{}{
+			{"id": 1, "name": "Sample Record 1", "created_at": time.Now().Add(-24 * time.Hour).Format(time.RFC3339)},
+			{"id": 2, "name": "Sample Record 2", "created_at": time.Now().Add(-12 * time.Hour).Format(time.RFC3339)},
+			{"id": 3, "name": "Sample Record 3", "created_at": time.Now().Format(time.RFC3339)},
+		}
+		sampleJSON, _ := json.Marshal(sampleRecords)
+		recordCount := 10 + rand.Intn(90) // Random 10-99 records
+
+		// Update job log with completion details
+		duration := time.Since(startTime).Milliseconds()
+		var jLog core.JobLog
+		h.db.First(&jLog, logID)
+		jLog.Status = "completed"
+		jLog.CompletedAt = time.Now()
+		jLog.Duration = duration
+		jLog.RecordCount = recordCount
+		jLog.SampleData = string(sampleJSON)
+		h.db.Save(&jLog)
 
 		// Update job status to completed
 		j.Status = "completed"
 		h.db.Save(&j)
-		log.Printf("Job %d completed", j.ID)
-	}(job)
+		log.Printf("Job %d completed in %dms, synced %d records", j.ID, duration, recordCount)
+	}(job, jobLog.ID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": fmt.Sprintf("Job %d started", job.ID),
 		"job":     job,
+		"log_id":  jobLog.ID,
 	})
+}
+
+// GetJob returns a single job with its recent logs
+func (h *Handler) GetJob(c *gin.Context) {
+	id := c.Param("id")
+	var job core.Job
+
+	if err := h.db.Preload("Schema").Preload("Network").First(&job, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Job not found"})
+		return
+	}
+
+	// Get recent logs for this job
+	var logs []core.JobLog
+	h.db.Where("job_id = ?", id).Order("created_at DESC").Limit(10).Find(&logs)
+
+	c.JSON(http.StatusOK, gin.H{
+		"job":  job,
+		"logs": logs,
+	})
+}
+
+// GetJobLogs returns execution logs for a specific job
+func (h *Handler) GetJobLogs(c *gin.Context) {
+	id := c.Param("id")
+
+	var logs []core.JobLog
+	if err := h.db.Where("job_id = ?", id).Order("created_at DESC").Limit(50).Find(&logs).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, logs)
 }
 
 // UpdateAgentStatus updates agent status from listener

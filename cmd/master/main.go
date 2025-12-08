@@ -87,6 +87,7 @@ func initDatabase() (*gorm.DB, error) {
 		&core.Schema{},
 		&core.Network{},
 		&core.Job{},
+		&core.JobLog{},
 	); err != nil {
 		logger.Logger.Error().Err(err).Msg("Database migration failed")
 		return nil, err
@@ -136,6 +137,8 @@ func setupRouter(handler *server.Handler) *gin.Engine {
 		// Job routes
 		api.GET("/jobs", handler.GetJobs)
 		api.POST("/jobs", handler.CreateJob)
+		api.GET("/jobs/:id", handler.GetJob)
+		api.GET("/jobs/:id/logs", handler.GetJobLogs)
 		api.PUT("/jobs/:id", handler.UpdateJob)
 		api.DELETE("/jobs/:id", handler.DeleteJob)
 		api.POST("/jobs/:id/run", handler.RunJob)
@@ -148,6 +151,28 @@ func setupRouter(handler *server.Handler) *gin.Engine {
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
+
+	// Serve static files from frontend/dist for production
+	// Check if dist folder exists
+	distPath := "frontend/dist"
+	if _, err := os.Stat(distPath); err == nil {
+		logger.Logger.Info().Str("path", distPath).Msg("Serving frontend static files")
+
+		// Serve static assets (JS, CSS, images)
+		router.Static("/assets", distPath+"/assets")
+
+		// Serve index.html for all non-API routes (SPA support)
+		router.NoRoute(func(c *gin.Context) {
+			// Don't serve index.html for API routes
+			if len(c.Request.URL.Path) >= 4 && c.Request.URL.Path[:4] == "/api" {
+				c.JSON(404, gin.H{"error": "API endpoint not found"})
+				return
+			}
+			c.File(distPath + "/index.html")
+		})
+	} else {
+		logger.Logger.Warn().Msg("Frontend dist folder not found. Run 'npm run build' in frontend directory.")
+	}
 
 	return router
 }
