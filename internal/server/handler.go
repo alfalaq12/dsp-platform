@@ -3,10 +3,8 @@ package server
 import (
 	"dsp-platform/internal/auth"
 	"dsp-platform/internal/core"
-	"encoding/json"
 	"fmt"
 	"log"
-	"math/rand"
 	"net/http"
 	"time"
 
@@ -16,8 +14,9 @@ import (
 
 // Handler manages HTTP request handling
 type Handler struct {
-	db     *gorm.DB
-	agents map[string]*core.Network // In-memory agent tracking
+	db            *gorm.DB
+	agents        map[string]*core.Network // In-memory agent tracking
+	agentListener *AgentListener           // Reference to agent listener for commands
 }
 
 // NewHandler creates a new handler instance
@@ -239,7 +238,7 @@ func (h *Handler) DeleteJob(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Job deleted successfully"})
 }
 
-// RunJob executes a job manually
+// RunJob executes a job by sending command to the connected agent
 func (h *Handler) RunJob(c *gin.Context) {
 	id := c.Param("id")
 	var job core.Job
@@ -262,44 +261,64 @@ func (h *Handler) RunJob(c *gin.Context) {
 	}
 	h.db.Create(&jobLog)
 
-	// Execute job in goroutine for async processing
-	go func(j core.Job, logID uint) {
-		startTime := time.Now()
-		log.Printf("Executing job %d: %s", j.ID, j.Name)
-		log.Printf("Schema: %s", j.Schema.SQLCommand)
-		log.Printf("Network: %s (%s)", j.Network.Name, j.Network.IPAddress)
+	// Check if agent is connected
+	agentName := job.Network.Name
+	if h.agentListener == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Agent listener not initialized"})
+		return
+	}
 
-		// Simulate job execution with some sample data
-		time.Sleep(time.Duration(2+rand.Intn(3)) * time.Second)
+	conn := h.agentListener.GetConnection(agentName)
+	if conn == nil {
+		// Agent not connected - update status and return error
+		job.Status = "failed"
+		h.db.Save(&job)
+		jobLog.Status = "failed"
+		jobLog.ErrorMessage = fmt.Sprintf("Agent '%s' is not connected", agentName)
+		jobLog.CompletedAt = time.Now()
+		h.db.Save(&jobLog)
 
-		// Generate sample data for preview
-		sampleRecords := []map[string]interface{}{
-			{"id": 1, "name": "Sample Record 1", "created_at": time.Now().Add(-24 * time.Hour).Format(time.RFC3339)},
-			{"id": 2, "name": "Sample Record 2", "created_at": time.Now().Add(-12 * time.Hour).Format(time.RFC3339)},
-			{"id": 3, "name": "Sample Record 3", "created_at": time.Now().Format(time.RFC3339)},
-		}
-		sampleJSON, _ := json.Marshal(sampleRecords)
-		recordCount := 10 + rand.Intn(90) // Random 10-99 records
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":  fmt.Sprintf("Agent '%s' is not connected. Make sure the agent is running.", agentName),
+			"job":    job,
+			"log_id": jobLog.ID,
+		})
+		return
+	}
 
-		// Update job log with completion details
-		duration := time.Since(startTime).Milliseconds()
-		var jLog core.JobLog
-		h.db.First(&jLog, logID)
-		jLog.Status = "completed"
-		jLog.CompletedAt = time.Now()
-		jLog.Duration = duration
-		jLog.RecordCount = recordCount
-		jLog.SampleData = string(sampleJSON)
-		h.db.Save(&jLog)
+	// Send RUN_JOB command to agent
+	command := core.AgentMessage{
+		Type:      "RUN_JOB",
+		Timestamp: time.Now(),
+		Data: map[string]interface{}{
+			"job_id":       job.ID,
+			"log_id":       jobLog.ID,
+			"name":         job.Name,
+			"query":        job.Schema.SQLCommand,
+			"target_table": job.Schema.TargetTable,
+		},
+	}
 
-		// Update job status to completed
-		j.Status = "completed"
-		h.db.Save(&j)
-		log.Printf("Job %d completed in %dms, synced %d records", j.ID, duration, recordCount)
-	}(job, jobLog.ID)
+	if err := h.agentListener.SendCommandToAgent(agentName, command); err != nil {
+		job.Status = "failed"
+		h.db.Save(&job)
+		jobLog.Status = "failed"
+		jobLog.ErrorMessage = fmt.Sprintf("Failed to send command to agent: %v", err)
+		jobLog.CompletedAt = time.Now()
+		h.db.Save(&jobLog)
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":  fmt.Sprintf("Failed to send command to agent: %v", err),
+			"job":    job,
+			"log_id": jobLog.ID,
+		})
+		return
+	}
+
+	log.Printf("Sent RUN_JOB command to agent %s for job %d", agentName, job.ID)
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": fmt.Sprintf("Job %d started", job.ID),
+		"message": fmt.Sprintf("Job %d command sent to agent %s", job.ID, agentName),
 		"job":     job,
 		"log_id":  jobLog.ID,
 	})
@@ -394,4 +413,14 @@ func (h *Handler) GetAgentJobs(c *gin.Context) {
 
 	log.Printf("Agent %s requested jobs: %d jobs found", agentName, len(response))
 	c.JSON(http.StatusOK, response)
+}
+
+// GetConnectedAgents returns list of currently connected agents
+func (h *Handler) GetConnectedAgents(c *gin.Context) {
+	if h.agentListener == nil {
+		c.JSON(http.StatusOK, []string{})
+		return
+	}
+	agents := h.agentListener.GetConnectedAgents()
+	c.JSON(http.StatusOK, gin.H{"connected_agents": agents})
 }

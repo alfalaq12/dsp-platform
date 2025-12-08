@@ -415,8 +415,16 @@ func sendMessage(conn net.Conn, msg AgentMessage) error {
 	return err
 }
 
+// Global connection for sending responses
+var masterConn net.Conn
+
 func listenForResponses(conn net.Conn) {
+	masterConn = conn
 	scanner := bufio.NewScanner(conn)
+	// Increase buffer for large messages
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 10*1024*1024)
+
 	for scanner.Scan() {
 		var msg AgentMessage
 		if err := json.Unmarshal(scanner.Bytes(), &msg); err != nil {
@@ -442,8 +450,12 @@ func listenForResponses(conn net.Conn) {
 					Msg("Job configuration loaded from Master")
 			}
 
+		case "RUN_JOB":
+			// Handle immediate job execution command from master
+			go executeRunJobCommand(conn, msg)
+
 		case "COMMAND":
-			// Handle commands from master (future feature)
+			// Handle other commands from master
 			logger.Logger.Info().Msg("Received command from Master")
 		default:
 			logger.Logger.Warn().Str("type", msg.Type).Msg("Unknown message type")
@@ -452,6 +464,109 @@ func listenForResponses(conn net.Conn) {
 
 	if err := scanner.Err(); err != nil {
 		logger.Logger.Error().Err(err).Msg("Error reading from Master")
+	}
+}
+
+// executeRunJobCommand handles RUN_JOB command from master
+func executeRunJobCommand(conn net.Conn, msg AgentMessage) {
+	logger.Logger.Info().Msg("Executing RUN_JOB command from Master")
+
+	// Extract job details
+	jobID := uint(0)
+	if id, ok := msg.Data["job_id"].(float64); ok {
+		jobID = uint(id)
+	}
+
+	logID := uint(0)
+	if id, ok := msg.Data["log_id"].(float64); ok {
+		logID = uint(id)
+	}
+
+	query := ""
+	if q, ok := msg.Data["query"].(string); ok {
+		query = q
+	}
+
+	targetTable := ""
+	if t, ok := msg.Data["target_table"].(string); ok {
+		targetTable = t
+	}
+
+	jobName := ""
+	if n, ok := msg.Data["name"].(string); ok {
+		jobName = n
+	}
+
+	logger.Logger.Info().
+		Uint("job_id", jobID).
+		Uint("log_id", logID).
+		Str("job", jobName).
+		Str("query", query).
+		Msg("Processing RUN_JOB command")
+
+	// Connect to database and execute query
+	dbConn, err := database.Connect(DBConfig)
+	if err != nil {
+		logger.Logger.Error().Err(err).Msg("Failed to connect to database")
+		sendDataResponse(conn, jobID, logID, nil, 0, err.Error())
+		return
+	}
+	defer dbConn.Close()
+
+	// Execute the query
+	data, err := dbConn.ExecuteQuery(query)
+	if err != nil {
+		logger.Logger.Error().Err(err).Msg("Failed to execute query")
+		sendDataResponse(conn, jobID, logID, nil, 0, err.Error())
+		return
+	}
+
+	logger.Logger.Info().
+		Str("job", jobName).
+		Int("records", len(data)).
+		Str("target", targetTable).
+		Msg("Query executed successfully")
+
+	// Send response back to master
+	sendDataResponse(conn, jobID, logID, data, len(data), "")
+}
+
+// sendDataResponse sends data back to master after job execution
+func sendDataResponse(conn net.Conn, jobID, logID uint, records []map[string]interface{}, recordCount int, errorMsg string) {
+	status := "completed"
+	if errorMsg != "" {
+		status = "failed"
+	}
+
+	// Convert records to interface slice for JSON
+	var recordsInterface []interface{}
+	for _, r := range records {
+		recordsInterface = append(recordsInterface, r)
+	}
+
+	response := AgentMessage{
+		Type:      "DATA_RESPONSE",
+		AgentName: AgentName,
+		Status:    status,
+		Timestamp: time.Now(),
+		Data: map[string]interface{}{
+			"job_id":       jobID,
+			"log_id":       logID,
+			"status":       status,
+			"record_count": recordCount,
+			"records":      recordsInterface,
+			"error":        errorMsg,
+		},
+	}
+
+	if err := sendMessage(conn, response); err != nil {
+		logger.Logger.Error().Err(err).Msg("Failed to send data response")
+	} else {
+		logger.Logger.Info().
+			Uint("job_id", jobID).
+			Int("records", recordCount).
+			Str("status", status).
+			Msg("Data response sent to Master")
 	}
 }
 

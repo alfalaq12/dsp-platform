@@ -7,21 +7,35 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync"
 	"time"
 )
 
+// AgentConnection represents an active agent connection
+type AgentConnection struct {
+	Conn      net.Conn
+	AgentName string
+	Connected time.Time
+}
+
 // AgentListener handles TCP connections from Tenant Agents on port 447
 type AgentListener struct {
-	handler *Handler
-	port    string
+	handler     *Handler
+	port        string
+	connections map[string]*AgentConnection
+	mu          sync.RWMutex
 }
 
 // NewAgentListener creates a new agent listener
 func NewAgentListener(handler *Handler, port string) *AgentListener {
-	return &AgentListener{
-		handler: handler,
-		port:    port,
+	al := &AgentListener{
+		handler:     handler,
+		port:        port,
+		connections: make(map[string]*AgentConnection),
 	}
+	// Set reference in handler for bidirectional communication
+	handler.agentListener = al
+	return al
 }
 
 // Start begins listening for agent connections
@@ -48,12 +62,16 @@ func (al *AgentListener) Start() error {
 
 // handleConnection processes a single agent connection
 func (al *AgentListener) handleConnection(conn net.Conn) {
-	defer conn.Close()
-
 	clientAddr := conn.RemoteAddr().String()
 	log.Printf("New agent connection from %s", clientAddr)
 
+	var agentName string
+
 	scanner := bufio.NewScanner(conn)
+	// Increase buffer size for large data
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 10*1024*1024) // 10MB max
+
 	for scanner.Scan() {
 		data := scanner.Bytes()
 
@@ -63,6 +81,11 @@ func (al *AgentListener) handleConnection(conn net.Conn) {
 			continue
 		}
 
+		// Store agent name for cleanup
+		if msg.AgentName != "" {
+			agentName = msg.AgentName
+		}
+
 		al.processMessage(msg, clientAddr, conn)
 	}
 
@@ -70,7 +93,80 @@ func (al *AgentListener) handleConnection(conn net.Conn) {
 		log.Printf("Connection error from %s: %v", clientAddr, err)
 	}
 
+	// Cleanup on disconnect
+	if agentName != "" {
+		al.removeConnection(agentName)
+	}
+
 	log.Printf("Agent disconnected: %s", clientAddr)
+	conn.Close()
+}
+
+// storeConnection saves an agent connection for later use
+func (al *AgentListener) storeConnection(agentName string, conn net.Conn) {
+	al.mu.Lock()
+	defer al.mu.Unlock()
+
+	al.connections[agentName] = &AgentConnection{
+		Conn:      conn,
+		AgentName: agentName,
+		Connected: time.Now(),
+	}
+	log.Printf("Stored connection for agent: %s (total: %d)", agentName, len(al.connections))
+}
+
+// removeConnection removes an agent connection
+func (al *AgentListener) removeConnection(agentName string) {
+	al.mu.Lock()
+	defer al.mu.Unlock()
+
+	delete(al.connections, agentName)
+	log.Printf("Removed connection for agent: %s", agentName)
+}
+
+// GetConnection returns an agent's connection if available
+func (al *AgentListener) GetConnection(agentName string) net.Conn {
+	al.mu.RLock()
+	defer al.mu.RUnlock()
+
+	if ac, ok := al.connections[agentName]; ok {
+		return ac.Conn
+	}
+	return nil
+}
+
+// GetConnectedAgents returns list of connected agent names
+func (al *AgentListener) GetConnectedAgents() []string {
+	al.mu.RLock()
+	defer al.mu.RUnlock()
+
+	agents := make([]string, 0, len(al.connections))
+	for name := range al.connections {
+		agents = append(agents, name)
+	}
+	return agents
+}
+
+// SendCommandToAgent sends a command to a specific agent
+func (al *AgentListener) SendCommandToAgent(agentName string, msg core.AgentMessage) error {
+	conn := al.GetConnection(agentName)
+	if conn == nil {
+		return fmt.Errorf("agent %s is not connected", agentName)
+	}
+
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("failed to marshal command: %w", err)
+	}
+
+	data = append(data, '\n')
+	if _, err := conn.Write(data); err != nil {
+		al.removeConnection(agentName)
+		return fmt.Errorf("failed to send command: %w", err)
+	}
+
+	log.Printf("Sent command %s to agent %s", msg.Type, agentName)
+	return nil
 }
 
 // processMessage handles different types of agent messages
@@ -85,6 +181,10 @@ func (al *AgentListener) processMessage(msg core.AgentMessage, clientAddr string
 		al.handleHeartbeat(msg, clientAddr)
 	case "DATA_PUSH":
 		al.handleDataPush(msg, clientAddr)
+	case "DATA_SYNC":
+		al.handleDataSync(msg, clientAddr)
+	case "DATA_RESPONSE":
+		al.handleDataResponse(msg, clientAddr)
 	case "CONFIG_PULL":
 		al.handleConfigPull(msg, conn)
 	default:
@@ -95,6 +195,9 @@ func (al *AgentListener) processMessage(msg core.AgentMessage, clientAddr string
 // handleRegister processes agent registration
 func (al *AgentListener) handleRegister(msg core.AgentMessage, clientAddr string, conn net.Conn) {
 	al.handler.UpdateAgentStatus(msg.AgentName, "online", clientAddr)
+
+	// Store connection for later use (bidirectional communication)
+	al.storeConnection(msg.AgentName, conn)
 
 	// Send acknowledgment
 	response := core.AgentMessage{
@@ -138,12 +241,81 @@ func (al *AgentListener) handleDataSync(msg core.AgentMessage, clientAddr string
 			for i := 0; i < sampleSize; i++ {
 				log.Printf("Record %d: %v", i+1, records[i])
 			}
-
-			// TODO: Save records to master database
-			// For now, just acknowledge receipt
 		}
 	}
 
+	al.handler.UpdateAgentStatus(msg.AgentName, "online", clientAddr)
+}
+
+// handleDataResponse processes data responses from run job commands
+func (al *AgentListener) handleDataResponse(msg core.AgentMessage, clientAddr string) {
+	log.Printf("DATA_RESPONSE received from %s", msg.AgentName)
+
+	if msg.Data == nil {
+		log.Printf("No data in response")
+		return
+	}
+
+	// Extract job info
+	jobID := uint(0)
+	if id, ok := msg.Data["job_id"].(float64); ok {
+		jobID = uint(id)
+	}
+
+	recordCount := 0
+	if count, ok := msg.Data["record_count"].(float64); ok {
+		recordCount = int(count)
+	}
+
+	status := "completed"
+	if s, ok := msg.Data["status"].(string); ok {
+		status = s
+	}
+
+	errorMsg := ""
+	if e, ok := msg.Data["error"].(string); ok {
+		errorMsg = e
+		status = "failed"
+	}
+
+	// Get sample data
+	sampleData := ""
+	if records, ok := msg.Data["records"].([]interface{}); ok && len(records) > 0 {
+		// Take first 5 records as sample
+		sampleSize := 5
+		if len(records) < sampleSize {
+			sampleSize = len(records)
+		}
+		sample := records[:sampleSize]
+		sampleJSON, _ := json.Marshal(sample)
+		sampleData = string(sampleJSON)
+	}
+
+	// Update job log if we have a log_id
+	if logID, ok := msg.Data["log_id"].(float64); ok {
+		var jobLog core.JobLog
+		if err := al.handler.db.First(&jobLog, uint(logID)).Error; err == nil {
+			jobLog.Status = status
+			jobLog.CompletedAt = time.Now()
+			jobLog.Duration = time.Since(jobLog.StartedAt).Milliseconds()
+			jobLog.RecordCount = recordCount
+			jobLog.SampleData = sampleData
+			jobLog.ErrorMessage = errorMsg
+			al.handler.db.Save(&jobLog)
+			log.Printf("Updated job log %d: status=%s, records=%d", uint(logID), status, recordCount)
+		}
+	}
+
+	// Update job status
+	if jobID > 0 {
+		var job core.Job
+		if err := al.handler.db.First(&job, jobID).Error; err == nil {
+			job.Status = status
+			al.handler.db.Save(&job)
+		}
+	}
+
+	log.Printf("Job %d response: status=%s, records=%d", jobID, status, recordCount)
 	al.handler.UpdateAgentStatus(msg.AgentName, "online", clientAddr)
 }
 
