@@ -299,3 +299,34 @@ func (h *Handler) UpdateAgentStatus(agentName, status, ipAddress string) {
 	h.agents[agentName] = &network
 	log.Printf("Agent %s status updated: %s", agentName, status)
 }
+
+// GetAgentJobs returns jobs assigned to a specific agent
+func (h *Handler) GetAgentJobs(c *gin.Context) {
+	agentName := c.Param("name")
+
+	var jobs []core.Job
+	// Get all jobs for this agent/network with schema and network details
+	if err := h.db.Preload("Schema").Preload("Network").
+		Joins("JOIN networks ON jobs.network_id = networks.id").
+		Where("networks.name = ?", agentName).
+		Find(&jobs).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Format response with job details
+	var response []map[string]interface{}
+	for _, job := range jobs {
+		response = append(response, map[string]interface{}{
+			"job_id":       job.ID,
+			"name":         job.Name,
+			"schedule":     job.Schedule,
+			"query":        job.Schema.SQLCommand,
+			"target_table": job.Schema.TargetTable,
+			"status":       job.Status,
+		})
+	}
+
+	log.Printf("Agent %s requested jobs: %d jobs found", agentName, len(response))
+	c.JSON(http.StatusOK, response)
+}

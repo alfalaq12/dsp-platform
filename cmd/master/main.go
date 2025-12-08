@@ -139,6 +139,9 @@ func setupRouter(handler *server.Handler) *gin.Engine {
 		api.PUT("/jobs/:id", handler.UpdateJob)
 		api.DELETE("/jobs/:id", handler.DeleteJob)
 		api.POST("/jobs/:id/run", handler.RunJob)
+
+		// Agent config endpoint
+		api.GET("/jobs/agent/:name", handler.GetAgentJobs)
 	}
 
 	// Health check

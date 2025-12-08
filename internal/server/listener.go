@@ -158,13 +158,38 @@ func (al *AgentListener) handleDataPush(msg core.AgentMessage, clientAddr string
 
 // handleConfigPull sends configuration to requesting agents
 func (al *AgentListener) handleConfigPull(msg core.AgentMessage, conn net.Conn) {
-	// In production, fetch actual configuration from database
+	log.Printf("Agent %s requesting configuration", msg.AgentName)
+
+	// Query jobs for this agent
+	var jobs []core.Job
+	err := al.handler.db.Preload("Schema").Preload("Network").
+		Joins("JOIN networks ON jobs.network_id = networks.id").
+		Where("networks.name = ?", msg.AgentName).
+		Find(&jobs).Error
+
+	if err != nil {
+		log.Printf("Error fetching jobs for agent %s: %v", msg.AgentName, err)
+	}
+
+	// Build job configs
+	var jobConfigs []map[string]interface{}
+	for _, job := range jobs {
+		jobConfigs = append(jobConfigs, map[string]interface{}{
+			"job_id":       job.ID,
+			"name":         job.Name,
+			"schedule":     job.Schedule,
+			"query":        job.Schema.SQLCommand,
+			"target_table": job.Schema.TargetTable,
+		})
+	}
+
+	log.Printf("Sending %d jobs to agent %s", len(jobConfigs), msg.AgentName)
+
 	response := core.AgentMessage{
 		Type:      "CONFIG_RESPONSE",
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
-			"sync_interval": 60,
-			"schemas":       []string{},
+			"jobs": jobConfigs,
 		},
 	}
 
