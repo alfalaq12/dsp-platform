@@ -1,132 +1,224 @@
 # DSP Platform - Centralized Data Synchronization Platform
 
-A Master-Tenant architecture system for centralized data synchronization and management.
+Platform sinkronisasi data terpusat dengan arsitektur Master-Tenant untuk kebutuhan enterprise dan pemerintahan Indonesia.
 
-## Architecture
+## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────┐
-│         Master Server                   │
-│  ┌────────────────┐  ┌───────────────┐ │
-│  │  Web Console   │  │ Agent Listener│ │
-│  │   Port: 441    │  │  Port: 447    │ │
-│  └────────────────┘  └───────────────┘ │
-│         Gin HTTP         TCP Server     │
-└─────────────────────────────────────────┘
-              ▲                ▲
-              │                │
-              │                │ Heartbeat/Data
-              │                │
-         Web Dashboard    ┌────┴─────┐
-                          │  Tenant  │
-                          │  Agent   │
-                          └──────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                     Master Server                           │
+│  ┌────────────────────┐        ┌────────────────────────┐  │
+│  │    Web Console     │        │    Agent Listener      │  │
+│  │   (React + Vite)   │        │      TCP :447          │  │
+│  │    Served :5173    │        │                        │  │
+│  └─────────┬──────────┘        └────────────┬───────────┘  │
+│            │                                 │              │
+│  ┌─────────▼───────────────────────────────▼───────────┐   │
+│  │              Gin HTTP API :441                       │   │
+│  │          (REST + JWT Authentication)                 │   │
+│  └─────────────────────────────────────────────────────┘   │
+│            │                                                │
+│  ┌─────────▼─────────────────────────────────────────────┐ │
+│  │              SQLite Database (dsp.db)                 │ │
+│  │         Users | Schemas | Networks | Jobs             │ │
+│  └───────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+               ▲                           ▲
+               │ HTTP Request              │ TCP Connection
+               │                           │
+    ┌──────────┴──────────┐     ┌──────────┴──────────┐
+    │    Web Dashboard    │     │   Tenant Agents     │
+    │   (Admin Console)   │     │  (Multiple Sites)   │
+    └─────────────────────┘     └─────────────────────┘
 ```
 
-## Project Structure
+## 📂 Project Structure
 
 ```
 dsp-platform/
 ├── cmd/
-│   ├── master/          # Master Server entry point
-│   │   └── main.go      # HTTP :441 + TCP :447
-│   └── agent/           # Tenant Agent entry point
-│       └── main.go      # Connects to Master :447
+│   ├── master/                 # Master Server
+│   │   └── main.go             # HTTP :441 + TCP :447
+│   └── agent/                  # Tenant Agent
+│       ├── main.go             # Agent dengan database sync
+│       ├── scheduler.go        # Job scheduler
+│       ├── .env.example        # Environment template
+│       └── SETUP.md            # Setup guide
 ├── internal/
-│   ├── core/
-│   │   └── types.go     # Data structures (Schema, Network, Job)
 │   ├── auth/
-│   │   └── middleware.go # JWT authentication
+│   │   └── middleware.go       # JWT authentication
+│   ├── core/
+│   │   └── types.go            # Data structures
+│   ├── database/
+│   │   └── connection.go       # Database connector
+│   ├── logger/
+│   │   └── logger.go           # Structured logging (zerolog)
 │   └── server/
-│       ├── handler.go   # HTTP API handlers
-│       └── listener.go  # TCP agent listener
+│       ├── handler.go          # HTTP API handlers
+│       └── listener.go         # TCP agent listener
+├── frontend/                   # React + Vite Dashboard
+│   ├── src/
+│   │   ├── components/         # Reusable components
+│   │   │   └── Layout/         # Sidebar, Header
+│   │   ├── pages/
+│   │   │   ├── Dashboard.jsx   # Overview & stats
+│   │   │   ├── Schema.jsx      # SQL query management
+│   │   │   ├── Network.jsx     # Agent/source tracking
+│   │   │   ├── Jobs.jsx        # Sync job management
+│   │   │   └── Login.jsx       # Authentication
+│   │   ├── services/
+│   │   │   └── api.js          # Axios API client
+│   │   └── hooks/
+│   │       └── useAuth.js      # Auth hook
+│   └── package.json
+├── deployment/                 # Deployment scripts
+│   ├── DEPLOYMENT.md           # Full deployment guide
+│   ├── linux/
+│   │   ├── install.sh          # Linux installer
+│   │   ├── dsp-master.service  # Systemd master service
+│   │   └── dsp-agent.service   # Systemd agent service
+│   └── windows/
+│       └── install-service.ps1 # Windows service installer
+├── bin/                        # Build output directory
+├── logs/                       # Application logs
+├── build.sh                    # Linux/macOS build script
+├── build.ps1                   # Windows build script
+├── Makefile                    # Development commands
+├── QUICKSTART.md               # Quick start guide
+├── LOGGING.md                  # Logging documentation
 └── go.mod
 ```
 
-## Features
+## ✨ Features
 
 ### Master Server
-- **Web Console API** (Port 441)
-  - User authentication (JWT)
+- **REST API** (Port 441)
+  - JWT-based authentication
   - Schema management (SQL query definitions)
   - Network management (agent/source tracking)
-  - Job management (data sync jobs)
+  - Job management (sync job definitions)
+  - Agent job configuration endpoint
   
 - **Agent Listener** (Port 447)
-  - Accept agent connections (TCP)
-  - Process heartbeats
-  - Handle data push from agents
-  - Send configurations to agents
+  - TCP-based agent connections
+  - Real-time heartbeat monitoring
+  - Configuration push to agents
+  - Data sync reception
+
+- **Web Dashboard** (React + Vite)
+  - Modern, responsive UI dengan TailwindCSS
+  - Real-time agent status monitoring
+  - Schema, Network, dan Job management
+  - Dark mode support (coming soon)
 
 ### Tenant Agent
-- Auto-connect to Master server
-- Send heartbeat every 5 seconds
-- Push system metrics
-- Auto-reconnect on disconnection
+- Auto-connect ke Master server dengan reconnection
+- Dynamic job configuration dari web console
+- Multi-database support (PostgreSQL, MySQL, SQL Server)
+- Scheduled job execution dengan cron-like scheduling
+- Structured logging dengan file rotation
+- Windows & Linux service support
 
-## Quick Start
+## 🚀 Quick Start
 
-### 1. Install Dependencies
+### Prerequisites
+- Go 1.21+
+- Node.js 18+ (untuk frontend)
+- Git
+
+### 1. Clone & Install Dependencies
 
 ```bash
 cd dsp-platform
+
+# Backend dependencies
 go mod tidy
+
+# Frontend dependencies
+cd frontend
+npm install
+cd ..
 ```
 
 ### 2. Start Master Server
 
 ```bash
+# Development mode
 go run cmd/master/main.go
 ```
 
-The server will start:
-- HTTP API on `http://localhost:441`
-- Agent Listener on `tcp://localhost:447`
+Server akan start di:
+- HTTP API: `http://localhost:441`
+- Agent Listener: `tcp://localhost:447`
 
-### 3. Start Tenant Agent
-
-In a new terminal:
+### 3. Start Frontend Dashboard
 
 ```bash
-go run cmd/agent/main.go
+cd frontend
+npm run dev
 ```
 
-The agent will:
-- Connect to Master at `localhost:447`
-- Send registration message
-- Send heartbeat every 5 seconds
+Dashboard tersedia di `http://localhost:5173`
 
-## API Endpoints
+### 4. Start Tenant Agent (Optional)
+
+Buka terminal baru:
+
+```bash
+# Copy dan edit environment
+cd cmd/agent
+cp .env.example .env
+# Edit .env sesuai konfigurasi database
+
+# Run agent
+go run .
+```
+
+Agent akan:
+- Connect ke Master di `localhost:447`
+- Register dan kirim heartbeat setiap 5 detik
+- Pull job configuration dari Master
+- Execute scheduled sync jobs
+
+## 📡 API Endpoints
 
 ### Authentication
-- `POST /api/login` - User login
-  ```json
-  {
-    "username": "admin",
-    "password": "admin"
-  }
-  ```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/login` | User login, returns JWT token |
 
 ### Schemas (Protected)
-- `GET /api/schemas` - List all schemas
-- `POST /api/schemas` - Create schema
-- `PUT /api/schemas/:id` - Update schema
-- `DELETE /api/schemas/:id` - Delete schema
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/schemas` | List all schemas |
+| POST | `/api/schemas` | Create schema |
+| PUT | `/api/schemas/:id` | Update schema |
+| DELETE | `/api/schemas/:id` | Delete schema |
 
 ### Networks (Protected)
-- `GET /api/networks` - List all networks
-- `POST /api/networks` - Create network
-- `PUT /api/networks/:id` - Update network
-- `DELETE /api/networks/:id` - Delete network
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/networks` | List all networks |
+| POST | `/api/networks` | Create network |
+| PUT | `/api/networks/:id` | Update network |
+| DELETE | `/api/networks/:id` | Delete network |
 
 ### Jobs (Protected)
-- `GET /api/jobs` - List all jobs
-- `POST /api/jobs` - Create job
-- `PUT /api/jobs/:id` - Update job
-- `DELETE /api/jobs/:id` - Delete job
-- `POST /api/jobs/:id/run` - Execute job manually
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/jobs` | List all jobs |
+| POST | `/api/jobs` | Create job |
+| PUT | `/api/jobs/:id` | Update job |
+| DELETE | `/api/jobs/:id` | Delete job |
+| POST | `/api/jobs/:id/run` | Run job manually |
+| GET | `/api/jobs/agent/:name` | Get jobs for specific agent |
 
-## Agent Protocol
+### Health Check
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Server health status |
+
+## 🔧 Agent Protocol
 
 Messages are JSON-based, newline-delimited:
 
@@ -139,7 +231,7 @@ Messages are JSON-based, newline-delimited:
   "timestamp": "2025-12-03T20:50:30Z",
   "data": {
     "version": "1.0.0",
-    "os": "linux"
+    "sync_enabled": true
   }
 }
 ```
@@ -153,69 +245,133 @@ Messages are JSON-based, newline-delimited:
   "timestamp": "2025-12-03T20:50:35Z",
   "data": {
     "cpu_usage": 45.2,
-    "memory_usage": 62.8
+    "memory_usage": 1024
   }
 }
 ```
 
-## Testing
-
-### Test Login API
-```bash
-curl -X POST http://localhost:441/api/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin"}'
+### Config Pull Request
+```json
+{
+  "type": "CONFIG_PULL",
+  "agent_name": "tenant-1",
+  "timestamp": "2025-12-03T20:50:30Z"
+}
 ```
 
-### Test Schema Creation
-```bash
-curl -X POST http://localhost:441/api/schemas \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -d '{
-    "name": "User Data Sync",
-    "sql_command": "SELECT * FROM users WHERE updated_at > ?",
-    "target_table": "sync_users"
-  }'
+### Data Sync
+```json
+{
+  "type": "DATA_SYNC",
+  "agent_name": "tenant-1",
+  "status": "success",
+  "timestamp": "2025-12-03T20:50:35Z",
+  "data": {
+    "job_id": 1,
+    "job_name": "User Data Sync",
+    "target_table": "sync_users",
+    "record_count": 150,
+    "records": [...]
+  }
+}
 ```
 
-### Test Agent Connection
-```bash
-# Start agent
-go run cmd/agent/main.go
+## 🛠️ Build for Production
 
-# Check logs for heartbeat messages
+### Linux/macOS
+```bash
+chmod +x build.sh
+./build.sh
 ```
 
-## Database
+### Windows
+```powershell
+.\build.ps1
+```
 
-SQLite database (`dsp.db`) is created automatically with these tables:
-- `users` - Authentication
+Output:
+- `bin/linux/dsp-master` & `bin/linux/dsp-agent`
+- `bin/windows/dsp-master.exe` & `bin/windows/dsp-agent.exe`
+
+## 📦 Deployment
+
+Lihat [deployment/DEPLOYMENT.md](deployment/DEPLOYMENT.md) untuk panduan lengkap deployment di:
+- **Linux** sebagai systemd service
+- **Windows** sebagai Windows Service (via NSSM)
+- **Docker** dengan docker-compose
+
+## 🗄️ Database
+
+SQLite database (`dsp.db`) dibuat otomatis dengan tabel:
+- `users` - User authentication
 - `schemas` - SQL query definitions
 - `networks` - Agent/source tracking
 - `jobs` - Sync job definitions
 
-## Default Credentials
+## 🔑 Default Credentials
 
-- **Username:** `admin`
-- **Password:** `admin`
+| Username | Password |
+|----------|----------|
+| admin | admin |
 
-> ⚠️ Change these in production!
+> ⚠️ **PENTING:** Ganti password default sebelum production deployment!
 
-## Next Steps
+## 📋 Makefile Commands
 
-1. **Frontend Development:**
-   - Create React + Vite dashboard
-   - Implement Schema, Network, Jobs pages
-   - Add real-time agent status updates
+```bash
+make dev         # Run master server (development)
+make agent       # Run agent (development)
+make build       # Build all binaries
+make frontend    # Run frontend dev server
+make clean       # Clean build artifacts
+make test        # Run tests
+```
 
-2. **Production Enhancements:**
-   - Add password hashing (bcrypt)
-   - Implement TLS for agent connections
-   - Add job scheduling (cron)
-   - Metrics and monitoring
-   - PostgreSQL migration
+## 📚 Documentation
 
-## License
+| Document | Description |
+|----------|-------------|
+| [QUICKSTART.md](QUICKSTART.md) | Quick start guide |
+| [LOGGING.md](LOGGING.md) | Logging system documentation |
+| [deployment/DEPLOYMENT.md](deployment/DEPLOYMENT.md) | Production deployment guide |
+| [cmd/agent/SETUP.md](cmd/agent/SETUP.md) | Agent setup guide |
 
-MIT
+## 🔒 Security Recommendations
+
+- [ ] Change default admin password
+- [ ] Use strong JWT secret (set `JWT_SECRET` env)
+- [ ] Enable HTTPS with valid SSL certificate
+- [ ] Configure firewall rules (ports 441, 447)
+- [ ] Run services with dedicated user (not root/Administrator)
+- [ ] Enable database encryption for production
+- [ ] Set up regular backup strategy
+
+## 📈 Roadmap
+
+- [x] Master Server dengan HTTP API
+- [x] Tenant Agent dengan auto-reconnect
+- [x] Web Dashboard (React + Vite + TailwindCSS)
+- [x] JWT Authentication
+- [x] Dynamic job configuration dari web console
+- [x] Multi-database support (PostgreSQL, MySQL, SQL Server)
+- [x] Linux & Windows service deployment
+- [x] Structured logging dengan file rotation
+- [x] Responsive dashboard UI
+- [ ] Real-time WebSocket updates
+- [ ] Dark mode toggle
+- [ ] PostgreSQL support untuk Master database
+- [ ] Job history & audit log
+- [ ] Agent health metrics dashboard
+- [ ] TLS encryption untuk agent connections
+- [ ] Multi-user dengan role-based access
+
+## 📞 Support
+
+Untuk bantuan deployment di lingkungan pemerintahan Indonesia:
+- Dokumentasi: README.md & QUICKSTART.md
+- Deployment Guide: deployment/DEPLOYMENT.md
+- Contact: support@dsp-platform.id
+
+## 📄 License
+
+MIT License - lihat file LICENSE untuk detail.
