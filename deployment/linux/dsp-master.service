@@ -1,23 +1,24 @@
 [Unit]
 Description=DSP Platform Master Server
-Documentation=https://github.com/your-org/dsp-platform
+Documentation=https://github.com/alfalaq12/dsp-platform
 After=network.target postgresql.service
 
 [Service]
 Type=simple
-User=dsp
-Group=dsp
+User=root
+Group=root
 WorkingDirectory=/opt/dsp-platform
 ExecStart=/opt/dsp-platform/dsp-master
 Restart=on-failure
 RestartSec=10s
 
-# Security settings
-NoNewPrivileges=true
+# Allow binding to privileged ports (< 1024)
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+# Security settings (relaxed for root)
+NoNewPrivileges=false
 PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/opt/dsp-platform/data /opt/dsp-platform/logs
+ReadWritePaths=/opt/dsp-platform
 
 # Logging
 StandardOutput=journal
