@@ -3,7 +3,7 @@ import { getTargetDBConfig, updateTargetDBConfig } from '../services/api';
 import { useToast, ToastContainer } from '../components/Toast';
 
 function Settings() {
-    const { toasts, showToast, removeToast } = useToast();
+    const { toasts, addToast, removeToast } = useToast();
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [config, setConfig] = useState({
@@ -35,7 +35,7 @@ function Settings() {
             });
         } catch (error) {
             console.error('Failed to load config:', error);
-            showToast('Failed to load settings', 'error');
+            addToast('Failed to load settings', 'error');
         } finally {
             setIsLoading(false);
         }
@@ -46,10 +46,10 @@ function Settings() {
         try {
             setIsSaving(true);
             await updateTargetDBConfig(config);
-            showToast('Target database configuration saved!', 'success');
+            addToast('Target database configuration saved!', 'success');
         } catch (error) {
             console.error('Failed to save config:', error);
-            showToast('Failed to save settings', 'error');
+            addToast('Failed to save settings', 'error');
         } finally {
             setIsSaving(false);
         }
