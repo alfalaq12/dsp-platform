@@ -385,23 +385,42 @@ func executeRunJobCommand(conn net.Conn, msg AgentMessage) {
 	}
 
 	logID := uint(0)
-	if id, ok := msg.Data["log_id"].(float64); ok {
+	if id, ok := msg.Data["job_log_id"].(float64); ok {
 		logID = uint(id)
 	}
 
+	// Try to get query from schema object first (from scheduler)
 	query := ""
-	if q, ok := msg.Data["query"].(string); ok {
-		query = q
-	}
-
 	targetTable := ""
-	if t, ok := msg.Data["target_table"].(string); ok {
-		targetTable = t
+	jobName := ""
+
+	if schema, ok := msg.Data["schema"].(map[string]interface{}); ok {
+		if q, ok := schema["sql_command"].(string); ok {
+			query = q
+		}
+		if t, ok := schema["target_table"].(string); ok {
+			targetTable = t
+		}
+		if n, ok := schema["name"].(string); ok {
+			jobName = n
+		}
 	}
 
-	jobName := ""
-	if n, ok := msg.Data["name"].(string); ok {
-		jobName = n
+	// Fallback to direct keys (legacy)
+	if query == "" {
+		if q, ok := msg.Data["query"].(string); ok {
+			query = q
+		}
+	}
+	if targetTable == "" {
+		if t, ok := msg.Data["target_table"].(string); ok {
+			targetTable = t
+		}
+	}
+	if jobName == "" {
+		if n, ok := msg.Data["name"].(string); ok {
+			jobName = n
+		}
 	}
 
 	logger.Logger.Info().
