@@ -3,6 +3,7 @@ package server
 import (
 	"dsp-platform/internal/auth"
 	"dsp-platform/internal/core"
+	"dsp-platform/internal/database"
 	"fmt"
 	"log"
 	"net/http"
@@ -539,4 +540,130 @@ func (h *Handler) UpdateTargetDBConfig(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Target database configuration updated"})
+}
+
+// TestTargetDBConnection tests connection to target database
+func (h *Handler) TestTargetDBConnection(c *gin.Context) {
+	var config struct {
+		Driver   string `json:"driver"`
+		Host     string `json:"host"`
+		Port     string `json:"port"`
+		User     string `json:"user"`
+		Password string `json:"password"`
+		DBName   string `json:"db_name"`
+		SSLMode  string `json:"sslmode"`
+	}
+
+	if err := c.ShouldBindJSON(&config); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": err.Error()})
+		return
+	}
+
+	// Create database config
+	dbConfig := database.Config{
+		Driver:   config.Driver,
+		Host:     config.Host,
+		Port:     config.Port,
+		User:     config.User,
+		Password: config.Password,
+		DBName:   config.DBName,
+		SSLMode:  config.SSLMode,
+	}
+
+	if dbConfig.Driver == "" {
+		dbConfig.Driver = "postgres"
+	}
+	if dbConfig.Port == "" {
+		dbConfig.Port = "5432"
+	}
+	if dbConfig.SSLMode == "" {
+		dbConfig.SSLMode = "disable"
+	}
+
+	// Try to connect
+	startTime := time.Now()
+	conn, err := database.Connect(dbConfig)
+	duration := time.Since(startTime).Milliseconds()
+
+	if err != nil {
+		log.Printf("Test connection failed: %v", err)
+		c.JSON(http.StatusOK, gin.H{
+			"success":  false,
+			"error":    err.Error(),
+			"duration": duration,
+		})
+		return
+	}
+	defer conn.Close()
+
+	// Get database version
+	var version string
+	rows, err := conn.ExecuteQuery("SELECT version()")
+	if err == nil && len(rows) > 0 {
+		if v, ok := rows[0]["version"]; ok {
+			version = fmt.Sprintf("%v", v)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":  true,
+		"message":  "Connection successful",
+		"duration": duration,
+		"version":  version,
+		"host":     config.Host,
+		"port":     config.Port,
+		"database": config.DBName,
+	})
+}
+
+// TestNetworkConnection sends test command to agent to test source DB
+func (h *Handler) TestNetworkConnection(c *gin.Context) {
+	id := c.Param("id")
+
+	var network core.Network
+	if err := h.db.First(&network, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"success": false, "error": "Network not found"})
+		return
+	}
+
+	// Check if agent is connected
+	if h.agentListener == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"success": false, "error": "Agent listener not available"})
+		return
+	}
+
+	// Send TEST_CONNECTION command to agent
+	command := core.AgentMessage{
+		Type:      "TEST_CONNECTION",
+		Timestamp: time.Now(),
+		Data: map[string]interface{}{
+			"network_id": network.ID,
+			"db_config": map[string]interface{}{
+				"driver":   network.DBDriver,
+				"host":     network.DBHost,
+				"port":     network.DBPort,
+				"user":     network.DBUser,
+				"password": network.DBPassword,
+				"db_name":  network.DBName,
+				"sslmode":  network.DBSSLMode,
+			},
+		},
+	}
+
+	err := h.agentListener.SendCommandToAgent(network.Name, command)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"error":   fmt.Sprintf("Agent not connected: %v", err),
+		})
+		return
+	}
+
+	// Note: For now, we just confirm the command was sent
+	// In a full implementation, we'd wait for the response
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Test command sent to agent",
+		"agent":   network.Name,
+	})
 }

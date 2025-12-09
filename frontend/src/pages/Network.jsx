@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Plus, Edit, Trash2, Network as NetworkIcon, Circle, Eye, Loader2 } from 'lucide-react';
-import { getNetworks, createNetwork, updateNetwork, deleteNetwork } from '../services/api';
+import { Plus, Edit, Trash2, Network as NetworkIcon, Circle, Eye, Loader2, Zap } from 'lucide-react';
+import { getNetworks, createNetwork, updateNetwork, deleteNetwork, testNetworkConnection } from '../services/api';
 import { useToast, ToastContainer, ConfirmModal, ViewModal } from '../components/Toast';
 
 function Network() {
@@ -25,6 +25,7 @@ function Network() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [selectedNetwork, setSelectedNetwork] = useState(null);
     const [deleteTarget, setDeleteTarget] = useState(null);
+    const [testingNetwork, setTestingNetwork] = useState(null);
     const { toasts, addToast, removeToast } = useToast();
 
     useEffect(() => {
@@ -104,6 +105,27 @@ function Network() {
         });
         setEditingId(null);
         setShowForm(false);
+    };
+
+    const handleTestConnection = async (network) => {
+        if (!network.db_host) {
+            addToast('No database configured for this network', 'warning');
+            return;
+        }
+        try {
+            setTestingNetwork(network.id);
+            const response = await testNetworkConnection(network.id);
+            if (response.data.success) {
+                addToast(`Test command sent to agent "${network.name}"`, 'success');
+            } else {
+                addToast(response.data.error || 'Test failed', 'error');
+            }
+        } catch (error) {
+            console.error('Test failed:', error);
+            addToast('Failed to send test command: ' + (error.response?.data?.error || error.message), 'error');
+        } finally {
+            setTestingNetwork(null);
+        }
     };
 
     return (
@@ -275,6 +297,18 @@ function Network() {
                                 <p className="text-sm text-slate-400">{network.ip_address}</p>
                             </div>
                             <div className="flex gap-1">
+                                <button
+                                    onClick={() => handleTestConnection(network)}
+                                    disabled={testingNetwork === network.id}
+                                    className="action-btn bg-amber-600/20 hover:bg-amber-600/40 text-amber-400"
+                                    title="Test Connection"
+                                >
+                                    {testingNetwork === network.id ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                        <Zap className="w-4 h-4" />
+                                    )}
+                                </button>
                                 <button
                                     onClick={() => setSelectedNetwork(network)}
                                     className="action-btn action-btn-view"

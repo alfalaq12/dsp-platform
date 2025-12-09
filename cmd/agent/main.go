@@ -565,6 +565,10 @@ func listenForResponses(conn net.Conn) {
 			// Handle immediate job execution command from master
 			go executeRunJobCommand(conn, msg)
 
+		case "TEST_CONNECTION":
+			// Handle test connection command from master
+			go executeTestConnection(conn, msg)
+
 		case "COMMAND":
 			// Handle other commands from master
 			logger.Logger.Info().Msg("Received command from Master")
@@ -700,4 +704,107 @@ func reconnect() (net.Conn, error) {
 	}
 
 	return nil, fmt.Errorf("failed to reconnect after %d attempts", maxRetries)
+}
+
+// executeTestConnection handles TEST_CONNECTION command from master
+func executeTestConnection(conn net.Conn, msg AgentMessage) {
+	logger.Logger.Info().Msg("Executing TEST_CONNECTION command from Master")
+
+	startTime := time.Now()
+
+	// Extract DB config from message
+	var testConfig database.Config
+	if dbConfig, ok := msg.Data["db_config"].(map[string]interface{}); ok {
+		if v, ok := dbConfig["driver"].(string); ok {
+			testConfig.Driver = v
+		}
+		if v, ok := dbConfig["host"].(string); ok {
+			testConfig.Host = v
+		}
+		if v, ok := dbConfig["port"].(string); ok {
+			testConfig.Port = v
+		}
+		if v, ok := dbConfig["user"].(string); ok {
+			testConfig.User = v
+		}
+		if v, ok := dbConfig["password"].(string); ok {
+			testConfig.Password = v
+		}
+		if v, ok := dbConfig["db_name"].(string); ok {
+			testConfig.DBName = v
+		}
+		if v, ok := dbConfig["sslmode"].(string); ok {
+			testConfig.SSLMode = v
+		}
+	}
+
+	// Use current config if not provided
+	if testConfig.Host == "" {
+		testConfig = DBConfig
+	}
+
+	// Set defaults
+	if testConfig.Driver == "" {
+		testConfig.Driver = "postgres"
+	}
+	if testConfig.Port == "" {
+		testConfig.Port = "5432"
+	}
+	if testConfig.SSLMode == "" {
+		testConfig.SSLMode = "disable"
+	}
+
+	// Try to connect
+	dbConn, err := database.Connect(testConfig)
+	duration := time.Since(startTime).Milliseconds()
+
+	response := AgentMessage{
+		Type:      "TEST_CONNECTION_RESULT",
+		AgentName: AgentName,
+		Timestamp: time.Now(),
+		Data:      make(map[string]interface{}),
+	}
+
+	if err != nil {
+		logger.Logger.Error().Err(err).Msg("Test connection failed")
+		response.Data["success"] = false
+		response.Data["error"] = err.Error()
+		response.Data["duration"] = duration
+	} else {
+		defer dbConn.Close()
+
+		// Get database version
+		var version string
+		rows, err := dbConn.ExecuteQuery("SELECT version()")
+		if err == nil && len(rows) > 0 {
+			if v, ok := rows[0]["version"]; ok {
+				version = fmt.Sprintf("%v", v)
+			}
+		}
+
+		logger.Logger.Info().
+			Str("host", testConfig.Host).
+			Int64("duration_ms", duration).
+			Msg("Test connection successful")
+
+		response.Data["success"] = true
+		response.Data["message"] = "Connection successful"
+		response.Data["duration"] = duration
+		response.Data["version"] = version
+		response.Data["host"] = testConfig.Host
+		response.Data["port"] = testConfig.Port
+		response.Data["database"] = testConfig.DBName
+	}
+
+	// Send response to master
+	data, err := json.Marshal(response)
+	if err != nil {
+		logger.Logger.Error().Err(err).Msg("Failed to marshal test result")
+		return
+	}
+	data = append(data, '\n')
+
+	if _, err := conn.Write(data); err != nil {
+		logger.Logger.Error().Err(err).Msg("Failed to send test result to Master")
+	}
 }

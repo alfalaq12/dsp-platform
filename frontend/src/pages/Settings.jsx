@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { getTargetDBConfig, updateTargetDBConfig } from '../services/api';
+import { getTargetDBConfig, updateTargetDBConfig, testTargetDBConnection } from '../services/api';
 import { useToast, ToastContainer } from '../components/Toast';
 
 function Settings() {
     const { toasts, addToast, removeToast } = useToast();
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [isTesting, setIsTesting] = useState(false);
+    const [testResult, setTestResult] = useState(null);
     const [config, setConfig] = useState({
         driver: 'postgres',
         host: '',
@@ -58,6 +60,30 @@ function Settings() {
     const handleChange = (e) => {
         const { name, value } = e.target;
         setConfig(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleTest = async () => {
+        if (!config.host) {
+            addToast('Please enter host address first', 'warning');
+            return;
+        }
+        try {
+            setIsTesting(true);
+            setTestResult(null);
+            const response = await testTargetDBConnection(config);
+            setTestResult(response.data);
+            if (response.data.success) {
+                addToast('Connection successful!', 'success');
+            } else {
+                addToast('Connection failed: ' + response.data.error, 'error');
+            }
+        } catch (error) {
+            console.error('Test failed:', error);
+            setTestResult({ success: false, error: error.message });
+            addToast('Test failed: ' + error.message, 'error');
+        } finally {
+            setIsTesting(false);
+        }
     };
 
     if (isLoading) {
@@ -185,7 +211,27 @@ function Settings() {
                         </div>
                     </div>
 
-                    <div className="flex justify-end pt-4">
+                    <div className="flex justify-between items-center pt-4 border-t border-gray-700 mt-4">
+                        <button
+                            type="button"
+                            onClick={handleTest}
+                            disabled={isTesting}
+                            className="px-6 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg font-medium transition-all duration-200 flex items-center gap-2 disabled:opacity-50"
+                        >
+                            {isTesting ? (
+                                <>
+                                    <div className="spinner w-4 h-4"></div>
+                                    Testing...
+                                </>
+                            ) : (
+                                <>
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                    </svg>
+                                    Test Connection
+                                </>
+                            )}
+                        </button>
                         <button
                             type="submit"
                             disabled={isSaving}
@@ -207,6 +253,40 @@ function Settings() {
                         </button>
                     </div>
                 </form>
+
+                {/* Test Result */}
+                {testResult && (
+                    <div className={`mt-4 p-4 rounded-lg border ${testResult.success ? 'bg-emerald-900/30 border-emerald-700/50' : 'bg-red-900/30 border-red-700/50'}`}>
+                        <div className="flex items-center gap-2 mb-2">
+                            {testResult.success ? (
+                                <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            ) : (
+                                <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            )}
+                            <span className={`font-semibold ${testResult.success ? 'text-emerald-300' : 'text-red-300'}`}>
+                                {testResult.success ? 'Connection Successful' : 'Connection Failed'}
+                            </span>
+                            {testResult.duration && (
+                                <span className="text-gray-400 text-sm">({testResult.duration}ms)</span>
+                            )}
+                        </div>
+                        {testResult.success ? (
+                            <div className="text-sm text-gray-300 space-y-1">
+                                <p><span className="text-gray-500">Host:</span> {testResult.host}:{testResult.port}</p>
+                                <p><span className="text-gray-500">Database:</span> {testResult.database}</p>
+                                {testResult.version && (
+                                    <p className="text-xs text-gray-500 break-all">{testResult.version}</p>
+                                )}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-red-300">{testResult.error}</p>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Info Box */}

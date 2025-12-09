@@ -152,6 +152,10 @@ func setupRouter(handler *server.Handler) *gin.Engine {
 		api.POST("/settings", handler.UpdateSetting)
 		api.GET("/settings/target-db", handler.GetTargetDBConfig)
 		api.POST("/settings/target-db", handler.UpdateTargetDBConfig)
+		api.POST("/settings/target-db/test", handler.TestTargetDBConnection)
+
+		// Network test connection
+		api.POST("/networks/:id/test", handler.TestNetworkConnection)
 	}
 
 	// Health check

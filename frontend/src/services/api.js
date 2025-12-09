@@ -60,5 +60,9 @@ export const getSettings = () => api.get('/settings');
 export const updateSetting = (key, value) => api.post('/settings', { key, value });
 export const getTargetDBConfig = () => api.get('/settings/target-db');
 export const updateTargetDBConfig = (config) => api.post('/settings/target-db', config);
+export const testTargetDBConnection = (config) => api.post('/settings/target-db/test', config);
+
+// Test connections
+export const testNetworkConnection = (id) => api.post(`/networks/${id}/test`);
 
 export default api;
