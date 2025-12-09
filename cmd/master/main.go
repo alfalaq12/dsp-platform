@@ -88,6 +88,7 @@ func initDatabase() (*gorm.DB, error) {
 		&core.Network{},
 		&core.Job{},
 		&core.JobLog{},
+		&core.Settings{},
 	); err != nil {
 		logger.Logger.Error().Err(err).Msg("Database migration failed")
 		return nil, err
@@ -145,6 +146,12 @@ func setupRouter(handler *server.Handler) *gin.Engine {
 
 		// Agent config endpoint
 		api.GET("/jobs/agent/:name", handler.GetAgentJobs)
+
+		// Settings routes
+		api.GET("/settings", handler.GetSettings)
+		api.POST("/settings", handler.UpdateSetting)
+		api.GET("/settings/target-db", handler.GetTargetDBConfig)
+		api.POST("/settings/target-db", handler.UpdateTargetDBConfig)
 	}
 
 	// Health check

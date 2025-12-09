@@ -23,6 +23,15 @@ type Network struct {
 	LastSeen  time.Time `json:"last_seen"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+
+	// Source Database Configuration (for agent to use)
+	DBDriver   string `json:"db_driver" gorm:"default:'postgres'"`
+	DBHost     string `json:"db_host"`
+	DBPort     string `json:"db_port" gorm:"default:'5432'"`
+	DBUser     string `json:"db_user"`
+	DBPassword string `json:"db_password"`
+	DBName     string `json:"db_name"`
+	DBSSLMode  string `json:"db_sslmode" gorm:"default:'disable'"`
 }
 
 // Job represents a data synchronization job linking a Schema to a Network
@@ -91,4 +100,24 @@ type JobLog struct {
 
 	// Relations
 	Job Job `json:"job,omitempty" gorm:"foreignKey:JobID"`
+}
+
+// Settings represents global application settings
+type Settings struct {
+	ID        uint      `json:"id" gorm:"primaryKey"`
+	Key       string    `json:"key" gorm:"uniqueIndex;not null"`
+	Value     string    `json:"value" gorm:"type:text"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// TargetDBConfig represents target database configuration for sync
+type TargetDBConfig struct {
+	Driver   string `json:"driver"`
+	Host     string `json:"host"`
+	Port     string `json:"port"`
+	User     string `json:"user"`
+	Password string `json:"password"`
+	DBName   string `json:"db_name"`
+	SSLMode  string `json:"sslmode"`
 }

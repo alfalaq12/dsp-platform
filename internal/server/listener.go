@@ -3,6 +3,7 @@ package server
 import (
 	"bufio"
 	"dsp-platform/internal/core"
+	"dsp-platform/internal/database"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -291,6 +292,22 @@ func (al *AgentListener) handleDataResponse(msg core.AgentMessage, clientAddr st
 		sampleData = string(sampleJSON)
 	}
 
+	// Get target table from job's schema
+	targetTable := ""
+	if jobID > 0 {
+		var job core.Job
+		if err := al.handler.db.Preload("Schema").First(&job, jobID).Error; err == nil {
+			targetTable = job.Schema.TargetTable
+		}
+	}
+
+	// Insert data into target database
+	insertedCount := 0
+	if records, ok := msg.Data["records"].([]interface{}); ok && len(records) > 0 && targetTable != "" {
+		insertedCount = al.insertToTargetDB(targetTable, records)
+		log.Printf("Inserted %d records into target table '%s'", insertedCount, targetTable)
+	}
+
 	// Update job log if we have a log_id
 	if logID, ok := msg.Data["log_id"].(float64); ok {
 		var jobLog core.JobLog
@@ -302,7 +319,7 @@ func (al *AgentListener) handleDataResponse(msg core.AgentMessage, clientAddr st
 			jobLog.SampleData = sampleData
 			jobLog.ErrorMessage = errorMsg
 			al.handler.db.Save(&jobLog)
-			log.Printf("Updated job log %d: status=%s, records=%d", uint(logID), status, recordCount)
+			log.Printf("Updated job log %d: status=%s, records=%d, inserted=%d", uint(logID), status, recordCount, insertedCount)
 		}
 	}
 
@@ -315,8 +332,95 @@ func (al *AgentListener) handleDataResponse(msg core.AgentMessage, clientAddr st
 		}
 	}
 
-	log.Printf("Job %d response: status=%s, records=%d", jobID, status, recordCount)
+	log.Printf("Job %d response: status=%s, records=%d, inserted=%d", jobID, status, recordCount, insertedCount)
 	al.handler.UpdateAgentStatus(msg.AgentName, "online", clientAddr)
+}
+
+// insertToTargetDB connects to target database and inserts records
+func (al *AgentListener) insertToTargetDB(tableName string, records []interface{}) int {
+	// Load target database config from database settings
+	config := al.loadTargetDBConfig()
+
+	// Check if target DB is configured
+	if config.Password == "" && config.Host == "" {
+		log.Printf("Target database not configured, skipping insert")
+		return 0
+	}
+
+	// Connect to target database
+	targetConn, err := database.ConnectTarget(config)
+	if err != nil {
+		log.Printf("Failed to connect to target database: %v", err)
+		return 0
+	}
+	defer targetConn.Close()
+
+	// Convert records to map format
+	var recordMaps []map[string]interface{}
+	for _, r := range records {
+		if rec, ok := r.(map[string]interface{}); ok {
+			recordMaps = append(recordMaps, rec)
+		}
+	}
+
+	if len(recordMaps) == 0 {
+		log.Printf("No valid records to insert")
+		return 0
+	}
+
+	// Ensure table exists
+	if err := targetConn.EnsureTable(tableName, recordMaps[0]); err != nil {
+		log.Printf("Failed to ensure table: %v", err)
+		return 0
+	}
+
+	// Insert records
+	inserted, err := targetConn.InsertBatch(tableName, recordMaps)
+	if err != nil {
+		log.Printf("Insert batch error: %v", err)
+	}
+
+	return inserted
+}
+
+// loadTargetDBConfig loads target database config from Settings table
+func (al *AgentListener) loadTargetDBConfig() database.TargetConfig {
+	config := database.TargetConfig{
+		Driver:  "postgres",
+		Port:    "5432",
+		SSLMode: "disable",
+	}
+
+	keys := []string{"target_db_driver", "target_db_host", "target_db_port", "target_db_user", "target_db_password", "target_db_name", "target_db_sslmode"}
+	var settings []core.Settings
+	al.handler.db.Where("key IN ?", keys).Find(&settings)
+
+	for _, s := range settings {
+		switch s.Key {
+		case "target_db_driver":
+			if s.Value != "" {
+				config.Driver = s.Value
+			}
+		case "target_db_host":
+			config.Host = s.Value
+		case "target_db_port":
+			if s.Value != "" {
+				config.Port = s.Value
+			}
+		case "target_db_user":
+			config.User = s.Value
+		case "target_db_password":
+			config.Password = s.Value
+		case "target_db_name":
+			config.DBName = s.Value
+		case "target_db_sslmode":
+			if s.Value != "" {
+				config.SSLMode = s.Value
+			}
+		}
+	}
+
+	return config
 }
 
 // handleDataPush processes data pushed from agents
@@ -355,13 +459,33 @@ func (al *AgentListener) handleConfigPull(msg core.AgentMessage, conn net.Conn) 
 		})
 	}
 
+	// Get database config for this agent's network
+	var network core.Network
+	dbConfig := map[string]interface{}{}
+	if err := al.handler.db.Where("name = ?", msg.AgentName).First(&network).Error; err == nil {
+		if network.DBHost != "" {
+			dbConfig = map[string]interface{}{
+				"driver":   network.DBDriver,
+				"host":     network.DBHost,
+				"port":     network.DBPort,
+				"user":     network.DBUser,
+				"password": network.DBPassword,
+				"db_name":  network.DBName,
+				"sslmode":  network.DBSSLMode,
+			}
+			log.Printf("Sending DB config to agent %s: %s@%s:%s/%s",
+				msg.AgentName, network.DBUser, network.DBHost, network.DBPort, network.DBName)
+		}
+	}
+
 	log.Printf("Sending %d jobs to agent %s", len(jobConfigs), msg.AgentName)
 
 	response := core.AgentMessage{
 		Type:      "CONFIG_RESPONSE",
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
-			"jobs": jobConfigs,
+			"jobs":      jobConfigs,
+			"db_config": dbConfig, // Source database config for agent
 		},
 	}
 

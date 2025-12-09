@@ -424,3 +424,119 @@ func (h *Handler) GetConnectedAgents(c *gin.Context) {
 	agents := h.agentListener.GetConnectedAgents()
 	c.JSON(http.StatusOK, gin.H{"connected_agents": agents})
 }
+
+// GetSettings returns all settings
+func (h *Handler) GetSettings(c *gin.Context) {
+	var settings []core.Settings
+	if err := h.db.Find(&settings).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Convert to map for easier frontend use
+	settingsMap := make(map[string]string)
+	for _, s := range settings {
+		settingsMap[s.Key] = s.Value
+	}
+
+	c.JSON(http.StatusOK, settingsMap)
+}
+
+// UpdateSetting updates a single setting
+func (h *Handler) UpdateSetting(c *gin.Context) {
+	var req struct {
+		Key   string `json:"key" binding:"required"`
+		Value string `json:"value"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var setting core.Settings
+	if err := h.db.Where("key = ?", req.Key).First(&setting).Error; err != nil {
+		// Create new setting if not exists
+		setting = core.Settings{Key: req.Key, Value: req.Value}
+		if err := h.db.Create(&setting).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	} else {
+		setting.Value = req.Value
+		if err := h.db.Save(&setting).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Setting updated", "key": req.Key})
+}
+
+// GetTargetDBConfig returns target database configuration
+func (h *Handler) GetTargetDBConfig(c *gin.Context) {
+	keys := []string{"target_db_driver", "target_db_host", "target_db_port", "target_db_user", "target_db_password", "target_db_name", "target_db_sslmode"}
+
+	config := make(map[string]string)
+	var settings []core.Settings
+	h.db.Where("key IN ?", keys).Find(&settings)
+
+	for _, s := range settings {
+		config[s.Key] = s.Value
+	}
+
+	// Set defaults
+	if config["target_db_driver"] == "" {
+		config["target_db_driver"] = "postgres"
+	}
+	if config["target_db_port"] == "" {
+		config["target_db_port"] = "5432"
+	}
+	if config["target_db_sslmode"] == "" {
+		config["target_db_sslmode"] = "disable"
+	}
+
+	c.JSON(http.StatusOK, config)
+}
+
+// UpdateTargetDBConfig updates target database configuration
+func (h *Handler) UpdateTargetDBConfig(c *gin.Context) {
+	var config struct {
+		Driver   string `json:"driver"`
+		Host     string `json:"host"`
+		Port     string `json:"port"`
+		User     string `json:"user"`
+		Password string `json:"password"`
+		DBName   string `json:"db_name"`
+		SSLMode  string `json:"sslmode"`
+	}
+
+	if err := c.ShouldBindJSON(&config); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Save each setting
+	settings := map[string]string{
+		"target_db_driver":   config.Driver,
+		"target_db_host":     config.Host,
+		"target_db_port":     config.Port,
+		"target_db_user":     config.User,
+		"target_db_password": config.Password,
+		"target_db_name":     config.DBName,
+		"target_db_sslmode":  config.SSLMode,
+	}
+
+	for key, value := range settings {
+		var setting core.Settings
+		if err := h.db.Where("key = ?", key).First(&setting).Error; err != nil {
+			setting = core.Settings{Key: key, Value: value}
+			h.db.Create(&setting)
+		} else {
+			setting.Value = value
+			h.db.Save(&setting)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Target database configuration updated"})
+}

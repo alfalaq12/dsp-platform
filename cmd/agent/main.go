@@ -84,7 +84,114 @@ func getEnv(key, defaultValue string) string {
 	return defaultValue
 }
 
+// applyDBConfigFromMaster updates DBConfig from master's CONFIG_RESPONSE
+func applyDBConfigFromMaster(config map[string]interface{}) {
+	if driver, ok := config["driver"].(string); ok && driver != "" {
+		DBConfig.Driver = driver
+	}
+	if host, ok := config["host"].(string); ok && host != "" {
+		DBConfig.Host = host
+	}
+	if port, ok := config["port"].(string); ok && port != "" {
+		DBConfig.Port = port
+	}
+	if user, ok := config["user"].(string); ok && user != "" {
+		DBConfig.User = user
+	}
+	if password, ok := config["password"].(string); ok && password != "" {
+		DBConfig.Password = password
+	}
+	if dbName, ok := config["db_name"].(string); ok && dbName != "" {
+		DBConfig.DBName = dbName
+	}
+	if sslmode, ok := config["sslmode"].(string); ok && sslmode != "" {
+		DBConfig.SSLMode = sslmode
+	}
+
+	logger.Logger.Info().
+		Str("host", DBConfig.Host).
+		Str("port", DBConfig.Port).
+		Str("user", DBConfig.User).
+		Str("db", DBConfig.DBName).
+		Msg("Applied database config from Master")
+}
+
 func main() {
+	// Check for service commands first
+	if len(os.Args) > 1 {
+		cmd := os.Args[1]
+		switch cmd {
+		case "-install", "install":
+			fmt.Println("Installing DSP Agent service...")
+			if err := runServiceMode("install"); err != nil {
+				fmt.Printf("Failed to install: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Println("Service installed successfully!")
+			fmt.Println("Use 'dsp-agent -start' to start the service")
+			return
+		case "-uninstall", "uninstall":
+			fmt.Println("Uninstalling DSP Agent service...")
+			if err := runServiceMode("uninstall"); err != nil {
+				fmt.Printf("Failed to uninstall: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Println("Service uninstalled successfully!")
+			return
+		case "-start", "start":
+			fmt.Println("Starting DSP Agent service...")
+			if err := runServiceMode("start"); err != nil {
+				fmt.Printf("Failed to start: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Println("Service started!")
+			return
+		case "-stop", "stop":
+			fmt.Println("Stopping DSP Agent service...")
+			if err := runServiceMode("stop"); err != nil {
+				fmt.Printf("Failed to stop: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Println("Service stopped!")
+			return
+		case "-status", "status":
+			if err := runServiceMode("status"); err != nil {
+				fmt.Printf("Failed to get status: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		case "-service":
+			// Run as service (called by Windows Service Manager)
+			if err := RunAsService(); err != nil {
+				fmt.Printf("Service error: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		case "-help", "help", "-h":
+			printHelp()
+			return
+		}
+	}
+
+	// Run in foreground mode (normal execution)
+	runAgent()
+}
+
+func printHelp() {
+	fmt.Println("DSP Platform Agent")
+	fmt.Println("")
+	fmt.Println("Usage:")
+	fmt.Println("  dsp-agent              Run agent in foreground")
+	fmt.Println("  dsp-agent -install     Install as Windows service")
+	fmt.Println("  dsp-agent -uninstall   Remove Windows service")
+	fmt.Println("  dsp-agent -start       Start the service")
+	fmt.Println("  dsp-agent -stop        Stop the service")
+	fmt.Println("  dsp-agent -status      Check service status")
+	fmt.Println("  dsp-agent -help        Show this help")
+}
+
+// runAgent is the main agent loop (called directly or by service)
+func runAgent() {
 	// Initialize logger
 	if err := logger.Init(logger.DefaultConfig()); err != nil {
 		panic("Failed to initialize logger: " + err.Error())
@@ -448,6 +555,10 @@ func listenForResponses(conn net.Conn) {
 				logger.Logger.Info().
 					Int("job_count", len(activeJobs)).
 					Msg("Job configuration loaded from Master")
+			}
+			// Apply database config from master if provided
+			if dbConfig, ok := msg.Data["db_config"].(map[string]interface{}); ok && len(dbConfig) > 0 {
+				applyDBConfigFromMaster(dbConfig)
 			}
 
 		case "RUN_JOB":
