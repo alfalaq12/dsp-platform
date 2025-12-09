@@ -36,19 +36,7 @@ type AgentMessage struct {
 	Data      map[string]interface{} `json:"data,omitempty"`
 }
 
-// JobConfig represents a job configuration from master
-type JobConfig struct {
-	JobID       uint   `json:"job_id"`
-	Name        string `json:"name"`
-	Schedule    string `json:"schedule"`
-	Query       string `json:"query"`
-	TargetTable string `json:"target_table"`
-	NextRun     time.Time
-}
-
 var heartbeatCount int
-var activeJobs []JobConfig
-var configReceived bool
 
 func init() {
 	// Load .env file (optional)
@@ -227,38 +215,20 @@ func runAgent() {
 		logger.Logger.Fatal().Err(err).Msg("Failed to register")
 	}
 
-	// Request job configuration
-	if err := pullJobConfig(conn); err != nil {
-		logger.Logger.Warn().Err(err).Msg("Failed to pull job config, will use legacy sync")
-	}
-
-	// Wait a bit for config response
-	time.Sleep(2 * time.Second)
-
 	// Setup signal handling
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
-	// Setup tickers
+	// Heartbeat ticker only - jobs are now triggered by Master scheduler
 	heartbeatTicker := time.NewTicker(5 * time.Second)
 	defer heartbeatTicker.Stop()
-
-	// Job execution ticker (check every 10 seconds)
-	jobTicker := time.NewTicker(10 * time.Second)
-	defer jobTicker.Stop()
-
-	var syncTicker *time.Ticker
-	if SyncEnabled && len(activeJobs) == 0 {
-		// Use legacy sync only if no jobs configured
-		syncTicker = time.NewTicker(SyncInterval)
-		defer syncTicker.Stop()
-		logger.Logger.Info().Msg("Using legacy .env sync configuration")
-	}
 
 	// Listen for responses from Master in goroutine
 	go listenForResponses(conn)
 
-	// Main loop
+	logger.Logger.Info().Msg("Agent ready - waiting for commands from Master")
+
+	// Main loop - simplified, only heartbeat and signal handling
 	for {
 		select {
 		case <-heartbeatTicker.C:
@@ -269,24 +239,6 @@ func runAgent() {
 				conn, err = reconnect()
 				if err != nil {
 					logger.Logger.Fatal().Err(err).Msg("Failed to reconnect")
-				}
-			}
-
-		case <-jobTicker.C:
-			if len(activeJobs) > 0 {
-				executeJobs(conn)
-			}
-
-		case <-func() <-chan time.Time {
-			if syncTicker != nil {
-				return syncTicker.C
-			}
-			return make(chan time.Time) // never triggers
-		}():
-			if SyncEnabled && len(activeJobs) == 0 {
-				// Legacy sync
-				if err := syncData(conn); err != nil {
-					logger.Logger.Error().Err(err).Msg("Data sync failed")
 				}
 			}
 
@@ -357,160 +309,6 @@ func sendHeartbeat(conn net.Conn) error {
 	return sendMessage(conn, msg)
 }
 
-func syncData(conn net.Conn) error {
-	logger.Logger.Info().Msg("Starting data sync")
-
-	// Connect to source database
-	dbConn, err := database.Connect(DBConfig)
-	if err != nil {
-		logger.Logger.Error().Err(err).Msg("Failed to connect to source database")
-		return err
-	}
-	defer dbConn.Close()
-
-	// Execute query
-	data, err := dbConn.ExecuteQuery(SyncQuery)
-	if err != nil {
-		logger.Logger.Error().Err(err).Msg("Failed to execute sync query")
-		return err
-	}
-
-	logger.Logger.Info().Int("rows", len(data)).Msg("Data fetched successfully")
-
-	// Send data to master
-	msg := AgentMessage{
-		Type:      "DATA_SYNC",
-		AgentName: AgentName,
-		Status:    "success",
-		Timestamp: time.Now(),
-		Data: map[string]interface{}{
-			"query":        SyncQuery,
-			"record_count": len(data),
-			"records":      data,
-		},
-	}
-
-	if err := sendMessage(conn, msg); err != nil {
-		logger.Logger.Error().Err(err).Msg("Failed to send sync data")
-		return err
-	}
-
-	logger.Logger.Info().Msg("Data sync completed successfully")
-	return nil
-}
-
-func pullJobConfig(conn net.Conn) error {
-	logger.Logger.Info().Msg("Requesting job configuration from Master")
-
-	msg := AgentMessage{
-		Type:      "CONFIG_PULL",
-		AgentName: AgentName,
-		Timestamp: time.Now(),
-	}
-
-	return sendMessage(conn, msg)
-}
-
-func executeJobs(conn net.Conn) {
-	for i := range activeJobs {
-		job := &activeJobs[i]
-
-		if time.Now().After(job.NextRun) || time.Now().Equal(job.NextRun) {
-			logger.Logger.Info().
-				Str("job", job.Name).
-				Str("schedule", job.Schedule).
-				Msg("Executing scheduled job")
-
-			if err := executeJob(conn, job); err != nil {
-				logger.Logger.Error().
-					Err(err).
-					Str("job", job.Name).
-					Msg("Job execution failed")
-			}
-
-			// Update next run time
-			job.NextRun = calculateNextRun(job.Schedule)
-			logger.Logger.Debug().
-				Str("job", job.Name).
-				Time("next_run", job.NextRun).
-				Msg("Scheduled next run")
-		}
-	}
-}
-
-func executeJob(conn net.Conn, job *JobConfig) error {
-	// Connect to DB
-	dbConn, err := database.Connect(DBConfig)
-	if err != nil {
-		return fmt.Errorf("database connection failed: %w", err)
-	}
-	defer dbConn.Close()
-
-	// Execute job query
-	data, err := dbConn.ExecuteQuery(job.Query)
-	if err != nil {
-		return fmt.Errorf("query execution failed: %w", err)
-	}
-
-	logger.Logger.Info().
-		Str("job", job.Name).
-		Int("rows", len(data)).
-		Msg("Data fetched successfully")
-
-	// Send to master
-	msg := AgentMessage{
-		Type:      "DATA_SYNC",
-		AgentName: AgentName,
-		Status:    "success",
-		Timestamp: time.Now(),
-		Data: map[string]interface{}{
-			"job_id":       job.JobID,
-			"job_name":     job.Name,
-			"target_table": job.TargetTable,
-			"query":        job.Query,
-			"record_count": len(data),
-			"records":      data,
-		},
-	}
-
-	if err := sendMessage(conn, msg); err != nil {
-		return fmt.Errorf("failed to send sync data: %w", err)
-	}
-
-	logger.Logger.Info().Str("job", job.Name).Msg("Job completed successfully")
-	return nil
-}
-
-func parseJobs(data []interface{}) []JobConfig {
-	var jobs []JobConfig
-	for _, item := range data {
-		jobMap, ok := item.(map[string]interface{})
-		if !ok {
-			continue
-		}
-
-		job := JobConfig{
-			JobID:       uint(jobMap["job_id"].(float64)),
-			Name:        jobMap["name"].(string),
-			Schedule:    jobMap["schedule"].(string),
-			Query:       jobMap["query"].(string),
-			TargetTable: jobMap["target_table"].(string),
-		}
-
-		// Calculate next run based on schedule
-		job.NextRun = calculateNextRun(job.Schedule)
-
-		logger.Logger.Info().
-			Str("job", job.Name).
-			Str("schedule", job.Schedule).
-			Time("next_run", job.NextRun).
-			Msg("Job loaded")
-
-		jobs = append(jobs, job)
-	}
-	return jobs
-}
-
 func sendMessage(conn net.Conn, msg AgentMessage) error {
 	data, err := json.Marshal(msg)
 	if err != nil {
@@ -550,12 +348,6 @@ func listenForResponses(conn net.Conn) {
 			logger.Logger.Info().Msg("Registration acknowledged by Master")
 
 		case "CONFIG_RESPONSE":
-			if jobs, ok := msg.Data["jobs"].([]interface{}); ok {
-				activeJobs = parseJobs(jobs)
-				logger.Logger.Info().
-					Int("job_count", len(activeJobs)).
-					Msg("Job configuration loaded from Master")
-			}
 			// Apply database config from master if provided
 			if dbConfig, ok := msg.Data["db_config"].(map[string]interface{}); ok && len(dbConfig) > 0 {
 				applyDBConfigFromMaster(dbConfig)
