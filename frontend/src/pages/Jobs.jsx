@@ -163,6 +163,23 @@ function Jobs() {
         }
     };
 
+    const getScheduleLabel = (schedule) => {
+        const labels = {
+            '1min': 'Every 1 min',
+            '5min': 'Every 5 min',
+            '10min': 'Every 10 min',
+            '15min': 'Every 15 min',
+            '30min': 'Every 30 min',
+            '1hour': 'Every 1 hour',
+            '3hour': 'Every 3 hours',
+            '6hour': 'Every 6 hours',
+            '12hour': 'Every 12 hours',
+            'daily': 'Daily',
+            'weekly': 'Weekly',
+        };
+        return labels[schedule] || 'Manual';
+    };
+
     return (
         <div className="space-y-6">
             {/* Toast Notifications */}
@@ -231,6 +248,24 @@ function Jobs() {
                                 ))}
                             </select>
                         </div>
+                        <select
+                            value={formData.schedule}
+                            onChange={(e) => setFormData({ ...formData, schedule: e.target.value })}
+                            className="w-full px-4 py-3 bg-panda-dark border border-panda-dark-300 rounded-xl text-panda-text focus:border-panda-gold focus:outline-none transition"
+                        >
+                            <option value="">Manual Only</option>
+                            <option value="1min">Every 1 minute</option>
+                            <option value="5min">Every 5 minutes</option>
+                            <option value="10min">Every 10 minutes</option>
+                            <option value="15min">Every 15 minutes</option>
+                            <option value="30min">Every 30 minutes</option>
+                            <option value="1hour">Every 1 hour</option>
+                            <option value="3hour">Every 3 hours</option>
+                            <option value="6hour">Every 6 hours</option>
+                            <option value="12hour">Every 12 hours</option>
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                        </select>
                         <div className="flex gap-3">
                             <button
                                 type="submit"
@@ -265,9 +300,12 @@ function Jobs() {
                                 <p className="text-sm text-panda-text-muted mt-1">Schema: {job.schema?.name}</p>
                                 <p className="text-sm text-panda-text-muted">Network: {job.network?.name}</p>
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-col items-end gap-2">
                                 <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(job.status)}`}>
                                     {job.status}
+                                </span>
+                                <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded text-xs">
+                                    {getScheduleLabel(job.schedule)}
                                 </span>
                             </div>
                         </div>

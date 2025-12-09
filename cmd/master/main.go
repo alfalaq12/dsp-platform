@@ -49,6 +49,13 @@ func main() {
 		}
 	}()
 
+	// Start scheduler in goroutine
+	scheduler := server.NewScheduler(db, agentListener)
+	go func() {
+		logger.Logger.Info().Msg("Starting job scheduler")
+		scheduler.Start()
+	}()
+
 	// Setup HTTP server
 	router := setupRouter(handler)
 
