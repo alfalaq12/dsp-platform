@@ -11,6 +11,13 @@ function Network() {
         name: '',
         ip_address: '',
         type: 'source',
+        db_driver: 'postgres',
+        db_host: '',
+        db_port: '5432',
+        db_user: '',
+        db_password: '',
+        db_name: '',
+        db_sslmode: 'disable',
     });
 
     // New states for enhanced UX
@@ -61,6 +68,13 @@ function Network() {
             name: network.name,
             ip_address: network.ip_address,
             type: network.type,
+            db_driver: network.db_driver || 'postgres',
+            db_host: network.db_host || '',
+            db_port: network.db_port || '5432',
+            db_user: network.db_user || '',
+            db_password: network.db_password || '',
+            db_name: network.db_name || '',
+            db_sslmode: network.db_sslmode || 'disable',
         });
         setEditingId(network.id);
         setShowForm(true);
@@ -83,7 +97,11 @@ function Network() {
     };
 
     const resetForm = () => {
-        setFormData({ name: '', ip_address: '', type: 'source' });
+        setFormData({
+            name: '', ip_address: '', type: 'source',
+            db_driver: 'postgres', db_host: '', db_port: '5432',
+            db_user: '', db_password: '', db_name: '', db_sslmode: 'disable'
+        });
         setEditingId(null);
         setShowForm(false);
     };
@@ -147,6 +165,81 @@ function Network() {
                                 <option value="source">Source</option>
                                 <option value="target">Target</option>
                             </select>
+                        </div>
+
+                        {/* Source Database Configuration */}
+                        <div className="border-t border-slate-700 pt-4 mt-4">
+                            <h3 className="text-md font-semibold text-slate-200 mb-3 flex items-center gap-2">
+                                <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                                </svg>
+                                Source Database Configuration
+                            </h3>
+                            <p className="text-xs text-slate-500 mb-4">Configure the database that this agent will sync data from</p>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-300 mb-1">Driver</label>
+                                    <select
+                                        value={formData.db_driver}
+                                        onChange={(e) => setFormData({ ...formData, db_driver: e.target.value })}
+                                        className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                    >
+                                        <option value="postgres">PostgreSQL</option>
+                                        <option value="mysql">MySQL</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-300 mb-1">Host</label>
+                                    <input
+                                        type="text"
+                                        value={formData.db_host}
+                                        onChange={(e) => setFormData({ ...formData, db_host: e.target.value })}
+                                        className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                        placeholder="localhost"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-300 mb-1">Port</label>
+                                    <input
+                                        type="text"
+                                        value={formData.db_port}
+                                        onChange={(e) => setFormData({ ...formData, db_port: e.target.value })}
+                                        className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                        placeholder="5432"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-300 mb-1">Username</label>
+                                    <input
+                                        type="text"
+                                        value={formData.db_user}
+                                        onChange={(e) => setFormData({ ...formData, db_user: e.target.value })}
+                                        className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                        placeholder="postgres"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-300 mb-1">Password</label>
+                                    <input
+                                        type="password"
+                                        value={formData.db_password}
+                                        onChange={(e) => setFormData({ ...formData, db_password: e.target.value })}
+                                        className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                        placeholder="••••••••"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-300 mb-1">Database Name</label>
+                                    <input
+                                        type="text"
+                                        value={formData.db_name}
+                                        onChange={(e) => setFormData({ ...formData, db_name: e.target.value })}
+                                        className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                        placeholder="mydb"
+                                    />
+                                </div>
+                            </div>
                         </div>
                         <div className="flex gap-3 pt-2">
                             <button

@@ -55,4 +55,10 @@ export const updateJob = (id, data) => api.put(`/jobs/${id}`, data);
 export const deleteJob = (id) => api.delete(`/jobs/${id}`);
 export const runJob = (id) => api.post(`/jobs/${id}/run`);
 
+// Settings
+export const getSettings = () => api.get('/settings');
+export const updateSetting = (key, value) => api.post('/settings', { key, value });
+export const getTargetDBConfig = () => api.get('/settings/target-db');
+export const updateTargetDBConfig = (config) => api.post('/settings/target-db', config);
+
 export default api;

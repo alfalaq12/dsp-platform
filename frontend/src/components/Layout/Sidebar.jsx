@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Database, Network as NetworkIcon, Play, LayoutDashboard, X } from 'lucide-react';
+import { Database, Network as NetworkIcon, Play, LayoutDashboard, X, Settings } from 'lucide-react';
 
 function Sidebar({ isOpen, onClose }) {
     const menuItems = [
@@ -7,6 +7,7 @@ function Sidebar({ isOpen, onClose }) {
         { path: '/schema', label: 'Schema', icon: Database },
         { path: '/network', label: 'Network', icon: NetworkIcon },
         { path: '/jobs', label: 'Jobs', icon: Play },
+        { path: '/settings', label: 'Settings', icon: Settings },
     ];
 
     return (
