@@ -42,6 +42,7 @@ type Job struct {
 	NetworkID uint      `json:"network_id" gorm:"not null"`
 	Status    string    `json:"status" gorm:"default:'pending'"` // pending/running/completed/failed
 	Schedule  string    `json:"schedule"`                        // cron expression or interval
+	Enabled   bool      `json:"enabled" gorm:"default:true"`     // enable/disable scheduler
 	LastRun   time.Time `json:"last_run"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

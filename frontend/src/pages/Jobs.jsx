@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Play, RefreshCw, X, Clock, Database, CheckCircle, XCircle, Loader2, Trash2, Eye } from 'lucide-react';
-import { getJobs, getSchemas, getNetworks, createJob, runJob, getJob, deleteJob } from '../services/api';
+import { Plus, Play, RefreshCw, X, Clock, Database, CheckCircle, XCircle, Loader2, Trash2, Eye, Pause } from 'lucide-react';
+import { getJobs, getSchemas, getNetworks, createJob, runJob, getJob, deleteJob, toggleJob } from '../services/api';
 import { useToast, ToastContainer, ConfirmModal } from '../components/Toast';
 
 function Jobs() {
@@ -126,6 +126,19 @@ function Jobs() {
         } finally {
             setIsDeleting(false);
             setDeleteTarget(null);
+        }
+    };
+
+    const handleToggle = async (job, e) => {
+        e?.stopPropagation();
+        try {
+            await toggleJob(job.id);
+            const action = job.enabled ? 'paused' : 'resumed';
+            addToast(`Job "${job.name}" ${action}!`, 'success');
+            loadData();
+        } catch (error) {
+            console.error('Failed to toggle job:', error);
+            addToast('Failed to toggle job. Please try again.', 'error');
         }
     };
 
@@ -314,6 +327,13 @@ function Jobs() {
                                 Last run: {job.last_run ? new Date(job.last_run).toLocaleString('id-ID') : 'Never'}
                             </span>
                             <div className="flex items-center gap-2">
+                                <button
+                                    onClick={(e) => handleToggle(job, e)}
+                                    className={`action-btn ${job.enabled !== false ? 'bg-orange-600/20 hover:bg-orange-600/40 text-orange-400' : 'bg-green-600/20 hover:bg-green-600/40 text-green-400'}`}
+                                    title={job.enabled !== false ? 'Pause Schedule' : 'Resume Schedule'}
+                                >
+                                    {job.enabled !== false ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                                </button>
                                 <button
                                     onClick={() => handleJobClick(job)}
                                     className="action-btn action-btn-view"

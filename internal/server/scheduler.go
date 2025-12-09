@@ -68,6 +68,11 @@ func (s *Scheduler) checkAndRunJobs() {
 
 // shouldRun determines if a job should run based on its schedule
 func (s *Scheduler) shouldRun(job core.Job, now time.Time) bool {
+	// Skip if job is disabled (paused)
+	if !job.Enabled {
+		return false
+	}
+
 	if job.Schedule == "" || job.Schedule == "manual" {
 		return false
 	}

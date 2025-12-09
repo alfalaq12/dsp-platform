@@ -325,6 +325,35 @@ func (h *Handler) RunJob(c *gin.Context) {
 	})
 }
 
+// ToggleJob enables or disables a job's scheduler
+func (h *Handler) ToggleJob(c *gin.Context) {
+	id := c.Param("id")
+
+	var job core.Job
+	if err := h.db.First(&job, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Job not found"})
+		return
+	}
+
+	// Toggle the enabled status
+	job.Enabled = !job.Enabled
+	if err := h.db.Save(&job).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update job"})
+		return
+	}
+
+	status := "enabled"
+	if !job.Enabled {
+		status = "paused"
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("Job %s %s", job.Name, status),
+		"job":     job,
+		"enabled": job.Enabled,
+	})
+}
+
 // GetJob returns a single job with its recent logs
 func (h *Handler) GetJob(c *gin.Context) {
 	id := c.Param("id")
