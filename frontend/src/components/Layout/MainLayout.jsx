@@ -1,5 +1,6 @@
 import { Outlet, useNavigate } from 'react-router-dom';
 import { LogOut, Menu } from 'lucide-react';
+import { logout } from '../../services/api';
 import Sidebar from './Sidebar';
 import { useState } from 'react';
 
@@ -7,10 +8,14 @@ function MainLayout() {
     const navigate = useNavigate();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-    const handleLogout = () => {
-        localStorage.removeItem('token');
+    const handleLogout = async () => {
+        try {
+            await logout();
+        } catch (error) {
+            console.error('Logout failed:', error);
+        }
         localStorage.removeItem('username');
-        navigate('/login');
+        window.location.href = '/login';
     };
 
     return (

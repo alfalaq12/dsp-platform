@@ -9,12 +9,8 @@ const api = axios.create({
 
 // Add token to requests and update last activity
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-    // Update last activity timestamp on every API request
-    localStorage.setItem('lastActivity', Date.now().toString());
-  }
+  // Update last activity timestamp on every API request
+  localStorage.setItem('lastActivity', Date.now().toString());
   return config;
 });
 
@@ -23,7 +19,6 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
       localStorage.removeItem('username');
       window.location.href = '/login';
     }
@@ -33,6 +28,7 @@ api.interceptors.response.use(
 
 // Auth
 export const login = (credentials) => api.post('/login', credentials);
+export const logout = () => api.post('/logout');
 
 // Schemas
 export const getSchemas = () => api.get('/schemas');

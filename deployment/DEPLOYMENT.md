@@ -2,7 +2,14 @@
 
 Panduan lengkap untuk deploy DSP Platform di Linux dan Windows untuk keperluan enterprise/pemerintahan.
 
-## 📦 Build Cross-Platform Binaries
+## Arsitektur Deployment
+
+DSP Platform menggunakan **Single Binary + Embedded SQLite**.
+-   Tidak perlu install PostgreSQL/MySQL server untuk Master.
+-   Database disimpan di file `dsp.db` di folder yang sama dengan binary.
+-   **CRITICAL**: File `dsp.db` harus di-backup secara berkala.
+
+## 📦 Build Binaries
 
 ### Dari Linux/macOS:
 ```bash
@@ -15,303 +22,110 @@ chmod +x build.sh
 .\build.ps1
 ```
 
-Hasil build akan tersimpan di:
-- `bin/linux/` - Binary untuk Linux (dsp-master, dsp-agent)
-- `bin/windows/` - Executable untuk Windows (dsp-master.exe, dsp-agent.exe)
+Hasil build:
+- `bin/linux/` (dsp-master, dsp-agent)
+- `bin/windows/` (dsp-master.exe, dsp-agent.exe)
 
 ---
 
-## 🐧 Deployment di Linux (Production Ready)
+## 🐧 Deployment di Linux
 
 ### Sistem Requirements
-- Ubuntu 20.04+ / RHEL 8+ / Debian 11+
-- PostgreSQL 12+
+- Ubuntu 20.04+ / RHEL 8+
 - Systemd
-- Minimal 2GB RAM, 2 CPU cores
+- Minimal 1GB RAM
 
 ### Installation Steps
 
-1. **Build binary** (jika belum):
-```bash
-./build.sh
-```
+1. **Build binary**:
+   ```bash
+   ./build.sh
+   ```
 
 2. **Install sebagai service**:
-```bash
-cd deployment/linux
-sudo chmod +x install.sh
-sudo ./install.sh
-```
+   ```bash
+   cd deployment/linux
+   sudo chmod +x install.sh
+   sudo ./install.sh
+   ```
 
-3. **Configure environment variables**:
-```bash
-sudo nano /etc/systemd/system/dsp-master.service
-```
+3. **Configure Environment** (Optional):
+   File config: `/etc/systemd/system/dsp-master.service`
+   
+   Hanya perlu set `JWT_SECRET`:
+   ```ini
+   Environment="JWT_SECRET=GantiDenganRahasiaSuperKuat123!"
+   ```
+   *Note: Database otomatis tersimpan di `/opt/dsp-platform/dsp.db` (atau folder install)*
 
-Edit bagian `Environment`:
-```ini
-Environment="DB_HOST=localhost"
-Environment="DB_PORT=5432"
-Environment="DB_NAME=dsp_platform"
-Environment="DB_USER=dsp_user"
-Environment="DB_PASSWORD=SecurePassword123!"
-Environment="JWT_SECRET=YourSuperSecretJWTKey"
-Environment="PORT=8080"
-```
+4. **Start Service**:
+   ```bash
+   sudo systemctl enable dsp-master
+   sudo systemctl start dsp-master
+   ```
 
-4. **Enable dan start service**:
-```bash
-# Master Server
-sudo systemctl enable dsp-master
-sudo systemctl start dsp-master
-
-# Check status
-sudo systemctl status dsp-master
-
-# View logs
-sudo journalctl -u dsp-master -f
-```
-
-### Service Management Commands
+### 🛡️ Backup Strategy (PENTING)
+Buat cron job untuk backup database setiap hari:
 
 ```bash
-# Start
-sudo systemctl start dsp-master
-
-# Stop
-sudo systemctl stop dsp-master
-
-# Restart
-sudo systemctl restart dsp-master
-
-# Check status
-sudo systemctl status dsp-master
-
-# View logs (real-time)
-sudo journalctl -u dsp-master -f
-
-# View logs (last 100 lines)
-sudo journalctl -u dsp-master -n 100
-```
-
-### Firewall Configuration
-
-```bash
-# Allow HTTP/HTTPS
-sudo ufw allow 8080/tcp
-sudo ufw allow 443/tcp
-
-# For agent communication (port 447)
-sudo ufw allow 447/tcp
+# Crontab entry
+0 2 * * * cp /opt/dsp-platform/dsp.db /backup/dsp-platform/dsp_$(date +\%Y\%m\%d).db
 ```
 
 ---
 
-## 🪟 Deployment di Windows (Production Ready)
-
-### Sistem Requirements
-- Windows Server 2016+ atau Windows 10/11
-- PostgreSQL 12+ (atau SQL Server)
-- NSSM (Non-Sucking Service Manager) - untuk service wrapper
-- Minimal 2GB RAM, 2 CPU cores
+## 🪟 Deployment di Windows
 
 ### Installation Steps
 
-#### Option 1: Menggunakan NSSM (Recommended)
+1. **Build**:
+   ```powershell
+   .\build.ps1
+   ```
 
-1. **Download NSSM**:
-   - Download dari: https://nssm.cc/download
-   - Extract ke: `C:\Program Files\nssm\`
+2. **Install Service (via NSSM)**:
+   ```powershell
+   # Run as Admin
+   cd deployment\windows
+   .\install-service.ps1
+   ```
 
-2. **Build binary**:
-```powershell
-.\build.ps1
-```
+3. **Set Environment Variable**:
+   - Set `JWT_SECRET` via System Environments jika ingin custom secret key.
 
-3. **Install sebagai Windows Service**:
-```powershell
-# Run as Administrator
-cd deployment\windows
-.\install-service.ps1
-```
+4. **Start**:
+   ```powershell
+   Start-Service DSPMaster
+   ```
 
-4. **Set environment variables**:
-   - Computer → Properties → Advanced System Settings → Environment Variables
-   - Add system variables:
-     - `DB_HOST=localhost`
-     - `DB_PORT=5432`
-     - `DB_NAME=dsp_platform`
-     - `DB_USER=dsp_user`
-     - `DB_PASSWORD=SecurePassword123!`
-     - `JWT_SECRET=YourSuperSecretJWTKey`
-
-5. **Start service**:
-```powershell
-Start-Service DSPMaster
-```
-
-#### Option 2: Manual Service Creation (tanpa NSSM)
-
-```powershell
-# Run as Administrator
-$exePath = "C:\Program Files\DSP-Platform\dsp-master.exe"
-
-sc.exe create DSPMaster binPath= $exePath start= auto
-sc.exe description DSPMaster "DSP Platform Master Server for Data Synchronization"
-sc.exe start DSPMaster
-```
-
-### Service Management Commands
-
-```powershell
-# Start
-Start-Service DSPMaster
-
-# Stop
-Stop-Service DSPMaster
-
-# Restart
-Restart-Service DSPMaster
-
-# Check status
-Get-Service DSPMaster
-
-# View logs
-Get-Content "C:\Program Files\DSP-Platform\logs\master-output.log" -Tail 50 -Wait
-```
-
-### Firewall Configuration
-
-```powershell
-# Run as Administrator
-New-NetFirewallRule -DisplayName "DSP Master HTTP" -Direction Inbound -LocalPort 8080 -Protocol TCP -Action Allow
-New-NetFirewallRule -DisplayName "DSP Agent Listener" -Direction Inbound -LocalPort 447 -Protocol TCP -Action Allow
-```
-
-### Run as Scheduled Task (Alternative)
-
-Jika tidak mau pakai Windows Service:
-
-```powershell
-# Create scheduled task to run at startup
-$action = New-ScheduledTaskAction -Execute "C:\Program Files\DSP-Platform\dsp-master.exe"
-$trigger = New-ScheduledTaskTrigger -AtStartup
-$principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
-Register-ScheduledTask -TaskName "DSP Master Server" -Action $action -Trigger $trigger -Principal $principal
-```
+### 🛡️ Backup Strategy
+Gunakan Task Scheduler atau Script simpel untuk copy `dsp.db` ke server backup.
 
 ---
 
-## 🏢 Production Deployment Checklist
+## 🐳 Docker Deployment
 
-### Security
-- [ ] Change default admin password
-- [ ] Use strong JWT secret
-- [ ] Enable HTTPS with valid SSL certificate
-- [ ] Configure firewall rules
-- [ ] Run service with dedicated user (not root/Administrator)
-- [ ] Enable database encryption
-- [ ] Set up backup strategy
-
-### Monitoring
-- [ ] Configure log rotation
-- [ ] Set up monitoring dashboard
-- [ ] Configure alerts for service failures
-- [ ] Monitor disk space and memory usage
-
-### High Availability (Optional)
-- [ ] Deploy behind load balancer (nginx/HAProxy)
-- [ ] Set up database replication
-- [ ] Configure automatic failover
-- [ ] Use container orchestration (Docker/Kubernetes)
-
----
-
-## 🐳 Docker Deployment (Bonus)
-
-Create `docker-compose.yml` for easy deployment:
+Gunakan `docker-compose.yml` sederhana ini.
+**PENTING**: Mount volume untuk `dsp.db` agar data tidak hilang saat restart container.
 
 ```yaml
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_DB: dsp_platform
-      POSTGRES_USER: dsp_user
-      POSTGRES_PASSWORD: SecurePassword123!
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-
   dsp-master:
     build: .
     ports:
-      - "8080:8080"
+      - "441:441"
       - "447:447"
     environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: dsp_platform
-      DB_USER: dsp_user
-      DB_PASSWORD: SecurePassword123!
-      JWT_SECRET: YourSuperSecretJWTKey
-    depends_on:
-      - postgres
+      - JWT_SECRET=RahasiaKuat123!
+    volumes:
+      - ./data:/app/data  # Persist dsp.db
     restart: unless-stopped
-
-volumes:
-  postgres_data:
 ```
 
----
+## 🔒 Security Checklist
 
-## 📊 Monitoring & Logs
-
-### Linux
-```bash
-# Real-time logs
-sudo journalctl -u dsp-master -f
-
-# Today's logs
-sudo journalctl -u dsp-master --since today
-
-# Last hour
-sudo journalctl -u dsp-master --since "1 hour ago"
-```
-
-### Windows
-```powershell
-# View service logs
-Get-Content "C:\Program Files\DSP-Platform\logs\master-output.log" -Tail 100 -Wait
-
-# Event Viewer
-Get-EventLog -LogName Application -Source "DSP*" -Newest 50
-```
-
----
-
-## 🆘 Troubleshooting
-
-### Service won't start
-1. Check logs for error messages
-2. Verify database connection
-3. Check port conflicts (8080, 447)
-4. Verify file permissions
-
-### Can't connect to service
-1. Check firewall rules
-2. Verify service is running
-3. Check network connectivity
-4. Review application logs
-
----
-
-## 📞 Support
-
-Untuk deployment di lingkungan pemerintahan Indonesia:
-- Dokumentasi lengkap: README.md
-- Security guidelines: SECURITY.md
-- Contact: support@dsp-platform.id
+- [ ] **Ganti Password Admin**: Login pertama kali dengan default `admin` / `admin`, lalu ganti password.
+- [ ] **Firewall**: Buka port 441 (Web/API) dan 447 (Agent).
+- [ ] **HTTPS**: Gunakan Nginx/Caddy sebagai Reverse Proxy untuk handle SSL/HTTPS di depan port 441.

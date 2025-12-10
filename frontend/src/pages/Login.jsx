@@ -18,7 +18,7 @@ function Login() {
 
         try {
             const response = await login(formData);
-            localStorage.setItem('token', response.data.token);
+            // Token is now handled by HttpOnly cookie
             localStorage.setItem('username', response.data.username);
             localStorage.setItem('lastActivity', Date.now().toString());
             navigate('/');

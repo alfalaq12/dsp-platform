@@ -125,6 +125,7 @@ func setupRouter(handler *server.Handler) *gin.Engine {
 
 	// Public routes
 	router.POST("/api/login", handler.Login)
+	router.POST("/api/logout", handler.Logout)
 
 	// Protected routes (require authentication)
 	api := router.Group("/api")

@@ -1,23 +1,28 @@
-import { useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { logout as apiLogout } from '../services/api';
+
+const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
 
 /**
  * Custom hook to handle automatic session timeout and logout
  * @param {number} timeout - Timeout duration in milliseconds (default: 30 minutes)
  */
-const useSessionTimeout = (timeout = 30 * 60 * 1000) => {
-  const navigate = useNavigate();
+const useSessionTimeout = (timeout = SESSION_TIMEOUT) => {
   const timeoutRef = useRef(null);
   const warningTimeoutRef = useRef(null);
 
   // Logout function
-  const logout = useCallback(() => {
-    localStorage.removeItem('token');
+  const logout = useCallback(async () => {
+    try {
+        await apiLogout();
+    } catch (error) {
+        console.error('Logout failed:', error);
+    }
     localStorage.removeItem('username');
     localStorage.removeItem('lastActivity');
-    navigate('/login');
+    window.location.href = '/login';
     alert('Your session has expired due to inactivity. Please login again.');
-  }, [navigate]);
+  }, []);
 
   // Reset timeout on user activity
   const resetTimeout = useCallback(() => {

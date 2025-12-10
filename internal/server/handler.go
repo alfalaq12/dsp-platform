@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -38,12 +39,19 @@ func (h *Handler) Login(c *gin.Context) {
 
 	// Mock authentication - in production, check against database with hashed password
 	var user core.User
-	if err := h.db.Where("username = ? AND password = ?", req.Username, req.Password).First(&user).Error; err != nil {
+	if err := h.db.Where("username = ?", req.Username).First(&user).Error; err != nil {
 		// If user doesn't exist, create a default admin for demo purposes
 		if err == gorm.ErrRecordNotFound && req.Username == "admin" && req.Password == "admin" {
-			user = core.User{Username: "admin", Password: "admin"}
+			hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("admin"), bcrypt.DefaultCost)
+			user = core.User{Username: "admin", Password: string(hashedPassword)}
 			h.db.Create(&user)
 		} else {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+			return
+		}
+	} else {
+		// Start of change: Verify password
+		if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 			return
 		}
@@ -56,10 +64,21 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
+	// Set HttpOnly Cookie (secure=false for dev/local)
+	// Name, Value, MaxAge, Path, Domain, Secure, HttpOnly
+	c.SetCookie("auth_token", token, 3600*24, "/", "", false, true)
+
 	c.JSON(http.StatusOK, core.LoginResponse{
-		Token:    token,
+		Token:    "", // Token is now in cookie, don't expose in body
 		Username: user.Username,
 	})
+}
+
+// Logout clears the auth cookie
+func (h *Handler) Logout(c *gin.Context) {
+	// Set cookie with max age -1 to delete it
+	c.SetCookie("auth_token", "", -1, "/", "", false, true)
+	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
 }
 
 // GetSchemas returns all schemas
