@@ -106,10 +106,6 @@ function Login() {
                                 {loading ? 'Signing in...' : 'Sign In'}
                             </button>
                         </form>
-
-                        <div className="mt-8 text-center text-sm text-panda-text-muted">
-                            Default: <span className="text-panda-gold font-medium">admin / admin</span>
-                        </div>
                     </div>
                 </div>
             </div>
