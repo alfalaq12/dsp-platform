@@ -130,6 +130,78 @@ func (c *Connection) ExecuteQuery(query string, args ...interface{}) ([]map[stri
 	return results, nil
 }
 
+// ExecuteQueryWithBatch executes SQL query and processes results in batches
+// This prevents high memory usage for large datasets
+func (c *Connection) ExecuteQueryWithBatch(query string, batchSize int, callback func([]map[string]interface{}) error) error {
+	rows, err := c.DB.Query(query)
+	if err != nil {
+		return fmt.Errorf("query execution failed: %w", err)
+	}
+	defer rows.Close()
+
+	columns, err := rows.Columns()
+	if err != nil {
+		return fmt.Errorf("failed to get columns: %w", err)
+	}
+
+	var batch []map[string]interface{}
+
+	for rows.Next() {
+		// Create slice for values
+		values := make([]interface{}, len(columns))
+		valuePtrs := make([]interface{}, len(columns))
+
+		for i := range values {
+			valuePtrs[i] = &values[i]
+		}
+
+		// Scan row
+		if err := rows.Scan(valuePtrs...); err != nil {
+			return fmt.Errorf("failed to scan row: %w", err)
+		}
+
+		// Build map
+		row := make(map[string]interface{})
+		for i, col := range columns {
+			var v interface{}
+			val := values[i]
+
+			// Convert []byte to string
+			if b, ok := val.([]byte); ok {
+				v = string(b)
+			} else {
+				v = val
+			}
+
+			row[col] = v
+		}
+
+		batch = append(batch, row)
+
+		// If batch is full, process it
+		if len(batch) >= batchSize {
+			if err := callback(batch); err != nil {
+				return err
+			}
+			// Reset batch
+			batch = make([]map[string]interface{}, 0, batchSize)
+		}
+	}
+
+	// Process remaining records
+	if len(batch) > 0 {
+		if err := callback(batch); err != nil {
+			return err
+		}
+	}
+
+	if err = rows.Err(); err != nil {
+		return fmt.Errorf("row iteration error: %w", err)
+	}
+
+	return nil
+}
+
 // TestConnection tests database connectivity
 func TestConnection(config Config) error {
 	conn, err := Connect(config)

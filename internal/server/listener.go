@@ -263,6 +263,12 @@ func (al *AgentListener) handleDataResponse(msg core.AgentMessage, clientAddr st
 		jobID = uint(id)
 	}
 
+	// Check if this is a partial batch
+	isPartial := false
+	if p, ok := msg.Data["partial"].(bool); ok {
+		isPartial = p
+	}
+
 	recordCount := 0
 	if count, ok := msg.Data["record_count"].(float64); ok {
 		recordCount = int(count)
@@ -312,14 +318,31 @@ func (al *AgentListener) handleDataResponse(msg core.AgentMessage, clientAddr st
 	if logID, ok := msg.Data["log_id"].(float64); ok {
 		var jobLog core.JobLog
 		if err := al.handler.db.First(&jobLog, uint(logID)).Error; err == nil {
-			jobLog.Status = status
-			jobLog.CompletedAt = time.Now()
-			jobLog.Duration = time.Since(jobLog.StartedAt).Milliseconds()
-			jobLog.RecordCount = recordCount
-			jobLog.SampleData = sampleData
-			jobLog.ErrorMessage = errorMsg
+			// Update status
+			if isPartial {
+				jobLog.Status = "running"
+			} else {
+				jobLog.Status = status
+				jobLog.CompletedAt = time.Now()
+				jobLog.Duration = time.Since(jobLog.StartedAt).Milliseconds()
+			}
+
+			// Accumulate record count
+			// If partial, add the batch count. If final, it might be 0 or the last batch.
+			// Assumption: Agent sends batch count in record_count for each message.
+			jobLog.RecordCount += recordCount
+
+			// Update other fields
+			if sampleData != "" {
+				jobLog.SampleData = sampleData
+			}
+			if errorMsg != "" {
+				jobLog.ErrorMessage = errorMsg
+			}
+
 			al.handler.db.Save(&jobLog)
-			log.Printf("Updated job log %d: status=%s, records=%d, inserted=%d", uint(logID), status, recordCount, insertedCount)
+			log.Printf("Updated job log %d: status=%s, total_records=%d, batch_inserted=%d, partial=%v",
+				uint(logID), jobLog.Status, jobLog.RecordCount, insertedCount, isPartial)
 		}
 	}
 
@@ -327,12 +350,17 @@ func (al *AgentListener) handleDataResponse(msg core.AgentMessage, clientAddr st
 	if jobID > 0 {
 		var job core.Job
 		if err := al.handler.db.First(&job, jobID).Error; err == nil {
-			job.Status = status
+			if isPartial {
+				job.Status = "running"
+			} else {
+				job.Status = status
+			}
 			al.handler.db.Save(&job)
 		}
 	}
 
-	log.Printf("Job %d response: status=%s, records=%d, inserted=%d", jobID, status, recordCount, insertedCount)
+	log.Printf("Job %d response: status=%s, batch_records=%d, inserted=%d, partial=%v",
+		jobID, status, recordCount, insertedCount, isPartial)
 	al.handler.UpdateAgentStatus(msg.AgentName, "online", clientAddr)
 }
 

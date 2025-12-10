@@ -434,34 +434,57 @@ func executeRunJobCommand(conn net.Conn, msg AgentMessage) {
 	dbConn, err := database.Connect(DBConfig)
 	if err != nil {
 		logger.Logger.Error().Err(err).Msg("Failed to connect to database")
-		sendDataResponse(conn, jobID, logID, nil, 0, err.Error())
+		sendDataResponse(conn, jobID, logID, nil, 0, err.Error(), false)
 		return
 	}
 	defer dbConn.Close()
 
-	// Execute the query
-	data, err := dbConn.ExecuteQuery(query)
+	// Batch configuration
+	batchSize := 5000
+	totalRecords := 0
+
+	// Define callback function for partial batches
+	processBatch := func(batch []map[string]interface{}) error {
+		count := len(batch)
+		totalRecords += count
+
+		logger.Logger.Info().
+			Str("job", jobName).
+			Int("batch_size", count).
+			Int("total_so_far", totalRecords).
+			Msg("Sending partial batch")
+
+		// Send partial response
+		sendDataResponse(conn, jobID, logID, batch, count, "", true)
+		return nil
+	}
+
+	// Execute the query with batching
+	logger.Logger.Info().Str("job", jobName).Msg("Starting batch query execution")
+	err = dbConn.ExecuteQueryWithBatch(query, batchSize, processBatch)
+
 	if err != nil {
-		logger.Logger.Error().Err(err).Msg("Failed to execute query")
-		sendDataResponse(conn, jobID, logID, nil, 0, err.Error())
+		logger.Logger.Error().Err(err).Msg("Failed to execute batch query")
+		sendDataResponse(conn, jobID, logID, nil, 0, err.Error(), false)
 		return
 	}
 
 	logger.Logger.Info().
 		Str("job", jobName).
-		Int("records", len(data)).
-		Str("target", targetTable).
-		Msg("Query executed successfully")
+		Int("total_records", totalRecords).
+		Msg("Query execution completed")
 
-	// Send response back to master
-	sendDataResponse(conn, jobID, logID, data, len(data), "")
+	// Send final completion response (empty records, partial=false)
+	sendDataResponse(conn, jobID, logID, nil, 0, "", false)
 }
 
 // sendDataResponse sends data back to master after job execution
-func sendDataResponse(conn net.Conn, jobID, logID uint, records []map[string]interface{}, recordCount int, errorMsg string) {
+func sendDataResponse(conn net.Conn, jobID, logID uint, records []map[string]interface{}, recordCount int, errorMsg string, isPartial bool) {
 	status := "completed"
 	if errorMsg != "" {
 		status = "failed"
+	} else if isPartial {
+		status = "running"
 	}
 
 	// Convert records to interface slice for JSON
@@ -482,6 +505,7 @@ func sendDataResponse(conn net.Conn, jobID, logID uint, records []map[string]int
 			"record_count": recordCount,
 			"records":      recordsInterface,
 			"error":        errorMsg,
+			"partial":      isPartial,
 		},
 	}
 
@@ -492,6 +516,7 @@ func sendDataResponse(conn net.Conn, jobID, logID uint, records []map[string]int
 			Uint("job_id", jobID).
 			Int("records", recordCount).
 			Str("status", status).
+			Bool("partial", isPartial).
 			Msg("Data response sent to Master")
 	}
 }
