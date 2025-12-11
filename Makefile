@@ -57,6 +57,7 @@ clean: ## Clean build artifacts
 
 install-linux: build-linux ## Install as Linux systemd service (requires sudo)
 	@echo "📦 Installing to Linux..."
+	@chmod +x deployment/linux/install.sh
 	cd deployment/linux && sudo ./install.sh
 
 ##@ Docker
