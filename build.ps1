@@ -64,13 +64,13 @@ Write-Host "Success: Linux Agent: bin/linux/dsp-agent" -ForegroundColor Green
 # Windows
 $env:GOOS = "windows"
 $env:GOARCH = "amd64"
-Write-Host "   Target: Windows (amd64)" -ForegroundColor Gray
+Write-Host "   Target: Windows amd64" -ForegroundColor Gray
 go build -v -o bin/windows/dsp-agent.exe ./cmd/agent
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "❌ Windows Agent build failed!" -ForegroundColor Red
+    Write-Host "Error: Windows Agent build failed!" -ForegroundColor Red
     exit 1
 }
-Write-Host "✅ Windows Agent: bin/windows/dsp-agent.exe" -ForegroundColor Green
+Write-Host "Success: Windows Agent: bin/windows/dsp-agent.exe" -ForegroundColor Green
 
 Write-Host ""
 Write-Host "✨ Build complete! Binaries available in:" -ForegroundColor Cyan
