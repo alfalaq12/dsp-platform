@@ -298,9 +298,8 @@ function Settings() {
                     <div>
                         <h3 className="text-blue-300 font-medium">How it works</h3>
                         <p className="text-blue-200/70 text-sm mt-1">
-                            When you run a sync job, data from the tenant's source database is fetched by the agent
-                            and sent to the Master server. The Master then inserts this data into the target database
-                            configured above. Each Network (agent) can have its own source database configuration.
+                            Cara kerjanya
+                            Saat Anda menjalankan tugas sinkronisasi, data dari basis data sumber penyewa diambil oleh agen dan dikirim ke server Master. Master kemudian memasukkan data ini ke dalam basis data target yang dikonfigurasi di atas. Setiap Jaringan (agen) dapat memiliki konfigurasi basis data sumbernya sendiri.
                         </p>
                     </div>
                 </div>
