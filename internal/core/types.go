@@ -2,15 +2,23 @@ package core
 
 import "time"
 
-// Schema represents a SQL query configuration to be executed on data sources
+// Schema represents a SQL query or file configuration to be executed/synced
 type Schema struct {
 	ID          uint      `json:"id" gorm:"primaryKey"`
 	Name        string    `json:"name" gorm:"not null"`
-	SQLCommand  string    `json:"sql_command" gorm:"type:text;not null"`
+	SQLCommand  string    `json:"sql_command" gorm:"type:text"` // For database source
 	TargetTable string    `json:"target_table" gorm:"not null"`
 	Description string    `json:"description" gorm:"type:text"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+
+	// File Sync Configuration (for FTP/SFTP sources)
+	SourceType      string `json:"source_type" gorm:"default:'query'"` // query, file
+	FileFormat      string `json:"file_format"`                        // csv, xlsx, json
+	FilePattern     string `json:"file_pattern"`                       // e.g., "data.csv" or "*.csv"
+	UniqueKeyColumn string `json:"unique_key_column"`                  // Column for upsert logic
+	HasHeader       bool   `json:"has_header" gorm:"default:true"`     // CSV/Excel has header row
+	Delimiter       string `json:"delimiter" gorm:"default:','"`       // CSV delimiter
 }
 
 // Network represents a data source (Tenant Agent) or data target
@@ -24,7 +32,10 @@ type Network struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 
-	// Source Database Configuration (for agent to use)
+	// Source Type: database, ftp, sftp
+	SourceType string `json:"source_type" gorm:"default:'database'"`
+
+	// Source Database Configuration (for agent to use when SourceType=database)
 	DBDriver   string `json:"db_driver" gorm:"default:'postgres'"`
 	DBHost     string `json:"db_host"`
 	DBPort     string `json:"db_port" gorm:"default:'5432'"`
@@ -32,6 +43,14 @@ type Network struct {
 	DBPassword string `json:"db_password"`
 	DBName     string `json:"db_name"`
 	DBSSLMode  string `json:"db_sslmode" gorm:"default:'disable'"`
+
+	// FTP/SFTP Configuration (for agent to use when SourceType=ftp or sftp)
+	FTPHost     string `json:"ftp_host"`
+	FTPPort     string `json:"ftp_port" gorm:"default:'21'"`
+	FTPUser     string `json:"ftp_user"`
+	FTPPassword string `json:"ftp_password"`
+	FTPPath     string `json:"ftp_path"`                        // Remote directory path
+	FTPPassive  bool   `json:"ftp_passive" gorm:"default:true"` // Use passive mode
 }
 
 // Job represents a data synchronization job linking a Schema to a Network

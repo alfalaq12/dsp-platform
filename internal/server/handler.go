@@ -325,7 +325,7 @@ func (h *Handler) RunJob(c *gin.Context) {
 		return
 	}
 
-	// Send RUN_JOB command to agent with DB config from Network
+	// Send RUN_JOB command to agent with config from Network and Schema
 	command := core.AgentMessage{
 		Type:      "RUN_JOB",
 		Timestamp: time.Now(),
@@ -333,8 +333,11 @@ func (h *Handler) RunJob(c *gin.Context) {
 			"job_id":       job.ID,
 			"log_id":       jobLog.ID,
 			"name":         job.Name,
-			"query":        job.Schema.SQLCommand,
 			"target_table": job.Schema.TargetTable,
+			// Network source type (database, ftp, sftp)
+			"source_type": job.Network.SourceType,
+			// Database config (for source_type=database)
+			"query": job.Schema.SQLCommand,
 			"db_config": map[string]interface{}{
 				"driver":   job.Network.DBDriver,
 				"host":     job.Network.DBHost,
@@ -343,6 +346,23 @@ func (h *Handler) RunJob(c *gin.Context) {
 				"password": job.Network.DBPassword,
 				"db_name":  job.Network.DBName,
 				"sslmode":  job.Network.DBSSLMode,
+			},
+			// FTP/SFTP config (for source_type=ftp or sftp)
+			"ftp_config": map[string]interface{}{
+				"host":     job.Network.FTPHost,
+				"port":     job.Network.FTPPort,
+				"user":     job.Network.FTPUser,
+				"password": job.Network.FTPPassword,
+				"path":     job.Network.FTPPath,
+				"passive":  job.Network.FTPPassive,
+			},
+			// File parsing config from Schema
+			"file_config": map[string]interface{}{
+				"format":            job.Schema.FileFormat,
+				"pattern":           job.Schema.FilePattern,
+				"has_header":        job.Schema.HasHeader,
+				"delimiter":         job.Schema.Delimiter,
+				"unique_key_column": job.Schema.UniqueKeyColumn,
 			},
 		},
 	}

@@ -202,3 +202,62 @@ func (tc *TargetConnection) InsertBatch(tableName string, records []map[string]i
 
 	return insertedCount, nil
 }
+
+// UpsertBatch inserts or updates records based on unique key column
+func (tc *TargetConnection) UpsertBatch(tableName string, records []map[string]interface{}, uniqueKeyColumn string) (int, error) {
+	if len(records) == 0 {
+		return 0, nil
+	}
+
+	// If no unique key specified, fall back to regular insert
+	if uniqueKeyColumn == "" {
+		return tc.InsertBatch(tableName, records)
+	}
+
+	// Get column names from first record
+	var columns []string
+	for col := range records[0] {
+		columns = append(columns, col)
+	}
+
+	// Build update set clause (exclude the unique key)
+	var updateClauses []string
+	for _, col := range columns {
+		if col != uniqueKeyColumn {
+			updateClauses = append(updateClauses, fmt.Sprintf("\"%s\" = EXCLUDED.\"%s\"", col, col))
+		}
+	}
+
+	upsertedCount := 0
+	for _, record := range records {
+		var values []interface{}
+		var placeholders []string
+
+		for i, col := range columns {
+			values = append(values, record[col])
+			placeholders = append(placeholders, fmt.Sprintf("$%d", i+1))
+		}
+
+		// PostgreSQL: INSERT ... ON CONFLICT DO UPDATE
+		upsertSQL := fmt.Sprintf(
+			"INSERT INTO \"%s\" (\"%s\") VALUES (%s) ON CONFLICT (\"%s\") DO UPDATE SET %s",
+			tableName,
+			strings.Join(columns, "\", \""),
+			strings.Join(placeholders, ", "),
+			uniqueKeyColumn,
+			strings.Join(updateClauses, ", "),
+		)
+
+		result, err := tc.DB.Exec(upsertSQL, values...)
+		if err != nil {
+			log.Printf("Upsert error (skipping): %v - SQL: %s", err, upsertSQL)
+			continue
+		}
+
+		affected, _ := result.RowsAffected()
+		upsertedCount += int(affected)
+	}
+
+	log.Printf("Upserted %d records to %s (unique key: %s)", upsertedCount, tableName, uniqueKeyColumn)
+	return upsertedCount, nil
+}

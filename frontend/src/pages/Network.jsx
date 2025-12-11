@@ -11,6 +11,8 @@ function Network() {
         name: '',
         ip_address: '',
         type: 'source',
+        source_type: 'database', // database, ftp, sftp
+        // Database fields
         db_driver: 'postgres',
         db_host: '',
         db_port: '5432',
@@ -18,6 +20,13 @@ function Network() {
         db_password: '',
         db_name: '',
         db_sslmode: 'disable',
+        // FTP/SFTP fields
+        ftp_host: '',
+        ftp_port: '21',
+        ftp_user: '',
+        ftp_password: '',
+        ftp_path: '',
+        ftp_passive: true,
     });
 
     // New states for enhanced UX
@@ -70,6 +79,7 @@ function Network() {
             name: network.name,
             ip_address: network.ip_address,
             type: network.type,
+            source_type: network.source_type || 'database',
             db_driver: network.db_driver || 'postgres',
             db_host: network.db_host || '',
             db_port: network.db_port || '5432',
@@ -77,6 +87,12 @@ function Network() {
             db_password: network.db_password || '',
             db_name: network.db_name || '',
             db_sslmode: network.db_sslmode || 'disable',
+            ftp_host: network.ftp_host || '',
+            ftp_port: network.ftp_port || '21',
+            ftp_user: network.ftp_user || '',
+            ftp_password: network.ftp_password || '',
+            ftp_path: network.ftp_path || '',
+            ftp_passive: network.ftp_passive !== false,
         });
         setEditingId(network.id);
         setShowForm(true);
@@ -100,9 +116,10 @@ function Network() {
 
     const resetForm = () => {
         setFormData({
-            name: '', ip_address: '', type: 'source',
+            name: '', ip_address: '', type: 'source', source_type: 'database',
             db_driver: 'postgres', db_host: '', db_port: '5432',
-            db_user: '', db_password: '', db_name: '', db_sslmode: 'disable'
+            db_user: '', db_password: '', db_name: '', db_sslmode: 'disable',
+            ftp_host: '', ftp_port: '21', ftp_user: '', ftp_password: '', ftp_path: '', ftp_passive: true
         });
         setEditingId(null);
         setShowForm(false);
@@ -192,80 +209,175 @@ function Network() {
                             </select>
                         </div>
 
-                        {/* Source Database Configuration */}
-                        <div className="border-t border-slate-700 pt-4 mt-4">
-                            <h3 className="text-md font-semibold text-slate-200 mb-3 flex items-center gap-2">
-                                <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
-                                </svg>
-                                Source Database Configuration
-                            </h3>
-                            <p className="text-xs text-slate-500 mb-4">Configure the database that this agent will sync data from</p>
+                        {/* Source Type Selection */}
+                        <div>
+                            <label className="block text-sm font-medium text-slate-300 mb-2">Source Type</label>
+                            <select
+                                value={formData.source_type}
+                                onChange={(e) => setFormData({ ...formData, source_type: e.target.value })}
+                                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+                            >
+                                <option value="database">Database</option>
+                                <option value="ftp">FTP</option>
+                                <option value="sftp">SFTP</option>
+                            </select>
+                        </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-300 mb-1">Driver</label>
-                                    <select
-                                        value={formData.db_driver}
-                                        onChange={(e) => setFormData({ ...formData, db_driver: e.target.value })}
-                                        className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                    >
-                                        <option value="postgres">PostgreSQL</option>
-                                        <option value="mysql">MySQL</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-300 mb-1">Host</label>
-                                    <input
-                                        type="text"
-                                        value={formData.db_host}
-                                        onChange={(e) => setFormData({ ...formData, db_host: e.target.value })}
-                                        className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                        placeholder="localhost"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-300 mb-1">Port</label>
-                                    <input
-                                        type="text"
-                                        value={formData.db_port}
-                                        onChange={(e) => setFormData({ ...formData, db_port: e.target.value })}
-                                        className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                        placeholder="5432"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-300 mb-1">Username</label>
-                                    <input
-                                        type="text"
-                                        value={formData.db_user}
-                                        onChange={(e) => setFormData({ ...formData, db_user: e.target.value })}
-                                        className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                        placeholder="postgres"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-300 mb-1">Password</label>
-                                    <input
-                                        type="password"
-                                        value={formData.db_password}
-                                        onChange={(e) => setFormData({ ...formData, db_password: e.target.value })}
-                                        className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                        placeholder="••••••••"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-300 mb-1">Database Name</label>
-                                    <input
-                                        type="text"
-                                        value={formData.db_name}
-                                        onChange={(e) => setFormData({ ...formData, db_name: e.target.value })}
-                                        className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                        placeholder="mydb"
-                                    />
+                        {/* Database Configuration - shown when source_type is 'database' */}
+                        {formData.source_type === 'database' && (
+                            <div className="border-t border-slate-700 pt-4 mt-4">
+                                <h3 className="text-md font-semibold text-slate-200 mb-3 flex items-center gap-2">
+                                    <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                                    </svg>
+                                    Database Configuration
+                                </h3>
+                                <p className="text-xs text-slate-500 mb-4">Configure the database that this agent will sync data from</p>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">Driver</label>
+                                        <select
+                                            value={formData.db_driver}
+                                            onChange={(e) => setFormData({ ...formData, db_driver: e.target.value })}
+                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                        >
+                                            <option value="postgres">PostgreSQL</option>
+                                            <option value="mysql">MySQL</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">Host</label>
+                                        <input
+                                            type="text"
+                                            value={formData.db_host}
+                                            onChange={(e) => setFormData({ ...formData, db_host: e.target.value })}
+                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                            placeholder="localhost"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">Port</label>
+                                        <input
+                                            type="text"
+                                            value={formData.db_port}
+                                            onChange={(e) => setFormData({ ...formData, db_port: e.target.value })}
+                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                            placeholder="5432"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">Username</label>
+                                        <input
+                                            type="text"
+                                            value={formData.db_user}
+                                            onChange={(e) => setFormData({ ...formData, db_user: e.target.value })}
+                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                            placeholder="postgres"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">Password</label>
+                                        <input
+                                            type="password"
+                                            value={formData.db_password}
+                                            onChange={(e) => setFormData({ ...formData, db_password: e.target.value })}
+                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                            placeholder="••••••••"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">Database Name</label>
+                                        <input
+                                            type="text"
+                                            value={formData.db_name}
+                                            onChange={(e) => setFormData({ ...formData, db_name: e.target.value })}
+                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                            placeholder="mydb"
+                                        />
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
+
+                        {/* FTP/SFTP Configuration - shown when source_type is 'ftp' or 'sftp' */}
+                        {(formData.source_type === 'ftp' || formData.source_type === 'sftp') && (
+                            <div className="border-t border-slate-700 pt-4 mt-4">
+                                <h3 className="text-md font-semibold text-slate-200 mb-3 flex items-center gap-2">
+                                    <svg className="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                    </svg>
+                                    {formData.source_type.toUpperCase()} Configuration
+                                </h3>
+                                <p className="text-xs text-slate-500 mb-4">Configure the file server that this agent will sync files from</p>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">Host</label>
+                                        <input
+                                            type="text"
+                                            value={formData.ftp_host}
+                                            onChange={(e) => setFormData({ ...formData, ftp_host: e.target.value })}
+                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                            placeholder="ftp.example.com"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">Port</label>
+                                        <input
+                                            type="text"
+                                            value={formData.ftp_port}
+                                            onChange={(e) => setFormData({ ...formData, ftp_port: e.target.value })}
+                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                            placeholder={formData.source_type === 'sftp' ? '22' : '21'}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">Username</label>
+                                        <input
+                                            type="text"
+                                            value={formData.ftp_user}
+                                            onChange={(e) => setFormData({ ...formData, ftp_user: e.target.value })}
+                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                            placeholder="ftpuser"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">Password</label>
+                                        <input
+                                            type="password"
+                                            value={formData.ftp_password}
+                                            onChange={(e) => setFormData({ ...formData, ftp_password: e.target.value })}
+                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                            placeholder="••••••••"
+                                        />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">Remote Path</label>
+                                        <input
+                                            type="text"
+                                            value={formData.ftp_path}
+                                            onChange={(e) => setFormData({ ...formData, ftp_path: e.target.value })}
+                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                            placeholder="/data/exports"
+                                        />
+                                    </div>
+                                    {formData.source_type === 'ftp' && (
+                                        <div className="md:col-span-2">
+                                            <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.ftp_passive}
+                                                    onChange={(e) => setFormData({ ...formData, ftp_passive: e.target.checked })}
+                                                    className="w-4 h-4 rounded border-slate-600 bg-slate-900 text-amber-500 focus:ring-amber-500"
+                                                />
+                                                Use Passive Mode (recommended)
+                                            </label>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                         <div className="flex gap-3 pt-2">
                             <button
                                 type="submit"

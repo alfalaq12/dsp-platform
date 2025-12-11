@@ -298,20 +298,26 @@ func (al *AgentListener) handleDataResponse(msg core.AgentMessage, clientAddr st
 		sampleData = string(sampleJSON)
 	}
 
-	// Get target table from job's schema
+	// Get target table and unique key from job's schema
 	targetTable := ""
+	uniqueKeyColumn := ""
 	if jobID > 0 {
 		var job core.Job
 		if err := al.handler.db.Preload("Schema").First(&job, jobID).Error; err == nil {
 			targetTable = job.Schema.TargetTable
+			uniqueKeyColumn = job.Schema.UniqueKeyColumn
 		}
 	}
 
-	// Insert data into target database
+	// Insert/Upsert data into target database
 	insertedCount := 0
 	if records, ok := msg.Data["records"].([]interface{}); ok && len(records) > 0 && targetTable != "" {
-		insertedCount = al.insertToTargetDB(targetTable, records)
-		log.Printf("Inserted %d records into target table '%s'", insertedCount, targetTable)
+		insertedCount = al.upsertToTargetDB(targetTable, records, uniqueKeyColumn)
+		if uniqueKeyColumn != "" {
+			log.Printf("Upserted %d records into target table '%s' (key: %s)", insertedCount, targetTable, uniqueKeyColumn)
+		} else {
+			log.Printf("Inserted %d records into target table '%s'", insertedCount, targetTable)
+		}
 	}
 
 	// Update job log if we have a log_id
@@ -366,6 +372,11 @@ func (al *AgentListener) handleDataResponse(msg core.AgentMessage, clientAddr st
 
 // insertToTargetDB connects to target database and inserts records
 func (al *AgentListener) insertToTargetDB(tableName string, records []interface{}) int {
+	return al.upsertToTargetDB(tableName, records, "")
+}
+
+// upsertToTargetDB connects to target database and inserts or updates records
+func (al *AgentListener) upsertToTargetDB(tableName string, records []interface{}, uniqueKeyColumn string) int {
 	// Load target database config from database settings
 	config := al.loadTargetDBConfig()
 
@@ -402,13 +413,18 @@ func (al *AgentListener) insertToTargetDB(tableName string, records []interface{
 		return 0
 	}
 
-	// Insert records
-	inserted, err := targetConn.InsertBatch(tableName, recordMaps)
+	// Upsert or Insert records based on unique key
+	var count int
+	if uniqueKeyColumn != "" {
+		count, err = targetConn.UpsertBatch(tableName, recordMaps, uniqueKeyColumn)
+	} else {
+		count, err = targetConn.InsertBatch(tableName, recordMaps)
+	}
 	if err != nil {
-		log.Printf("Insert batch error: %v", err)
+		log.Printf("Batch operation error: %v", err)
 	}
 
-	return inserted
+	return count
 }
 
 // loadTargetDBConfig loads target database config from Settings table

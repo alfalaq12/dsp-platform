@@ -12,6 +12,13 @@ function Schema() {
         sql_command: '',
         target_table: '',
         description: '',
+        // File sync fields
+        source_type: 'query', // query, file
+        file_format: 'csv',   // csv, xlsx, json
+        file_pattern: '',
+        unique_key_column: '',
+        has_header: true,
+        delimiter: ',',
     });
 
     // New states for enhanced UX
@@ -59,9 +66,15 @@ function Schema() {
     const handleEdit = (schema) => {
         setFormData({
             name: schema.name,
-            sql_command: schema.sql_command,
+            sql_command: schema.sql_command || '',
             target_table: schema.target_table,
             description: schema.description || '',
+            source_type: schema.source_type || 'query',
+            file_format: schema.file_format || 'csv',
+            file_pattern: schema.file_pattern || '',
+            unique_key_column: schema.unique_key_column || '',
+            has_header: schema.has_header !== false,
+            delimiter: schema.delimiter || ',',
         });
         setEditingId(schema.id);
         setShowForm(true);
@@ -84,7 +97,11 @@ function Schema() {
     };
 
     const resetForm = () => {
-        setFormData({ name: '', sql_command: '', target_table: '', description: '' });
+        setFormData({
+            name: '', sql_command: '', target_table: '', description: '',
+            source_type: 'query', file_format: 'csv', file_pattern: '',
+            unique_key_column: '', has_header: true, delimiter: ','
+        });
         setEditingId(null);
         setShowForm(false);
     };
@@ -130,17 +147,98 @@ function Schema() {
                             />
                         </div>
 
+                        {/* Source Type Selection */}
                         <div>
-                            <label className="block text-sm font-medium text-slate-300 mb-2">SQL Command</label>
-                            <textarea
-                                value={formData.sql_command}
-                                onChange={(e) => setFormData({ ...formData, sql_command: e.target.value })}
-                                rows="4"
-                                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-xl text-white font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                                placeholder="SELECT * FROM users WHERE..."
-                                required
-                            />
+                            <label className="block text-sm font-medium text-slate-300 mb-2">Source Type</label>
+                            <select
+                                value={formData.source_type}
+                                onChange={(e) => setFormData({ ...formData, source_type: e.target.value })}
+                                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                            >
+                                <option value="query">SQL Query (Database)</option>
+                                <option value="file">File (FTP/SFTP)</option>
+                            </select>
                         </div>
+
+                        {/* SQL Query Fields - shown when source_type is 'query' */}
+                        {formData.source_type === 'query' && (
+                            <div>
+                                <label className="block text-sm font-medium text-slate-300 mb-2">SQL Command</label>
+                                <textarea
+                                    value={formData.sql_command}
+                                    onChange={(e) => setFormData({ ...formData, sql_command: e.target.value })}
+                                    rows="4"
+                                    className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-xl text-white font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                    placeholder="SELECT * FROM users WHERE..."
+                                    required
+                                />
+                            </div>
+                        )}
+
+                        {/* File Sync Fields - shown when source_type is 'file' */}
+                        {formData.source_type === 'file' && (
+                            <div className="border-t border-slate-700 pt-4 mt-2 space-y-4">
+                                <h3 className="text-md font-semibold text-amber-400 mb-2 flex items-center gap-2">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                    </svg>
+                                    File Configuration
+                                </h3>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">File Format</label>
+                                        <select
+                                            value={formData.file_format}
+                                            onChange={(e) => setFormData({ ...formData, file_format: e.target.value })}
+                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                        >
+                                            <option value="csv">CSV</option>
+                                            <option value="xlsx">Excel (.xlsx)</option>
+                                            <option value="json">JSON</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">File Pattern</label>
+                                        <input
+                                            type="text"
+                                            value={formData.file_pattern}
+                                            onChange={(e) => setFormData({ ...formData, file_pattern: e.target.value })}
+                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                            placeholder="data.csv atau *.csv"
+                                        />
+                                    </div>
+                                    {formData.file_format === 'csv' && (
+                                        <>
+                                            <div>
+                                                <label className="block text-sm font-medium text-slate-300 mb-1">Delimiter</label>
+                                                <select
+                                                    value={formData.delimiter}
+                                                    onChange={(e) => setFormData({ ...formData, delimiter: e.target.value })}
+                                                    className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                                >
+                                                    <option value=",">Comma (,)</option>
+                                                    <option value=";">Semicolon (;)</option>
+                                                    <option value="\t">Tab</option>
+                                                    <option value="|">Pipe (|)</option>
+                                                </select>
+                                            </div>
+                                            <div className="flex items-center">
+                                                <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.has_header}
+                                                        onChange={(e) => setFormData({ ...formData, has_header: e.target.checked })}
+                                                        className="w-4 h-4 rounded border-slate-600 bg-slate-900 text-amber-500 focus:ring-amber-500"
+                                                    />
+                                                    File has header row
+                                                </label>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
                         <div>
                             <label className="block text-sm font-medium text-slate-300 mb-2">Target Table</label>
@@ -152,6 +250,19 @@ function Schema() {
                                 placeholder="sync_users"
                                 required
                             />
+                        </div>
+
+                        {/* Unique Key Column for Upsert */}
+                        <div>
+                            <label className="block text-sm font-medium text-slate-300 mb-2">Unique Key Column (for Upsert)</label>
+                            <input
+                                type="text"
+                                value={formData.unique_key_column}
+                                onChange={(e) => setFormData({ ...formData, unique_key_column: e.target.value })}
+                                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                placeholder="id atau email (kosongkan untuk insert biasa)"
+                            />
+                            <p className="text-xs text-slate-500 mt-1">Column untuk menentukan apakah data di-update atau insert baru</p>
                         </div>
 
                         <div>

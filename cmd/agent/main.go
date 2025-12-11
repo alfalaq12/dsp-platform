@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"dsp-platform/internal/database"
+	"dsp-platform/internal/filesync"
 	"dsp-platform/internal/logger"
 	"encoding/json"
 	"fmt"
@@ -397,48 +398,50 @@ func executeRunJobCommand(conn net.Conn, msg AgentMessage) {
 		logID = uint(id)
 	}
 
-	// Try to get query from schema object first (from scheduler)
-	query := ""
-	targetTable := ""
+	// Get job name and target table
 	jobName := ""
-
-	if schema, ok := msg.Data["schema"].(map[string]interface{}); ok {
-		if q, ok := schema["sql_command"].(string); ok {
-			query = q
-		}
-		if t, ok := schema["target_table"].(string); ok {
-			targetTable = t
-		}
-		if n, ok := schema["name"].(string); ok {
-			jobName = n
-		}
+	if n, ok := msg.Data["name"].(string); ok {
+		jobName = n
 	}
 
-	// Fallback to direct keys (legacy)
-	if query == "" {
-		if q, ok := msg.Data["query"].(string); ok {
-			query = q
-		}
-	}
-	if targetTable == "" {
-		if t, ok := msg.Data["target_table"].(string); ok {
-			targetTable = t
-		}
-	}
-	if jobName == "" {
-		if n, ok := msg.Data["name"].(string); ok {
-			jobName = n
-		}
+	// Get source type (database, ftp, sftp)
+	sourceType := "database" // default
+	if st, ok := msg.Data["source_type"].(string); ok && st != "" {
+		sourceType = st
 	}
 
 	logger.Logger.Info().
 		Uint("job_id", jobID).
 		Uint("log_id", logID).
 		Str("job", jobName).
-		Str("query", query).
+		Str("source_type", sourceType).
 		Msg("Processing RUN_JOB command")
 
-	// Use db_config from Master (Network settings) if provided, else fallback to .env
+	// Route based on source type
+	switch sourceType {
+	case "ftp", "sftp":
+		executeFileSyncJob(conn, msg, jobID, logID, jobName, sourceType)
+	default:
+		executeDatabaseSyncJob(conn, msg, jobID, logID, jobName)
+	}
+}
+
+// executeDatabaseSyncJob handles database-based sync jobs
+func executeDatabaseSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, jobName string) {
+	// Get query
+	query := ""
+	if q, ok := msg.Data["query"].(string); ok {
+		query = q
+	}
+	if query == "" {
+		if schema, ok := msg.Data["schema"].(map[string]interface{}); ok {
+			if q, ok := schema["sql_command"].(string); ok {
+				query = q
+			}
+		}
+	}
+
+	// Use db_config from Master (Network settings) if provided
 	dbCfg := DBConfig
 	if dbConfigMap, ok := msg.Data["db_config"].(map[string]interface{}); ok {
 		if driver, ok := dbConfigMap["driver"].(string); ok && driver != "" {
@@ -465,7 +468,6 @@ func executeRunJobCommand(conn net.Conn, msg AgentMessage) {
 		logger.Logger.Info().
 			Str("host", dbCfg.Host).
 			Str("db_name", dbCfg.DBName).
-			Str("user", dbCfg.User).
 			Msg("Using DB config from Master")
 	}
 
@@ -493,7 +495,6 @@ func executeRunJobCommand(conn net.Conn, msg AgentMessage) {
 			Int("total_so_far", totalRecords).
 			Msg("Sending partial batch")
 
-		// Send partial response
 		sendDataResponse(conn, jobID, logID, batch, count, "", true)
 		return nil
 	}
@@ -513,8 +514,153 @@ func executeRunJobCommand(conn net.Conn, msg AgentMessage) {
 		Int("total_records", totalRecords).
 		Msg("Query execution completed")
 
-	// Send final completion response (empty records, partial=false)
+	// Send final completion response
 	sendDataResponse(conn, jobID, logID, nil, 0, "", false)
+}
+
+// executeFileSyncJob handles FTP/SFTP file sync jobs
+func executeFileSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, jobName, sourceType string) {
+	// Get FTP config
+	ftpConfig := filesync.FTPConfig{}
+	if cfg, ok := msg.Data["ftp_config"].(map[string]interface{}); ok {
+		if host, ok := cfg["host"].(string); ok {
+			ftpConfig.Host = host
+		}
+		if port, ok := cfg["port"].(string); ok {
+			ftpConfig.Port = port
+		}
+		if user, ok := cfg["user"].(string); ok {
+			ftpConfig.User = user
+		}
+		if password, ok := cfg["password"].(string); ok {
+			ftpConfig.Password = password
+		}
+		if path, ok := cfg["path"].(string); ok {
+			ftpConfig.Path = path
+		}
+		if passive, ok := cfg["passive"].(bool); ok {
+			ftpConfig.Passive = passive
+		}
+	}
+
+	// Get file config
+	fileFormat := "csv"
+	filePattern := ""
+	hasHeader := true
+	delimiter := ","
+
+	if cfg, ok := msg.Data["file_config"].(map[string]interface{}); ok {
+		if format, ok := cfg["format"].(string); ok && format != "" {
+			fileFormat = format
+		}
+		if pattern, ok := cfg["pattern"].(string); ok {
+			filePattern = pattern
+		}
+		if hdr, ok := cfg["has_header"].(bool); ok {
+			hasHeader = hdr
+		}
+		if delim, ok := cfg["delimiter"].(string); ok && delim != "" {
+			delimiter = delim
+		}
+	}
+
+	logger.Logger.Info().
+		Str("host", ftpConfig.Host).
+		Str("path", ftpConfig.Path).
+		Str("pattern", filePattern).
+		Str("format", fileFormat).
+		Msg("Starting file sync job")
+
+	// Read file from FTP/SFTP
+	var fileData []byte
+	var fileName string
+	var err error
+
+	if sourceType == "sftp" {
+		sftpConfig := filesync.SFTPConfig{
+			Host:     ftpConfig.Host,
+			Port:     ftpConfig.Port,
+			User:     ftpConfig.User,
+			Password: ftpConfig.Password,
+			Path:     ftpConfig.Path,
+		}
+		if sftpConfig.Port == "" || sftpConfig.Port == "21" {
+			sftpConfig.Port = "22" // Default SFTP port
+		}
+
+		client, err := filesync.NewSFTPClient(sftpConfig)
+		if err != nil {
+			logger.Logger.Error().Err(err).Msg("Failed to connect to SFTP server")
+			sendDataResponse(conn, jobID, logID, nil, 0, err.Error(), false)
+			return
+		}
+		defer client.Close()
+
+		fileData, fileName, err = client.FindAndReadFile(ftpConfig.Path, filePattern)
+		if err != nil {
+			logger.Logger.Error().Err(err).Msg("Failed to read file from SFTP")
+			sendDataResponse(conn, jobID, logID, nil, 0, err.Error(), false)
+			return
+		}
+	} else {
+		// FTP
+		if ftpConfig.Port == "" {
+			ftpConfig.Port = "21"
+		}
+
+		client, err := filesync.NewFTPClient(ftpConfig)
+		if err != nil {
+			logger.Logger.Error().Err(err).Msg("Failed to connect to FTP server")
+			sendDataResponse(conn, jobID, logID, nil, 0, err.Error(), false)
+			return
+		}
+		defer client.Close()
+
+		fileData, fileName, err = client.FindAndReadFile(ftpConfig.Path, filePattern)
+		if err != nil {
+			logger.Logger.Error().Err(err).Msg("Failed to read file from FTP")
+			sendDataResponse(conn, jobID, logID, nil, 0, err.Error(), false)
+			return
+		}
+	}
+
+	logger.Logger.Info().
+		Str("file", fileName).
+		Int("size_bytes", len(fileData)).
+		Msg("File downloaded, parsing...")
+
+	// Parse file
+	records, err := filesync.ParseFile(fileData, fileFormat, hasHeader, delimiter)
+	if err != nil {
+		logger.Logger.Error().Err(err).Msg("Failed to parse file")
+		sendDataResponse(conn, jobID, logID, nil, 0, err.Error(), false)
+		return
+	}
+
+	logger.Logger.Info().
+		Str("job", jobName).
+		Int("total_records", len(records)).
+		Msg("File parsed successfully")
+
+	// Send records in batches
+	batchSize := 5000
+	for i := 0; i < len(records); i += batchSize {
+		end := i + batchSize
+		if end > len(records) {
+			end = len(records)
+		}
+		batch := records[i:end]
+		isPartial := end < len(records)
+
+		sendDataResponse(conn, jobID, logID, batch, len(batch), "", isPartial)
+	}
+
+	// Send final completion if we sent data
+	if len(records) > 0 && len(records)%batchSize == 0 {
+		sendDataResponse(conn, jobID, logID, nil, 0, "", false)
+	} else if len(records) == 0 {
+		sendDataResponse(conn, jobID, logID, nil, 0, "", false)
+	}
 }
 
 // sendDataResponse sends data back to master after job execution
