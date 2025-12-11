@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Database, Network as NetworkIcon, Play, LayoutDashboard, X, Settings } from 'lucide-react';
+import { Database, Network as NetworkIcon, Play, LayoutDashboard, X, Settings, Shield } from 'lucide-react';
 
 function Sidebar({ isOpen, onClose }) {
     const menuItems = [
@@ -7,8 +7,11 @@ function Sidebar({ isOpen, onClose }) {
         { path: '/schema', label: 'Schema', icon: Database },
         { path: '/network', label: 'Network', icon: NetworkIcon },
         { path: '/jobs', label: 'Jobs', icon: Play },
+        { path: '/audit-logs', label: 'Audit Logs', icon: Shield, role: 'admin' }, // Only admin
         { path: '/settings', label: 'Settings', icon: Settings },
     ];
+
+    const userRole = localStorage.getItem('role') || 'viewer';
 
     return (
         <>
@@ -43,7 +46,7 @@ function Sidebar({ isOpen, onClose }) {
 
                 <nav className="flex-1 p-4">
                     <ul className="space-y-2">
-                        {menuItems.map((item) => {
+                        {menuItems.filter(item => !item.role || item.role === userRole).map((item) => {
                             const Icon = item.icon;
                             return (
                                 <li key={item.path}>

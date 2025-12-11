@@ -95,6 +95,7 @@ func initDatabase() (*gorm.DB, error) {
 		&core.Network{},
 		&core.Job{},
 		&core.JobLog{},
+		&core.AuditLog{},
 		&core.Settings{},
 	); err != nil {
 		logger.Logger.Error().Err(err).Msg("Database migration failed")
@@ -165,6 +166,9 @@ func setupRouter(handler *server.Handler) *gin.Engine {
 
 		// Network test connection
 		api.POST("/networks/:id/test", handler.TestNetworkConnection)
+
+		// Audit Logs
+		api.GET("/audit-logs", handler.GetAuditLogs)
 	}
 
 	// Health check

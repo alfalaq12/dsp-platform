@@ -24,14 +24,18 @@ func init() {
 
 // Claims represents the JWT claims structure
 type Claims struct {
+	UserID   uint   `json:"user_id"`
 	Username string `json:"username"`
+	Role     string `json:"role"`
 	jwt.RegisteredClaims
 }
 
 // GenerateToken creates a new JWT token for the user
-func GenerateToken(username string) (string, error) {
+func GenerateToken(userID uint, username, role string) (string, error) {
 	claims := &Claims{
+		UserID:   userID,
 		Username: username,
+		Role:     role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -96,8 +100,23 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// Store username in context for use in handlers
+		// Store user info in context for use in handlers
 		c.Set("username", claims.Username)
+		c.Set("user_id", claims.UserID)
+		c.Set("role", claims.Role)
+		c.Next()
+	}
+}
+
+// RequireRole checks if the user has the required role
+func RequireRole(role string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userRole := c.GetString("role")
+		if userRole != role && userRole != "admin" { // Admin always has access
+			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden: Insufficient permissions"})
+			c.Abort()
+			return
+		}
 		c.Next()
 	}
 }

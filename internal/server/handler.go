@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -50,28 +51,44 @@ func (h *Handler) Login(c *gin.Context) {
 			return
 		}
 	} else {
-		// Start of change: Verify password
-		if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+		// Start of change:	// Check password
+		err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password))
+		if err != nil {
+			// Log failed login attempt (optional, maybe rate limit here)
+			// logger.Logger.Warn().Str("username", req.Username).Msg("Invalid password") // Assuming logger is available
+			c.JSON(401, gin.H{"error": "Invalid username or password"})
 			return
 		}
+
+		// Generate JWT
+		token, err := auth.GenerateToken(user.ID, user.Username, user.Role)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Failed to generate token"})
+			return
+		}
+
+		// Set HttpOnly Cookie for security
+		c.SetCookie("auth_token", token, 3600*24, "/", "", false, true)
+
+		// Log successful login
+		go func() {
+			h.db.Create(&core.AuditLog{
+				UserID:    user.ID,
+				Username:  user.Username,
+				Action:    "LOGIN",
+				Entity:    "AUTH",
+				IPAddress: c.ClientIP(),
+				UserAgent: c.Request.UserAgent(),
+				CreatedAt: time.Now(),
+			})
+		}()
+
+		c.JSON(200, core.LoginResponse{
+			Token:    token, // Keep returning token for API clients if needed, though cookie is primary
+			Username: user.Username,
+			Role:     user.Role,
+		})
 	}
-
-	// Generate JWT token
-	token, err := auth.GenerateToken(user.Username)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
-		return
-	}
-
-	// Set HttpOnly Cookie (secure=false for dev/local)
-	// Name, Value, MaxAge, Path, Domain, Secure, HttpOnly
-	c.SetCookie("auth_token", token, 3600*24, "/", "", false, true)
-
-	c.JSON(http.StatusOK, core.LoginResponse{
-		Token:    "", // Token is now in cookie, don't expose in body
-		Username: user.Username,
-	})
 }
 
 // Logout clears the auth cookie
@@ -713,5 +730,42 @@ func (h *Handler) TestNetworkConnection(c *gin.Context) {
 		"success": true,
 		"message": "Test command sent to agent",
 		"agent":   network.Name,
+	})
+}
+
+// GetAuditLogs retrieves audit logs with pagination and filters
+func (h *Handler) GetAuditLogs(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	action := c.Query("action")
+	entity := c.Query("entity")
+
+	offset := (page - 1) * limit
+
+	var logs []core.AuditLog
+	var total int64
+
+	query := h.db.Model(&core.AuditLog{})
+
+	if action != "" {
+		query = query.Where("action = ?", action)
+	}
+	if entity != "" {
+		query = query.Where("entity = ?", entity)
+	}
+
+	query.Count(&total)
+
+	// Order by latest
+	if err := query.Order("created_at desc").Offset(offset).Limit(limit).Find(&logs).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch audit logs"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":  logs,
+		"total": total,
+		"page":  page,
+		"limit": limit,
 	})
 }

@@ -20,6 +20,7 @@ function Login() {
             const response = await login(formData);
             // Token is now handled by HttpOnly cookie
             localStorage.setItem('username', response.data.username);
+            localStorage.setItem('role', response.data.role || 'viewer'); // Default to viewer if missing
             localStorage.setItem('lastActivity', Date.now().toString());
             navigate('/');
         } catch (err) {

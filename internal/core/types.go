@@ -56,8 +56,23 @@ type Job struct {
 type User struct {
 	ID        uint      `json:"id" gorm:"primaryKey"`
 	Username  string    `json:"username" gorm:"not null;unique"`
-	Password  string    `json:"-" gorm:"not null"` // Never expose in JSON
+	Password  string    `json:"-" gorm:"not null"`           // Never expose in JSON
+	Role      string    `json:"role" gorm:"default:'admin'"` // admin OR viewer
 	CreatedAt time.Time `json:"created_at"`
+}
+
+// AuditLog represents a system activity log
+type AuditLog struct {
+	ID        uint      `json:"id" gorm:"primaryKey"`
+	UserID    uint      `json:"user_id" gorm:"index"`
+	Username  string    `json:"username"`
+	Action    string    `json:"action" gorm:"index"` // CREATE, UPDATE, DELETE, LOGIN
+	Entity    string    `json:"entity" gorm:"index"` // JOB, SCHEMA, NETWORK
+	EntityID  string    `json:"entity_id"`
+	IPAddress string    `json:"ip_address"`
+	UserAgent string    `json:"user_agent"`
+	Details   string    `json:"details" gorm:"type:text"`
+	CreatedAt time.Time `json:"created_at" gorm:"index"`
 }
 
 // AgentMessage represents the message protocol between Master and Tenant Agents
@@ -79,6 +94,7 @@ type LoginRequest struct {
 type LoginResponse struct {
 	Token    string `json:"token"`
 	Username string `json:"username"`
+	Role     string `json:"role"`
 }
 
 // JobRunRequest represents the payload to run a job

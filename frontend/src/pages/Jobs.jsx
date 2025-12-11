@@ -20,6 +20,7 @@ function Jobs() {
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [runningJobs, setRunningJobs] = useState(new Set());
     const { toasts, addToast, removeToast } = useToast();
+    const userRole = localStorage.getItem('role') || 'viewer';
 
     const loadData = useCallback(async () => {
         setIsRefreshing(true);
@@ -215,90 +216,94 @@ function Jobs() {
                         </span>
                     </div>
                 </div>
-                <button
-                    onClick={() => setShowForm(!showForm)}
-                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-panda-gold to-panda-gold-light hover:from-panda-gold-light hover:to-panda-gold text-panda-dark font-semibold rounded-xl transition shadow-lg shadow-panda-gold/20 btn-pulse-glow"
-                >
-                    <Plus className="w-5 h-5" />
-                    New Job
-                </button>
+                {userRole === 'admin' && (
+                    <button
+                        onClick={() => setShowForm(!showForm)}
+                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-panda-gold to-panda-gold-light hover:from-panda-gold-light hover:to-panda-gold text-panda-dark font-semibold rounded-xl transition shadow-lg shadow-panda-gold/20 btn-pulse-glow"
+                    >
+                        <Plus className="w-5 h-5" />
+                        New Job
+                    </button>
+                )}
             </div>
 
             {/* Create Form */}
-            {showForm && (
-                <div className="bg-panda-dark-100 border border-panda-dark-300 rounded-2xl p-6 modal-scale-in">
-                    <h2 className="text-lg font-semibold text-panda-text mb-4">Create New Job</h2>
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        <input
-                            type="text"
-                            value={formData.name}
-                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                            className="w-full px-4 py-3 bg-panda-dark border border-panda-dark-300 rounded-xl text-panda-text focus:border-panda-gold focus:outline-none transition"
-                            placeholder="Job Name"
-                            required
-                        />
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <select
-                                value={formData.schema_id}
-                                onChange={(e) => setFormData({ ...formData, schema_id: e.target.value })}
-                                className="px-4 py-3 bg-panda-dark border border-panda-dark-300 rounded-xl text-panda-text focus:border-panda-gold focus:outline-none transition"
+            {
+                showForm && (
+                    <div className="bg-panda-dark-100 border border-panda-dark-300 rounded-2xl p-6 modal-scale-in">
+                        <h2 className="text-lg font-semibold text-panda-text mb-4">Create New Job</h2>
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <input
+                                type="text"
+                                value={formData.name}
+                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                className="w-full px-4 py-3 bg-panda-dark border border-panda-dark-300 rounded-xl text-panda-text focus:border-panda-gold focus:outline-none transition"
+                                placeholder="Job Name"
                                 required
-                            >
-                                <option value="">Select Schema</option>
-                                {schemas.map((s) => (
-                                    <option key={s.id} value={s.id}>{s.name}</option>
-                                ))}
-                            </select>
+                            />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <select
+                                    value={formData.schema_id}
+                                    onChange={(e) => setFormData({ ...formData, schema_id: e.target.value })}
+                                    className="px-4 py-3 bg-panda-dark border border-panda-dark-300 rounded-xl text-panda-text focus:border-panda-gold focus:outline-none transition"
+                                    required
+                                >
+                                    <option value="">Select Schema</option>
+                                    {schemas.map((s) => (
+                                        <option key={s.id} value={s.id}>{s.name}</option>
+                                    ))}
+                                </select>
+                                <select
+                                    value={formData.network_id}
+                                    onChange={(e) => setFormData({ ...formData, network_id: e.target.value })}
+                                    className="px-4 py-3 bg-panda-dark border border-panda-dark-300 rounded-xl text-panda-text focus:border-panda-gold focus:outline-none transition"
+                                    required
+                                >
+                                    <option value="">Select Network</option>
+                                    {networks.map((n) => (
+                                        <option key={n.id} value={n.id}>{n.name}</option>
+                                    ))}
+                                </select>
+                            </div>
                             <select
-                                value={formData.network_id}
-                                onChange={(e) => setFormData({ ...formData, network_id: e.target.value })}
-                                className="px-4 py-3 bg-panda-dark border border-panda-dark-300 rounded-xl text-panda-text focus:border-panda-gold focus:outline-none transition"
-                                required
+                                value={formData.schedule}
+                                onChange={(e) => setFormData({ ...formData, schedule: e.target.value })}
+                                className="w-full px-4 py-3 bg-panda-dark border border-panda-dark-300 rounded-xl text-panda-text focus:border-panda-gold focus:outline-none transition"
                             >
-                                <option value="">Select Network</option>
-                                {networks.map((n) => (
-                                    <option key={n.id} value={n.id}>{n.name}</option>
-                                ))}
+                                <option value="">Manual Only</option>
+                                <option value="1min">Every 1 minute</option>
+                                <option value="5min">Every 5 minutes</option>
+                                <option value="10min">Every 10 minutes</option>
+                                <option value="15min">Every 15 minutes</option>
+                                <option value="30min">Every 30 minutes</option>
+                                <option value="1hour">Every 1 hour</option>
+                                <option value="3hour">Every 3 hours</option>
+                                <option value="6hour">Every 6 hours</option>
+                                <option value="12hour">Every 12 hours</option>
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
                             </select>
-                        </div>
-                        <select
-                            value={formData.schedule}
-                            onChange={(e) => setFormData({ ...formData, schedule: e.target.value })}
-                            className="w-full px-4 py-3 bg-panda-dark border border-panda-dark-300 rounded-xl text-panda-text focus:border-panda-gold focus:outline-none transition"
-                        >
-                            <option value="">Manual Only</option>
-                            <option value="1min">Every 1 minute</option>
-                            <option value="5min">Every 5 minutes</option>
-                            <option value="10min">Every 10 minutes</option>
-                            <option value="15min">Every 15 minutes</option>
-                            <option value="30min">Every 30 minutes</option>
-                            <option value="1hour">Every 1 hour</option>
-                            <option value="3hour">Every 3 hours</option>
-                            <option value="6hour">Every 6 hours</option>
-                            <option value="12hour">Every 12 hours</option>
-                            <option value="daily">Daily</option>
-                            <option value="weekly">Weekly</option>
-                        </select>
-                        <div className="flex gap-3">
-                            <button
-                                type="submit"
-                                disabled={isSubmitting}
-                                className="flex items-center justify-center gap-2 px-6 py-2.5 bg-panda-gold text-panda-dark font-semibold rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed min-w-[120px]"
-                            >
-                                {isSubmitting && <span className="spinner-border"></span>}
-                                Create
-                            </button>
-                            <button
-                                type="button"
-                                onClick={resetForm}
-                                className="px-6 py-2.5 bg-panda-dark-300 text-panda-text rounded-xl hover:bg-panda-dark-400 transition"
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            )}
+                            <div className="flex gap-3">
+                                <button
+                                    type="submit"
+                                    disabled={isSubmitting}
+                                    className="flex items-center justify-center gap-2 px-6 py-2.5 bg-panda-gold text-panda-dark font-semibold rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed min-w-[120px]"
+                                >
+                                    {isSubmitting && <span className="spinner-border"></span>}
+                                    Create
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={resetForm}
+                                    className="px-6 py-2.5 bg-panda-dark-300 text-panda-text rounded-xl hover:bg-panda-dark-400 transition"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                )
+            }
 
             {/* Jobs Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -327,13 +332,15 @@ function Jobs() {
                                 Last run: {job.last_run ? new Date(job.last_run).toLocaleString('id-ID') : 'Never'}
                             </span>
                             <div className="flex items-center gap-2">
-                                <button
-                                    onClick={(e) => handleToggle(job, e)}
-                                    className={`action-btn ${job.enabled !== false ? 'bg-orange-600/20 hover:bg-orange-600/40 text-orange-400' : 'bg-green-600/20 hover:bg-green-600/40 text-green-400'}`}
-                                    title={job.enabled !== false ? 'Pause Schedule' : 'Resume Schedule'}
-                                >
-                                    {job.enabled !== false ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                                </button>
+                                {userRole === 'admin' && (
+                                    <button
+                                        onClick={(e) => handleToggle(job, e)}
+                                        className={`action-btn ${job.enabled !== false ? 'bg-orange-600/20 hover:bg-orange-600/40 text-orange-400' : 'bg-green-600/20 hover:bg-green-600/40 text-green-400'}`}
+                                        title={job.enabled !== false ? 'Pause Schedule' : 'Resume Schedule'}
+                                    >
+                                        {job.enabled !== false ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => handleJobClick(job)}
                                     className="action-btn action-btn-view"
@@ -341,114 +348,122 @@ function Jobs() {
                                 >
                                     <Eye className="w-4 h-4" />
                                 </button>
-                                <button
-                                    onClick={(e) => handleDeleteClick(job, e)}
-                                    className="action-btn action-btn-delete"
-                                    title="Delete"
-                                >
-                                    <Trash2 className="w-4 h-4" />
-                                </button>
-                                <button
-                                    onClick={(e) => handleRunJob(job.id, e)}
-                                    disabled={job.status === 'running' || runningJobs.has(job.id)}
-                                    className="flex items-center gap-2 px-4 py-2 bg-panda-dark-300 hover:bg-panda-gold hover:text-panda-dark text-panda-text rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    {(job.status === 'running' || runningJobs.has(job.id)) ? (
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                        <Play className="w-4 h-4" />
-                                    )}
-                                    {(job.status === 'running' || runningJobs.has(job.id)) ? 'Running...' : 'Run'}
-                                </button>
+                                {userRole === 'admin' && (
+                                    <>
+                                        <button
+                                            onClick={(e) => handleDeleteClick(job, e)}
+                                            className="action-btn action-btn-delete"
+                                            title="Delete"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            onClick={(e) => handleRunJob(job.id, e)}
+                                            disabled={job.status === 'running' || runningJobs.has(job.id)}
+                                            className="flex items-center gap-2 px-4 py-2 bg-panda-dark-300 hover:bg-panda-gold hover:text-panda-dark text-panda-text rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {(job.status === 'running' || runningJobs.has(job.id)) ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                <Play className="w-4 h-4" />
+                                            )}
+                                            {(job.status === 'running' || runningJobs.has(job.id)) ? 'Running...' : 'Run'}
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </div>
                     </div>
                 ))}
             </div>
 
-            {jobs.length === 0 && (
-                <div className="text-center py-12 text-panda-text-muted">
-                    <Database className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>No jobs yet. Create one to get started.</p>
-                </div>
-            )}
+            {
+                jobs.length === 0 && (
+                    <div className="text-center py-12 text-panda-text-muted">
+                        <Database className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                        <p>No jobs yet. Create one to get started.</p>
+                    </div>
+                )
+            }
 
             {/* Job Details Modal */}
-            {selectedJob && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedJob(null)}>
-                    <div className="bg-panda-dark-100 border border-panda-dark-300 rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden modal-scale-in" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-between p-6 border-b border-panda-dark-300">
-                            <div>
-                                <h2 className="text-xl font-bold text-panda-text">{selectedJob.name}</h2>
-                                <p className="text-sm text-panda-text-muted">Job Details & Execution History</p>
-                            </div>
-                            <button onClick={() => setSelectedJob(null)} className="p-2 hover:bg-panda-dark-300 rounded-lg transition">
-                                <X className="w-5 h-5 text-panda-text-muted" />
-                            </button>
-                        </div>
-
-                        <div className="p-6 overflow-y-auto max-h-[calc(80vh-120px)]">
-                            {/* Job Info */}
-                            <div className="grid grid-cols-2 gap-4 mb-6">
-                                <div className="bg-panda-dark/50 rounded-xl p-4">
-                                    <p className="text-xs text-panda-text-muted mb-1">Schema</p>
-                                    <p className="text-panda-text font-medium">{selectedJob.schema?.name}</p>
+            {
+                selectedJob && (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedJob(null)}>
+                        <div className="bg-panda-dark-100 border border-panda-dark-300 rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden modal-scale-in" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-between p-6 border-b border-panda-dark-300">
+                                <div>
+                                    <h2 className="text-xl font-bold text-panda-text">{selectedJob.name}</h2>
+                                    <p className="text-sm text-panda-text-muted">Job Details & Execution History</p>
                                 </div>
-                                <div className="bg-panda-dark/50 rounded-xl p-4">
-                                    <p className="text-xs text-panda-text-muted mb-1">Network</p>
-                                    <p className="text-panda-text font-medium">{selectedJob.network?.name}</p>
-                                </div>
+                                <button onClick={() => setSelectedJob(null)} className="p-2 hover:bg-panda-dark-300 rounded-lg transition">
+                                    <X className="w-5 h-5 text-panda-text-muted" />
+                                </button>
                             </div>
 
-                            {/* Execution Logs */}
-                            <h3 className="text-lg font-semibold text-panda-text mb-4">Execution History</h3>
-                            {jobDetails?.logs?.length > 0 ? (
-                                <div className="space-y-3">
-                                    {jobDetails.logs.map((log, idx) => (
-                                        <div key={log.id || idx} className="bg-panda-dark/50 rounded-xl p-4">
-                                            <div className="flex items-center justify-between mb-3">
-                                                <div className="flex items-center gap-2">
-                                                    {getStatusIcon(log.status)}
-                                                    <span className={`text-sm font-medium ${log.status === 'completed' ? 'text-emerald-400' : log.status === 'running' ? 'text-blue-400' : 'text-panda-text-muted'}`}>
-                                                        {log.status?.charAt(0).toUpperCase() + log.status?.slice(1)}
+                            <div className="p-6 overflow-y-auto max-h-[calc(80vh-120px)]">
+                                {/* Job Info */}
+                                <div className="grid grid-cols-2 gap-4 mb-6">
+                                    <div className="bg-panda-dark/50 rounded-xl p-4">
+                                        <p className="text-xs text-panda-text-muted mb-1">Schema</p>
+                                        <p className="text-panda-text font-medium">{selectedJob.schema?.name}</p>
+                                    </div>
+                                    <div className="bg-panda-dark/50 rounded-xl p-4">
+                                        <p className="text-xs text-panda-text-muted mb-1">Network</p>
+                                        <p className="text-panda-text font-medium">{selectedJob.network?.name}</p>
+                                    </div>
+                                </div>
+
+                                {/* Execution Logs */}
+                                <h3 className="text-lg font-semibold text-panda-text mb-4">Execution History</h3>
+                                {jobDetails?.logs?.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {jobDetails.logs.map((log, idx) => (
+                                            <div key={log.id || idx} className="bg-panda-dark/50 rounded-xl p-4">
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <div className="flex items-center gap-2">
+                                                        {getStatusIcon(log.status)}
+                                                        <span className={`text-sm font-medium ${log.status === 'completed' ? 'text-emerald-400' : log.status === 'running' ? 'text-blue-400' : 'text-panda-text-muted'}`}>
+                                                            {log.status?.charAt(0).toUpperCase() + log.status?.slice(1)}
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-xs text-panda-text-muted">
+                                                        {new Date(log.started_at).toLocaleString('id-ID')}
                                                     </span>
                                                 </div>
-                                                <span className="text-xs text-panda-text-muted">
-                                                    {new Date(log.started_at).toLocaleString('id-ID')}
-                                                </span>
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-4 text-sm">
-                                                <div>
-                                                    <p className="text-panda-text-muted">Duration</p>
-                                                    <p className="text-panda-text font-medium">{formatDuration(log.duration)}</p>
+                                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                                    <div>
+                                                        <p className="text-panda-text-muted">Duration</p>
+                                                        <p className="text-panda-text font-medium">{formatDuration(log.duration)}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-panda-text-muted">Records Synced</p>
+                                                        <p className="text-panda-text font-medium">{log.record_count || '-'}</p>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <p className="text-panda-text-muted">Records Synced</p>
-                                                    <p className="text-panda-text font-medium">{log.record_count || '-'}</p>
-                                                </div>
-                                            </div>
 
-                                            {/* Sample Data Preview */}
-                                            {log.sample_data && (
-                                                <div className="mt-4">
-                                                    <p className="text-xs text-panda-text-muted mb-2">Sample Data Preview</p>
-                                                    <pre className="bg-panda-dark rounded-lg p-3 text-xs text-panda-text overflow-x-auto">
-                                                        {JSON.stringify(JSON.parse(log.sample_data), null, 2)}
-                                                    </pre>
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="text-center py-8 text-panda-text-muted">
-                                    <p>No execution history yet. Run the job to see logs.</p>
-                                </div>
-                            )}
+                                                {/* Sample Data Preview */}
+                                                {log.sample_data && (
+                                                    <div className="mt-4">
+                                                        <p className="text-xs text-panda-text-muted mb-2">Sample Data Preview</p>
+                                                        <pre className="bg-panda-dark rounded-lg p-3 text-xs text-panda-text overflow-x-auto">
+                                                            {JSON.stringify(JSON.parse(log.sample_data), null, 2)}
+                                                        </pre>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-8 text-panda-text-muted">
+                                        <p>No execution history yet. Run the job to see logs.</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Delete Confirmation Modal */}
             <ConfirmModal
@@ -460,7 +475,7 @@ function Jobs() {
                 confirmText="Delete"
                 isLoading={isDeleting}
             />
-        </div>
+        </div >
     );
 }
 

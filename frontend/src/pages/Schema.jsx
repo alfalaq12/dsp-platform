@@ -20,6 +20,7 @@ function Schema() {
     const [selectedSchema, setSelectedSchema] = useState(null);
     const [deleteTarget, setDeleteTarget] = useState(null);
     const { toasts, addToast, removeToast } = useToast();
+    const userRole = localStorage.getItem('role') || 'viewer';
 
     useEffect(() => {
         loadSchemas();
@@ -99,13 +100,15 @@ function Schema() {
                     <h1 className="text-3xl font-bold text-white mb-2">Schema Management</h1>
                     <p className="text-slate-400">Define SQL queries for data synchronization</p>
                 </div>
-                <button
-                    onClick={() => setShowForm(!showForm)}
-                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white rounded-xl transition shadow-lg shadow-blue-500/20 btn-pulse-glow"
-                >
-                    <Plus className="w-5 h-5" />
-                    New Schema
-                </button>
+                {userRole === 'admin' && (
+                    <button
+                        onClick={() => setShowForm(!showForm)}
+                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white rounded-xl transition shadow-lg shadow-blue-500/20 btn-pulse-glow"
+                    >
+                        <Plus className="w-5 h-5" />
+                        New Schema
+                    </button>
+                )}
             </div>
 
             {/* Create/Edit Form */}
@@ -234,20 +237,24 @@ function Schema() {
                                                 >
                                                     <Eye className="w-4 h-4" />
                                                 </button>
-                                                <button
-                                                    onClick={() => handleEdit(schema)}
-                                                    className="action-btn action-btn-edit"
-                                                    title="Edit"
-                                                >
-                                                    <Edit className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={() => setDeleteTarget(schema)}
-                                                    className="action-btn action-btn-delete"
-                                                    title="Delete"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
+                                                {userRole === 'admin' && (
+                                                    <>
+                                                        <button
+                                                            onClick={() => handleEdit(schema)}
+                                                            className="action-btn action-btn-edit"
+                                                            title="Edit"
+                                                        >
+                                                            <Edit className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setDeleteTarget(schema)}
+                                                            className="action-btn action-btn-delete"
+                                                            title="Delete"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>

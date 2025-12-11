@@ -5,6 +5,7 @@ import Schema from './pages/Schema';
 import Network from './pages/Network';
 import Jobs from './pages/Jobs';
 import Settings from './pages/Settings';
+import AuditLogs from './pages/AuditLogs';
 import MainLayout from './components/Layout/MainLayout';
 import useSessionTimeout from './hooks/useSessionTimeout';
 
@@ -31,8 +32,9 @@ function App() {
                     <Route index element={<Dashboard />} />
                     <Route path="schema" element={<Schema />} />
                     <Route path="network" element={<Network />} />
-                    <Route path="jobs" element={<Jobs />} />
-                    <Route path="settings" element={<Settings />} />
+                    <Route path="/jobs" element={<Jobs />} />
+                    <Route path="/audit-logs" element={<AuditLogs />} />
+                    <Route path="/settings" element={<Settings />} />
                 </Route>
             </Routes>
         </BrowserRouter>

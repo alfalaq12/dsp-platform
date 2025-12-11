@@ -27,6 +27,7 @@ function Network() {
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [testingNetwork, setTestingNetwork] = useState(null);
     const { toasts, addToast, removeToast } = useToast();
+    const userRole = localStorage.getItem('role') || 'viewer';
 
     useEffect(() => {
         loadNetworks();
@@ -139,13 +140,15 @@ function Network() {
                     <h1 className="text-3xl font-bold text-white mb-2">Network Management</h1>
                     <p className="text-slate-400">Manage data sources and targets</p>
                 </div>
-                <button
-                    onClick={() => setShowForm(!showForm)}
-                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white rounded-xl transition shadow-lg shadow-purple-500/20 btn-pulse-glow"
-                >
-                    <Plus className="w-5 h-5" />
-                    New Network
-                </button>
+                {userRole === 'admin' && (
+                    <button
+                        onClick={() => setShowForm(!showForm)}
+                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white rounded-xl transition shadow-lg shadow-purple-500/20 btn-pulse-glow"
+                    >
+                        <Plus className="w-5 h-5" />
+                        New Network
+                    </button>
+                )}
             </div>
 
             {/* Create/Edit Form */}
@@ -297,18 +300,20 @@ function Network() {
                                 <p className="text-sm text-slate-400">{network.ip_address}</p>
                             </div>
                             <div className="flex gap-1">
-                                <button
-                                    onClick={() => handleTestConnection(network)}
-                                    disabled={testingNetwork === network.id}
-                                    className="action-btn bg-amber-600/20 hover:bg-amber-600/40 text-amber-400"
-                                    title="Test Connection"
-                                >
-                                    {testingNetwork === network.id ? (
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                        <Zap className="w-4 h-4" />
-                                    )}
-                                </button>
+                                {userRole === 'admin' && (
+                                    <button
+                                        onClick={() => handleTestConnection(network)}
+                                        disabled={testingNetwork === network.id}
+                                        className="action-btn bg-amber-600/20 hover:bg-amber-600/40 text-amber-400"
+                                        title="Test Connection"
+                                    >
+                                        {testingNetwork === network.id ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                            <Zap className="w-4 h-4" />
+                                        )}
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => setSelectedNetwork(network)}
                                     className="action-btn action-btn-view"
@@ -316,20 +321,24 @@ function Network() {
                                 >
                                     <Eye className="w-4 h-4" />
                                 </button>
-                                <button
-                                    onClick={() => handleEdit(network)}
-                                    className="action-btn action-btn-edit"
-                                    title="Edit"
-                                >
-                                    <Edit className="w-4 h-4" />
-                                </button>
-                                <button
-                                    onClick={() => setDeleteTarget(network)}
-                                    className="action-btn action-btn-delete"
-                                    title="Delete"
-                                >
-                                    <Trash2 className="w-4 h-4" />
-                                </button>
+                                {userRole === 'admin' && (
+                                    <>
+                                        <button
+                                            onClick={() => handleEdit(network)}
+                                            className="action-btn action-btn-edit"
+                                            title="Edit"
+                                        >
+                                            <Edit className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            onClick={() => setDeleteTarget(network)}
+                                            className="action-btn action-btn-delete"
+                                            title="Delete"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </div>
                         <div className="flex justify-between items-center pt-4 border-t border-slate-700">
