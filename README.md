@@ -90,4 +90,4 @@ Lihat [deployment/DEPLOYMENT.md](deployment/DEPLOYMENT.md) untuk panduan lengkap
 - [LOGGING.md](LOGGING.md) - Dokumentasi Log
 
 ## 📞 Support
-Untuk bantuan deployment: support@dsp-platform.id
+Untuk bantuan deployment: bintangal.falag@gmail.com
