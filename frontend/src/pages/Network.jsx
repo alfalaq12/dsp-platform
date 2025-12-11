@@ -25,6 +25,7 @@ function Network() {
         ftp_port: '21',
         ftp_user: '',
         ftp_password: '',
+        ftp_private_key: '', // SSH private key (PEM format)
         ftp_path: '',
         ftp_passive: true,
     });
@@ -91,6 +92,7 @@ function Network() {
             ftp_port: network.ftp_port || '21',
             ftp_user: network.ftp_user || '',
             ftp_password: network.ftp_password || '',
+            ftp_private_key: network.ftp_private_key || '',
             ftp_path: network.ftp_path || '',
             ftp_passive: network.ftp_passive !== false,
         });
@@ -119,7 +121,7 @@ function Network() {
             name: '', ip_address: '', type: 'source', source_type: 'database',
             db_driver: 'postgres', db_host: '', db_port: '5432',
             db_user: '', db_password: '', db_name: '', db_sslmode: 'disable',
-            ftp_host: '', ftp_port: '21', ftp_user: '', ftp_password: '', ftp_path: '', ftp_passive: true
+            ftp_host: '', ftp_port: '21', ftp_user: '', ftp_password: '', ftp_private_key: '', ftp_path: '', ftp_passive: true
         });
         setEditingId(null);
         setShowForm(false);
@@ -362,6 +364,56 @@ function Network() {
                                             placeholder="/data/exports"
                                         />
                                     </div>
+                                    {formData.source_type === 'sftp' && (
+                                        <div className="md:col-span-2">
+                                            <label className="block text-sm font-medium text-slate-300 mb-1">
+                                                SSH Private Key (optional)
+                                            </label>
+                                            <div className="flex gap-2 mb-2">
+                                                <label className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg cursor-pointer transition text-sm">
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                                    </svg>
+                                                    Upload Key File
+                                                    <input
+                                                        type="file"
+                                                        accept=".pem,.ppk,.key"
+                                                        className="hidden"
+                                                        onChange={(e) => {
+                                                            const file = e.target.files[0];
+                                                            if (file) {
+                                                                const reader = new FileReader();
+                                                                reader.onload = (event) => {
+                                                                    setFormData({ ...formData, ftp_private_key: event.target.result });
+                                                                };
+                                                                reader.readAsText(file);
+                                                            }
+                                                        }}
+                                                    />
+                                                </label>
+                                                {formData.ftp_private_key && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setFormData({ ...formData, ftp_private_key: '' })}
+                                                        className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg text-sm transition"
+                                                    >
+                                                        Clear Key
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <textarea
+                                                value={formData.ftp_private_key}
+                                                onChange={(e) => setFormData({ ...formData, ftp_private_key: e.target.value })}
+                                                rows="4"
+                                                className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white font-mono text-xs focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                                placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;...&#10;-----END RSA PRIVATE KEY-----"
+                                            />
+                                            <p className="text-xs text-slate-500 mt-1">
+                                                Upload file .pem/.ppk atau paste isi key.
+                                                <span className="text-amber-400 ml-1">Note: File .ppk (PuTTY) harus dikonversi ke format OpenSSH/PEM dulu.</span>
+                                            </p>
+                                        </div>
+                                    )}
                                     {formData.source_type === 'ftp' && (
                                         <div className="md:col-span-2">
                                             <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">

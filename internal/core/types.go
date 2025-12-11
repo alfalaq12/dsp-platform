@@ -45,12 +45,13 @@ type Network struct {
 	DBSSLMode  string `json:"db_sslmode" gorm:"default:'disable'"`
 
 	// FTP/SFTP Configuration (for agent to use when SourceType=ftp or sftp)
-	FTPHost     string `json:"ftp_host"`
-	FTPPort     string `json:"ftp_port" gorm:"default:'21'"`
-	FTPUser     string `json:"ftp_user"`
-	FTPPassword string `json:"ftp_password"`
-	FTPPath     string `json:"ftp_path"`                        // Remote directory path
-	FTPPassive  bool   `json:"ftp_passive" gorm:"default:true"` // Use passive mode
+	FTPHost       string `json:"ftp_host"`
+	FTPPort       string `json:"ftp_port" gorm:"default:'21'"`
+	FTPUser       string `json:"ftp_user"`
+	FTPPassword   string `json:"ftp_password"`
+	FTPPrivateKey string `json:"ftp_private_key" gorm:"type:text"` // SSH private key (PEM format)
+	FTPPath       string `json:"ftp_path"`                         // Remote directory path
+	FTPPassive    bool   `json:"ftp_passive" gorm:"default:true"`  // Use passive mode
 }
 
 // Job represents a data synchronization job linking a Schema to a Network

@@ -522,6 +522,7 @@ func executeDatabaseSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, 
 func executeFileSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, jobName, sourceType string) {
 	// Get FTP config
 	ftpConfig := filesync.FTPConfig{}
+	privateKey := ""
 	if cfg, ok := msg.Data["ftp_config"].(map[string]interface{}); ok {
 		if host, ok := cfg["host"].(string); ok {
 			ftpConfig.Host = host
@@ -534,6 +535,9 @@ func executeFileSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, jobN
 		}
 		if password, ok := cfg["password"].(string); ok {
 			ftpConfig.Password = password
+		}
+		if key, ok := cfg["private_key"].(string); ok {
+			privateKey = key
 		}
 		if path, ok := cfg["path"].(string); ok {
 			ftpConfig.Path = path
@@ -578,11 +582,12 @@ func executeFileSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, jobN
 
 	if sourceType == "sftp" {
 		sftpConfig := filesync.SFTPConfig{
-			Host:     ftpConfig.Host,
-			Port:     ftpConfig.Port,
-			User:     ftpConfig.User,
-			Password: ftpConfig.Password,
-			Path:     ftpConfig.Path,
+			Host:       ftpConfig.Host,
+			Port:       ftpConfig.Port,
+			User:       ftpConfig.User,
+			Password:   ftpConfig.Password,
+			PrivateKey: privateKey,
+			Path:       ftpConfig.Path,
 		}
 		if sftpConfig.Port == "" || sftpConfig.Port == "21" {
 			sftpConfig.Port = "22" // Default SFTP port

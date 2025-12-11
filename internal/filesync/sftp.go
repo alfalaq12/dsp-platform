@@ -24,20 +24,45 @@ type SFTPClient struct {
 
 // SFTPConfig holds SFTP connection configuration
 type SFTPConfig struct {
-	Host     string
-	Port     string
-	User     string
-	Password string
-	Path     string
+	Host       string
+	Port       string
+	User       string
+	Password   string
+	PrivateKey string // PEM format private key for SSH key authentication
+	Path       string
 }
 
 // NewSFTPClient creates a new SFTP client and connects to the server
 func NewSFTPClient(config SFTPConfig) (*SFTPClient, error) {
+	var authMethods []ssh.AuthMethod
+
+	// Try private key authentication first if provided
+	if config.PrivateKey != "" {
+		signer, err := ssh.ParsePrivateKey([]byte(config.PrivateKey))
+		if err != nil {
+			// Try with passphrase if password is provided
+			if config.Password != "" {
+				signer, err = ssh.ParsePrivateKeyWithPassphrase([]byte(config.PrivateKey), []byte(config.Password))
+			}
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse private key: %w", err)
+			}
+		}
+		authMethods = append(authMethods, ssh.PublicKeys(signer))
+	}
+
+	// Add password authentication as fallback
+	if config.Password != "" && config.PrivateKey == "" {
+		authMethods = append(authMethods, ssh.Password(config.Password))
+	}
+
+	if len(authMethods) == 0 {
+		return nil, fmt.Errorf("no authentication method provided (password or private key required)")
+	}
+
 	sshConfig := &ssh.ClientConfig{
-		User: config.User,
-		Auth: []ssh.AuthMethod{
-			ssh.Password(config.Password),
-		},
+		User:            config.User,
+		Auth:            authMethods,
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // Note: In production, use proper host key verification
 		Timeout:         30 * time.Second,
 	}

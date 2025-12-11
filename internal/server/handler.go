@@ -349,12 +349,13 @@ func (h *Handler) RunJob(c *gin.Context) {
 			},
 			// FTP/SFTP config (for source_type=ftp or sftp)
 			"ftp_config": map[string]interface{}{
-				"host":     job.Network.FTPHost,
-				"port":     job.Network.FTPPort,
-				"user":     job.Network.FTPUser,
-				"password": job.Network.FTPPassword,
-				"path":     job.Network.FTPPath,
-				"passive":  job.Network.FTPPassive,
+				"host":        job.Network.FTPHost,
+				"port":        job.Network.FTPPort,
+				"user":        job.Network.FTPUser,
+				"password":    job.Network.FTPPassword,
+				"private_key": job.Network.FTPPrivateKey,
+				"path":        job.Network.FTPPath,
+				"passive":     job.Network.FTPPassive,
 			},
 			// File parsing config from Schema
 			"file_config": map[string]interface{}{
