@@ -44,51 +44,53 @@ func (h *Handler) Login(c *gin.Context) {
 		// If user doesn't exist, create a default admin for demo purposes
 		if err == gorm.ErrRecordNotFound && req.Username == "admin" && req.Password == "admin" {
 			hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("admin"), bcrypt.DefaultCost)
-			user = core.User{Username: "admin", Password: string(hashedPassword)}
-			h.db.Create(&user)
+			user = core.User{Username: "admin", Password: string(hashedPassword), Role: "admin"}
+			if err := h.db.Create(&user).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create default admin"})
+				return
+			}
+			// Fall through to login logic
 		} else {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 			return
 		}
-	} else {
-		// Start of change:	// Check password
-		err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password))
-		if err != nil {
-			// Log failed login attempt (optional, maybe rate limit here)
-			// logger.Logger.Warn().Str("username", req.Username).Msg("Invalid password") // Assuming logger is available
-			c.JSON(401, gin.H{"error": "Invalid username or password"})
-			return
-		}
-
-		// Generate JWT
-		token, err := auth.GenerateToken(user.ID, user.Username, user.Role)
-		if err != nil {
-			c.JSON(500, gin.H{"error": "Failed to generate token"})
-			return
-		}
-
-		// Set HttpOnly Cookie for security
-		c.SetCookie("auth_token", token, 3600*24, "/", "", false, true)
-
-		// Log successful login
-		go func() {
-			h.db.Create(&core.AuditLog{
-				UserID:    user.ID,
-				Username:  user.Username,
-				Action:    "LOGIN",
-				Entity:    "AUTH",
-				IPAddress: c.ClientIP(),
-				UserAgent: c.Request.UserAgent(),
-				CreatedAt: time.Now(),
-			})
-		}()
-
-		c.JSON(200, core.LoginResponse{
-			Token:    token, // Keep returning token for API clients if needed, though cookie is primary
-			Username: user.Username,
-			Role:     user.Role,
-		})
 	}
+
+	// Check password
+	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password))
+	if err != nil {
+		c.JSON(401, gin.H{"error": "Invalid username or password"})
+		return
+	}
+
+	// Generate JWT
+	token, err := auth.GenerateToken(user.ID, user.Username, user.Role)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to generate token"})
+		return
+	}
+
+	// Set HttpOnly Cookie for security
+	c.SetCookie("auth_token", token, 3600*24, "/", "", false, true)
+
+	// Log successful login
+	go func() {
+		h.db.Create(&core.AuditLog{
+			UserID:    user.ID,
+			Username:  user.Username,
+			Action:    "LOGIN",
+			Entity:    "AUTH",
+			IPAddress: c.ClientIP(),
+			UserAgent: c.Request.UserAgent(),
+			CreatedAt: time.Now(),
+		})
+	}()
+
+	c.JSON(200, core.LoginResponse{
+		Token:    token, // Keep returning token for API clients if needed, though cookie is primary
+		Username: user.Username,
+		Role:     user.Role,
+	})
 }
 
 // Logout clears the auth cookie
