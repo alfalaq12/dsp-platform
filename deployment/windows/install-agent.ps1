@@ -39,7 +39,7 @@ if (-not (Test-Path $SourceBin)) {
 
 Copy-Item $SourceBin -Destination $InstallDir
 
-# Create .env file
+# Create .env file (WITHOUT BOM - critical for Go parsing)
 Write-Host "[+] Configuring .env file..." -ForegroundColor Yellow
 $EnvContent = @"
 MASTER_HOST=$MasterHost
@@ -51,7 +51,8 @@ DB_HOST=localhost
 DB_PORT=5432
 "@
 
-$EnvContent | Out-File -FilePath "$InstallDir\.env" -Encoding UTF8
+$utf8NoBom = New-Object System.Text.UTF8Encoding $False
+[System.IO.File]::WriteAllText("$InstallDir\.env", $EnvContent, $utf8NoBom)
 
 # Install NSSM (Non-Sucking Service Manager) for service wrapper
 Write-Host "[+] Checking for NSSM..." -ForegroundColor Yellow

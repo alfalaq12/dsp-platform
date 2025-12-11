@@ -406,6 +406,19 @@ func (h *Handler) GetJob(c *gin.Context) {
 	var logs []core.JobLog
 	h.db.Where("job_id = ?", id).Order("created_at DESC").Limit(10).Find(&logs)
 
+	// Fix stale 'running' logs if the job itself is 'failed'
+	// This handles cases where agent disconnected mid-job
+	if job.Status == "failed" {
+		for i := range logs {
+			if logs[i].Status == "running" {
+				logs[i].Status = "failed"
+				logs[i].ErrorMessage = "Job was marked as failed (possible agent disconnect)"
+				logs[i].CompletedAt = time.Now()
+				h.db.Save(&logs[i])
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"job":  job,
 		"logs": logs,
