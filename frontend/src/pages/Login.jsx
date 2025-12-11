@@ -2,18 +2,18 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { login } from '../services/api';
+import { useToast, ToastContainer } from '../components/Toast';
 
 function Login() {
     const navigate = useNavigate();
     const [formData, setFormData] = useState({ username: '', password: '' });
-    const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
+    const { toasts, addToast, removeToast } = useToast();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setError('');
         setLoading(true);
 
         try {
@@ -22,9 +22,10 @@ function Login() {
             localStorage.setItem('username', response.data.username);
             localStorage.setItem('role', response.data.role || 'viewer'); // Default to viewer if missing
             localStorage.setItem('lastActivity', Date.now().toString());
-            navigate('/');
+            addToast('Login successful!', 'success');
+            setTimeout(() => navigate('/'), 500);
         } catch (err) {
-            setError(err.response?.data?.error || 'Login failed');
+            addToast(err.response?.data?.error || 'Login failed', 'error');
         } finally {
             setLoading(false);
         }
@@ -32,6 +33,9 @@ function Login() {
 
     return (
         <div className="min-h-screen bg-panda-dark flex">
+            {/* Toast Container */}
+            <ToastContainer toasts={toasts} removeToast={removeToast} />
+
             {/* Left Side - Login Form */}
             <div className="w-full lg:w-1/2 flex flex-col p-6 sm:p-8 lg:p-12">
                 {/* Login Form */}
@@ -92,12 +96,6 @@ function Login() {
                                     <span className="text-sm text-panda-text-muted">Remember me</span>
                                 </label>
                             </div>
-
-                            {error && (
-                                <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-full text-sm text-center">
-                                    {error}
-                                </div>
-                            )}
 
                             <button
                                 type="submit"
