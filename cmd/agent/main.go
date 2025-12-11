@@ -393,7 +393,7 @@ func executeRunJobCommand(conn net.Conn, msg AgentMessage) {
 	}
 
 	logID := uint(0)
-	if id, ok := msg.Data["job_log_id"].(float64); ok {
+	if id, ok := msg.Data["log_id"].(float64); ok {
 		logID = uint(id)
 	}
 
