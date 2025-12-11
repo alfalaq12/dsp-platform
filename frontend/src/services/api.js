@@ -58,6 +58,11 @@ export const updateSetting = (key, value) => api.post('/settings', { key, value 
 export const getTargetDBConfig = () => api.get('/settings/target-db');
 export const updateTargetDBConfig = (config) => api.post('/settings/target-db', config);
 
+// User Management
+export const getUsers = () => api.get('/users');
+export const createUser = (data) => api.post('/users', data);
+export const deleteUser = (id) => api.delete(`/users/${id}`);
+
 // Audit Logs
 export const getAuditLogs = (params) => api.get('/audit-logs', { params });
 

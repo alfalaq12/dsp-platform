@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard';
 import Schema from './pages/Schema';
 import Network from './pages/Network';
 import Jobs from './pages/Jobs';
+import Users from './pages/Users';
 import Settings from './pages/Settings';
 import AuditLogs from './pages/AuditLogs';
 import MainLayout from './components/Layout/MainLayout';
@@ -34,6 +35,7 @@ function App() {
                     <Route path="schema" element={<Schema />} />
                     <Route path="network" element={<Network />} />
                     <Route path="/jobs" element={<Jobs />} />
+                    <Route path="/users" element={<Users />} />
                     <Route path="/audit-logs" element={<AuditLogs />} />
                     <Route path="/settings" element={<Settings />} />
                 </Route>

@@ -771,3 +771,116 @@ func (h *Handler) GetAuditLogs(c *gin.Context) {
 		"limit": limit,
 	})
 }
+
+// GetUsers returns all users
+func (h *Handler) GetUsers(c *gin.Context) {
+	var users []core.User
+	if err := h.db.Find(&users).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, users)
+}
+
+// CreateUser creates a new user
+func (h *Handler) CreateUser(c *gin.Context) {
+	var req struct {
+		Username string `json:"username" binding:"required"`
+		Password string `json:"password" binding:"required"`
+		Role     string `json:"role"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Check if user exists
+	var existing core.User
+	if err := h.db.Where("username = ?", req.Username).First(&existing).Error; err == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Username already exists"})
+		return
+	}
+
+	// Hash password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+		return
+	}
+
+	// Default role is viewer if not specified
+	role := req.Role
+	if role == "" {
+		role = "viewer"
+	}
+
+	user := core.User{
+		Username: req.Username,
+		Password: string(hashedPassword),
+		Role:     role,
+	}
+
+	if err := h.db.Create(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Log audit
+	go func() {
+		h.db.Create(&core.AuditLog{
+			Username:  c.GetString("username"),
+			UserID:    c.GetUint("user_id"),
+			Action:    "CREATE",
+			Entity:    "USER",
+			EntityID:  fmt.Sprintf("%d", user.ID),
+			Details:   fmt.Sprintf("Created user '%s' with role '%s'", user.Username, user.Role),
+			IPAddress: c.ClientIP(),
+			UserAgent: c.Request.UserAgent(),
+			CreatedAt: time.Now(),
+		})
+	}()
+
+	c.JSON(http.StatusCreated, user)
+}
+
+// DeleteUser deletes a user
+func (h *Handler) DeleteUser(c *gin.Context) {
+	id := c.Param("id")
+
+	// Prevent deleting yourself (basic check)
+	requestingUserID := c.GetUint("user_id")
+	targetID, _ := strconv.Atoi(id)
+	if uint(targetID) == requestingUserID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot delete your own account"})
+		return
+	}
+
+	var user core.User
+	if err := h.db.First(&user, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	if err := h.db.Delete(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Log audit
+	go func() {
+		h.db.Create(&core.AuditLog{
+			Username:  c.GetString("username"),
+			UserID:    c.GetUint("user_id"),
+			Action:    "DELETE",
+			Entity:    "USER",
+			EntityID:  id,
+			Details:   fmt.Sprintf("Deleted user '%s'", user.Username),
+			IPAddress: c.ClientIP(),
+			UserAgent: c.Request.UserAgent(),
+			CreatedAt: time.Now(),
+		})
+	}()
+
+	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
+}

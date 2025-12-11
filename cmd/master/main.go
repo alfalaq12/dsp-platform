@@ -134,41 +134,46 @@ func setupRouter(handler *server.Handler) *gin.Engine {
 	{
 		// Schema routes
 		api.GET("/schemas", handler.GetSchemas)
-		api.POST("/schemas", handler.CreateSchema)
-		api.PUT("/schemas/:id", handler.UpdateSchema)
-		api.DELETE("/schemas/:id", handler.DeleteSchema)
+		api.POST("/schemas", auth.RequireRole("admin"), handler.CreateSchema)
+		api.PUT("/schemas/:id", auth.RequireRole("admin"), handler.UpdateSchema)
+		api.DELETE("/schemas/:id", auth.RequireRole("admin"), handler.DeleteSchema)
 
 		// Network routes
 		api.GET("/networks", handler.GetNetworks)
-		api.POST("/networks", handler.CreateNetwork)
-		api.PUT("/networks/:id", handler.UpdateNetwork)
-		api.DELETE("/networks/:id", handler.DeleteNetwork)
+		api.POST("/networks", auth.RequireRole("admin"), handler.CreateNetwork)
+		api.PUT("/networks/:id", auth.RequireRole("admin"), handler.UpdateNetwork)
+		api.DELETE("/networks/:id", auth.RequireRole("admin"), handler.DeleteNetwork)
 
 		// Job routes
 		api.GET("/jobs", handler.GetJobs)
-		api.POST("/jobs", handler.CreateJob)
+		api.POST("/jobs", auth.RequireRole("admin"), handler.CreateJob)
 		api.GET("/jobs/:id", handler.GetJob)
 		api.GET("/jobs/:id/logs", handler.GetJobLogs)
-		api.PUT("/jobs/:id", handler.UpdateJob)
-		api.DELETE("/jobs/:id", handler.DeleteJob)
-		api.POST("/jobs/:id/run", handler.RunJob)
-		api.POST("/jobs/:id/toggle", handler.ToggleJob)
+		api.PUT("/jobs/:id", auth.RequireRole("admin"), handler.UpdateJob)
+		api.DELETE("/jobs/:id", auth.RequireRole("admin"), handler.DeleteJob)
+		api.POST("/jobs/:id/run", auth.RequireRole("admin"), handler.RunJob)
+		api.POST("/jobs/:id/toggle", auth.RequireRole("admin"), handler.ToggleJob)
 
 		// Agent config endpoint
 		api.GET("/jobs/agent/:name", handler.GetAgentJobs)
 
 		// Settings routes
 		api.GET("/settings", handler.GetSettings)
-		api.POST("/settings", handler.UpdateSetting)
+		api.POST("/settings", auth.RequireRole("admin"), handler.UpdateSetting)
 		api.GET("/settings/target-db", handler.GetTargetDBConfig)
-		api.POST("/settings/target-db", handler.UpdateTargetDBConfig)
-		api.POST("/settings/target-db/test", handler.TestTargetDBConnection)
+		api.POST("/settings/target-db", auth.RequireRole("admin"), handler.UpdateTargetDBConfig)
+		api.POST("/settings/target-db/test", auth.RequireRole("admin"), handler.TestTargetDBConnection)
 
 		// Network test connection
-		api.POST("/networks/:id/test", handler.TestNetworkConnection)
+		api.POST("/networks/:id/test", auth.RequireRole("admin"), handler.TestNetworkConnection)
 
-		// Audit Logs
-		api.GET("/audit-logs", handler.GetAuditLogs)
+		// Audit Logs (Viewable by admin only usually, or maybe all? Let's restrict to admin for now based on Sidebar)
+		api.GET("/audit-logs", auth.RequireRole("admin"), handler.GetAuditLogs)
+
+		// User Management
+		api.GET("/users", auth.RequireRole("admin"), handler.GetUsers) // Only admin can list users
+		api.POST("/users", auth.RequireRole("admin"), handler.CreateUser)
+		api.DELETE("/users/:id", auth.RequireRole("admin"), handler.DeleteUser)
 	}
 
 	// Health check
