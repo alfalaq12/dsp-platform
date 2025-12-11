@@ -19,6 +19,11 @@ Write-Host "📦 Copying executables..." -ForegroundColor Yellow
 Copy-Item "..\..\bin\windows\dsp-master.exe" -Destination $InstallDir
 Copy-Item "..\..\bin\windows\dsp-agent.exe" -Destination $InstallDir
 
+# Copy frontend assets
+Write-Host "🎨 Copying frontend assets..." -ForegroundColor Yellow
+New-Item -ItemType Directory -Force -Path "$InstallDir\frontend" | Out-Null
+Copy-Item -Recurse -Force -Path "..\..\bin\windows\frontend\dist" -Destination "$InstallDir\frontend\"
+
 # Create data directory
 New-Item -ItemType Directory -Force -Path "$InstallDir\data" | Out-Null
 

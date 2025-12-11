@@ -25,7 +25,9 @@ fi
 echo "📦 Installing Master Server..."
 mkdir -p /opt/dsp-platform/data
 mkdir -p /opt/dsp-platform/logs
+mkdir -p /opt/dsp-platform/frontend
 cp ../../bin/linux/dsp-master /opt/dsp-platform/
+cp -r ../../bin/linux/frontend/dist /opt/dsp-platform/frontend/
 chown -R dsp:dsp /opt/dsp-platform
 chmod +x /opt/dsp-platform/dsp-master
 

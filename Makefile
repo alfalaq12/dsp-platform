@@ -7,35 +7,42 @@ help: ## Show this help message
 
 ##@ Build Commands
 
-build: ## Build for all platforms (Linux + Windows)
+build: build-frontend ## Build for all platforms (Linux + Windows)
 	@echo "🔨 Building for all platforms..."
 	@chmod +x build.sh
 	@./build.sh
 
-build-linux: ## Build only Linux binaries
+build-frontend: ## Build Frontend (React)
+	@echo "🎨 Building Frontend..."
+	@cd frontend && npm install && npm run build
+	@echo "✅ Frontend built"
+
+build-linux: build-frontend ## Build only Linux binaries
 	@echo "📦 Building for Linux..."
-	@mkdir -p bin/linux
-	GOOS=linux GOARCH=amd64 go build -o bin/linux/dsp-master cmd/master/main.go
-	GOOS=linux GOARCH=amd64 go build -o bin/linux/dsp-agent cmd/agent/main.go
+	@mkdir -p bin/linux/frontend
+	@cp -r frontend/dist bin/linux/frontend/
+	GOOS=linux GOARCH=amd64 go build -o bin/linux/dsp-master ./cmd/master
+	GOOS=linux GOARCH=amd64 go build -o bin/linux/dsp-agent ./cmd/agent
 	@chmod +x bin/linux/dsp-master bin/linux/dsp-agent
 	@echo "✅ Linux binaries built"
 
-build-windows: ## Build only Windows binaries
+build-windows: build-frontend ## Build only Windows binaries
 	@echo "📦 Building for Windows..."
-	@mkdir -p bin/windows
-	GOOS=windows GOARCH=amd64 go build -o bin/windows/dsp-master.exe cmd/master/main.go
-	GOOS=windows GOARCH=amd64 go build -o bin/windows/dsp-agent.exe cmd/agent/main.go
+	@mkdir -p bin/windows/frontend
+	@cp -r frontend/dist bin/windows/frontend/
+	GOOS=windows GOARCH=amd64 go build -o bin/windows/dsp-master.exe ./cmd/master
+	GOOS=windows GOARCH=amd64 go build -o bin/windows/dsp-agent.exe ./cmd/agent
 	@echo "✅ Windows binaries built"
 
 ##@ Development
 
 run-master: ## Run master server (development mode)
 	@echo "🚀 Starting Master Server..."
-	go run cmd/master/main.go
+	go run ./cmd/master
 
 run-agent: ## Run agent (development mode)
 	@echo "🚀 Starting Agent..."
-	go run cmd/agent/main.go
+	go run ./cmd/agent
 
 test: ## Run tests
 	@echo "🧪 Running tests..."
