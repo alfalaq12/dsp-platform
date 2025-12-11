@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
@@ -39,7 +40,14 @@ type AgentMessage struct {
 var heartbeatCount int
 
 func init() {
-	// Load .env file (optional)
+	// Robust .env loading: Try loading from executable directory
+	ex, err := os.Executable()
+	if err == nil {
+		exPath := filepath.Dir(ex)
+		envPath := filepath.Join(exPath, ".env")
+		godotenv.Load(envPath)
+	}
+	// Fallback to default load (current directory)
 	godotenv.Load()
 
 	// Load configuration from environment
