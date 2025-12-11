@@ -325,7 +325,7 @@ func (h *Handler) RunJob(c *gin.Context) {
 		return
 	}
 
-	// Send RUN_JOB command to agent
+	// Send RUN_JOB command to agent with DB config from Network
 	command := core.AgentMessage{
 		Type:      "RUN_JOB",
 		Timestamp: time.Now(),
@@ -335,6 +335,15 @@ func (h *Handler) RunJob(c *gin.Context) {
 			"name":         job.Name,
 			"query":        job.Schema.SQLCommand,
 			"target_table": job.Schema.TargetTable,
+			"db_config": map[string]interface{}{
+				"driver":   job.Network.DBDriver,
+				"host":     job.Network.DBHost,
+				"port":     job.Network.DBPort,
+				"user":     job.Network.DBUser,
+				"password": job.Network.DBPassword,
+				"db_name":  job.Network.DBName,
+				"sslmode":  job.Network.DBSSLMode,
+			},
 		},
 	}
 

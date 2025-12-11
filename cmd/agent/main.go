@@ -438,8 +438,39 @@ func executeRunJobCommand(conn net.Conn, msg AgentMessage) {
 		Str("query", query).
 		Msg("Processing RUN_JOB command")
 
+	// Use db_config from Master (Network settings) if provided, else fallback to .env
+	dbCfg := DBConfig
+	if dbConfigMap, ok := msg.Data["db_config"].(map[string]interface{}); ok {
+		if driver, ok := dbConfigMap["driver"].(string); ok && driver != "" {
+			dbCfg.Driver = driver
+		}
+		if host, ok := dbConfigMap["host"].(string); ok && host != "" {
+			dbCfg.Host = host
+		}
+		if port, ok := dbConfigMap["port"].(string); ok && port != "" {
+			dbCfg.Port = port
+		}
+		if user, ok := dbConfigMap["user"].(string); ok && user != "" {
+			dbCfg.User = user
+		}
+		if password, ok := dbConfigMap["password"].(string); ok && password != "" {
+			dbCfg.Password = password
+		}
+		if dbName, ok := dbConfigMap["db_name"].(string); ok && dbName != "" {
+			dbCfg.DBName = dbName
+		}
+		if sslMode, ok := dbConfigMap["sslmode"].(string); ok && sslMode != "" {
+			dbCfg.SSLMode = sslMode
+		}
+		logger.Logger.Info().
+			Str("host", dbCfg.Host).
+			Str("db_name", dbCfg.DBName).
+			Str("user", dbCfg.User).
+			Msg("Using DB config from Master")
+	}
+
 	// Connect to database and execute query
-	dbConn, err := database.Connect(DBConfig)
+	dbConn, err := database.Connect(dbCfg)
 	if err != nil {
 		logger.Logger.Error().Err(err).Msg("Failed to connect to database")
 		sendDataResponse(conn, jobID, logID, nil, 0, err.Error(), false)
