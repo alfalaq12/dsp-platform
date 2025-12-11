@@ -11,11 +11,12 @@ import useSessionTimeout from './hooks/useSessionTimeout';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
-    const token = localStorage.getItem('token');
+    // Check for username instead of token since token is in HttpOnly cookie
+    const isAuthenticated = localStorage.getItem('username');
     // Use session timeout hook (30 minutes = 1800000ms)
     useSessionTimeout(30 * 60 * 1000);
 
-    return token ? children : <Navigate to="/login" />;
+    return isAuthenticated ? children : <Navigate to="/login" />;
 };
 
 function App() {
