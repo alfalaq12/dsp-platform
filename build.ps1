@@ -53,13 +53,23 @@ Write-Host "📦 Building Tenant Agent..." -ForegroundColor Yellow
 # Linux
 $env:GOOS = "linux"
 $env:GOARCH = "amd64"
-go build -o bin/linux/dsp-agent ./cmd/agent
+Write-Host "   Target: Linux (amd64)" -ForegroundColor Gray
+go build -v -o bin/linux/dsp-agent ./cmd/agent
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ Linux Agent build failed!" -ForegroundColor Red
+    exit 1
+}
 Write-Host "✅ Linux Agent: bin/linux/dsp-agent" -ForegroundColor Green
 
 # Windows
 $env:GOOS = "windows"
 $env:GOARCH = "amd64"
-go build -o bin/windows/dsp-agent.exe ./cmd/agent
+Write-Host "   Target: Windows (amd64)" -ForegroundColor Gray
+go build -v -o bin/windows/dsp-agent.exe ./cmd/agent
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ Windows Agent build failed!" -ForegroundColor Red
+    exit 1
+}
 Write-Host "✅ Windows Agent: bin/windows/dsp-agent.exe" -ForegroundColor Green
 
 Write-Host ""

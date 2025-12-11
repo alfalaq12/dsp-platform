@@ -173,6 +173,7 @@ func setupRouter(handler *server.Handler) *gin.Engine {
 		// User Management
 		api.GET("/users", auth.RequireRole("admin"), handler.GetUsers) // Only admin can list users
 		api.POST("/users", auth.RequireRole("admin"), handler.CreateUser)
+		api.PUT("/users/:id", auth.RequireRole("admin"), handler.UpdateUser)
 		api.DELETE("/users/:id", auth.RequireRole("admin"), handler.DeleteUser)
 	}
 

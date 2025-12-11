@@ -82,7 +82,9 @@ function Sidebar({ isOpen, onClose }) {
                             <p className="text-sm font-medium text-panda-text">
                                 {localStorage.getItem('username') || 'User'}
                             </p>
-                            <p className="text-xs text-panda-text-muted">Administrator</p>
+                            <p className="text-xs text-panda-text-muted">
+                                {userRole.charAt(0).toUpperCase() + userRole.slice(1)}
+                            </p>
                         </div>
                     </div>
                 </div>

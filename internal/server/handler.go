@@ -844,6 +844,72 @@ func (h *Handler) CreateUser(c *gin.Context) {
 	c.JSON(http.StatusCreated, user)
 }
 
+// UpdateUser updates user details (password/role)
+func (h *Handler) UpdateUser(c *gin.Context) {
+	id := c.Param("id")
+	var req struct {
+		Password string `json:"password"`
+		Role     string `json:"role"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var user core.User
+	if err := h.db.First(&user, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Prevent demoting the last admin (optional safety, but for now just prevent editing 'admin' username if we allowed username change, but we don't)
+	// Actually, just allow updating password for admin.
+
+	updates := make(map[string]interface{})
+	if req.Role != "" {
+		// specific check: don't allow changing 'admin' user's role to anything else to prevent lockout
+		if user.Username == "admin" && req.Role != "admin" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot change role of the main admin user"})
+			return
+		}
+		updates["role"] = req.Role
+	}
+
+	if req.Password != "" {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+			return
+		}
+		updates["password"] = string(hashedPassword)
+	}
+
+	if len(updates) > 0 {
+		if err := h.db.Model(&user).Updates(updates).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	// Log audit
+	go func() {
+		h.db.Create(&core.AuditLog{
+			Username:  c.GetString("username"),
+			UserID:    c.GetUint("user_id"),
+			Action:    "UPDATE",
+			Entity:    "USER",
+			EntityID:  id,
+			Details:   fmt.Sprintf("Updated user '%s'", user.Username),
+			IPAddress: c.ClientIP(),
+			UserAgent: c.Request.UserAgent(),
+			CreatedAt: time.Now(),
+		})
+	}()
+
+	c.JSON(http.StatusOK, user)
+}
+
 // DeleteUser deletes a user
 func (h *Handler) DeleteUser(c *gin.Context) {
 	id := c.Param("id")
@@ -859,6 +925,12 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 	var user core.User
 	if err := h.db.First(&user, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Prevent deleting the main 'admin' user
+	if user.Username == "admin" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot delete the main admin user"})
 		return
 	}
 
