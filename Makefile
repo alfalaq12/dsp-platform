@@ -55,10 +55,33 @@ clean: ## Clean build artifacts
 
 ##@ Deployment
 
-install-linux: build-linux ## Install as Linux systemd service (requires sudo)
-	@echo "📦 Installing to Linux..."
-	@chmod +x deployment/linux/install.sh
-	cd deployment/linux && sudo ./install.sh
+install-master-linux: build-linux ## Install Master Server on Linux (requires sudo)
+	@echo "📦 Installing Master Server to Linux..."
+	@chmod +x deployment/linux/install-master.sh
+	cd deployment/linux && sudo ./install-master.sh
+
+install-agent-linux: ## Install Agent on Linux (requires sudo) - run from agent machine
+	@echo "📦 Installing Agent to Linux..."
+	@chmod +x deployment/linux/install-agent.sh
+	cd deployment/linux && sudo ./install-agent.sh
+
+update-master-linux: build-linux ## Quick update Master: build + copy + restart service
+	@echo "🔄 Updating Master Server..."
+	sudo cp bin/linux/dsp-master /opt/dsp-platform/
+	sudo cp -r bin/linux/frontend/dist /opt/dsp-platform/frontend/
+	sudo systemctl restart dsp-master
+	@echo "✅ Master updated and restarted"
+
+update-agent-linux: ## Quick update Agent: build + copy + restart service
+	@echo "🔄 Updating Agent..."
+	@echo "📦 Building Agent binary..."
+	GOOS=linux GOARCH=amd64 go build -o bin/linux/dsp-agent ./cmd/agent
+	sudo cp bin/linux/dsp-agent /opt/dsp-agent/
+	sudo systemctl restart dsp-agent
+	@echo "✅ Agent updated and restarted"
+
+# Legacy alias for backwards compatibility
+install-linux: install-master-linux ## Alias for install-master-linux
 
 ##@ Docker
 

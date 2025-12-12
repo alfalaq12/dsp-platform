@@ -9,12 +9,15 @@ DSP Platform menggunakan **Single Binary + Embedded SQLite**.
 -   Database disimpan di file `dsp.db` di folder yang sama dengan binary.
 -   **CRITICAL**: File `dsp.db` harus di-backup secara berkala.
 
+---
+
 ## 📦 Build Binaries
 
 ### Dari Linux/macOS:
 ```bash
-chmod +x build.sh
-./build.sh
+make build
+# atau
+chmod +x build.sh && ./build.sh
 ```
 
 ### Dari Windows:
@@ -28,104 +31,137 @@ Hasil build:
 
 ---
 
-## 🐧 Deployment di Linux
+## 🐧 Linux Deployment
 
-### Sistem Requirements
-- Ubuntu 20.04+ / RHEL 8+
-- Systemd
-- Minimal 1GB RAM
+### Master Server
 
-### Installation Steps
-
-1. **Build binary**:
-   ```bash
-   ./build.sh
-   ```
-
-2. **Install sebagai service**:
-   ```bash
-   cd deployment/linux
-   sudo chmod +x install.sh
-   sudo ./install.sh
-   ```
-
-3. **Configure Environment** (Optional):
-   File config: `/etc/systemd/system/dsp-master.service`
-   
-   Hanya perlu set `JWT_SECRET`:
-   ```ini
-   Environment="JWT_SECRET=GantiDenganRahasiaSuperKuat123!"
-   ```
-   *Note: Database otomatis tersimpan di `/opt/dsp-platform/dsp.db` (atau folder install)*
-
-4. **Start Service**:
-   ```bash
-   sudo systemctl enable dsp-master
-   sudo systemctl start dsp-master
-   ```
-
-### 🛡️ Backup Strategy (PENTING)
-Buat cron job untuk backup database setiap hari:
-
+#### First Installation
 ```bash
-# Crontab entry
+# 1. Build
+make build-linux
+
+# 2. Install
+make install-master-linux
+# atau manual:
+cd deployment/linux && sudo ./install-master.sh
+
+# 3. Configure (optional)
+sudo nano /etc/systemd/system/dsp-master.service
+# Set: Environment="JWT_SECRET=GantiDenganRahasiaSuperKuat123!"
+
+# 4. Start
+sudo systemctl enable dsp-master
+sudo systemctl start dsp-master
+```
+
+#### Quick Update (after git pull)
+```bash
+git pull
+make update-master-linux
+```
+
+---
+
+### Agent (Linux)
+
+#### First Installation
+```bash
+# 1. (Jika ada source code) Build binary
+make build-linux
+
+# 2. Copy binary ke Agent machine
+scp bin/linux/dsp-agent user@agent-server:/tmp/
+
+# 3. Di Agent machine, install
+cd /tmp
+sudo ./install-agent.sh
+# Atau jika punya source code:
+make install-agent-linux
+
+# 4. Configure
+sudo nano /opt/dsp-agent/.env
+# Set Master IP, DB connection, etc.
+
+# 5. Start
+sudo systemctl enable dsp-agent
+sudo systemctl start dsp-agent
+```
+
+#### Quick Update (after git pull)
+```bash
+git pull
+make update-agent-linux
+
+# Atau manual:
+go build -o dsp-agent ./cmd/agent
+sudo cp dsp-agent /opt/dsp-agent/
+sudo systemctl restart dsp-agent
+```
+
+---
+
+## 🪟 Windows Deployment
+
+### Agent (Windows)
+
+#### First Installation
+```powershell
+# Run as Administrator
+cd deployment\windows
+
+# Interactive install (akan prompt Master IP, Agent Name)
+.\install-agent.ps1
+```
+
+#### Quick Update
+```powershell
+# Run as Administrator
+cd deployment\windows
+
+# Quick update - no prompts, just copy binary and restart
+.\install-agent.ps1 -Update
+```
+
+### Master (Windows)
+```powershell
+cd deployment\windows
+.\install-service.ps1
+Start-Service DSPMaster
+```
+
+---
+
+## 🛡️ Backup Strategy (PENTING)
+
+### Linux Cron Job
+```bash
+# Crontab entry - backup setiap jam 2 malam
 0 2 * * * cp /opt/dsp-platform/dsp.db /backup/dsp-platform/dsp_$(date +\%Y\%m\%d).db
 ```
 
----
-
-## 🪟 Deployment di Windows
-
-### Installation Steps
-
-1. **Build**:
-   ```powershell
-   .\build.ps1
-   ```
-
-2. **Install Service (via NSSM)**:
-   ```powershell
-   # Run as Admin
-   cd deployment\windows
-   .\install-service.ps1
-   ```
-
-3. **Set Environment Variable**:
-   - Set `JWT_SECRET` via System Environments jika ingin custom secret key.
-
-4. **Start**:
-   ```powershell
-   Start-Service DSPMaster
-   ```
-
-### 🛡️ Backup Strategy
-Gunakan Task Scheduler atau Script simpel untuk copy `dsp.db` ke server backup.
+### Windows Task Scheduler
+Gunakan Task Scheduler untuk copy `dsp.db` ke lokasi backup.
 
 ---
 
-## 🐳 Docker Deployment
+## 📋 Makefile Commands Reference
 
-Gunakan `docker-compose.yml` sederhana ini.
-**PENTING**: Mount volume untuk `dsp.db` agar data tidak hilang saat restart container.
+| Command | Description |
+|---------|-------------|
+| `make build` | Build all (Linux + Windows + Frontend) |
+| `make build-linux` | Build Linux binaries only |
+| `make install-master-linux` | Install Master sebagai systemd service |
+| `make install-agent-linux` | Install Agent sebagai systemd service |
+| `make update-master-linux` | Quick update: build + copy + restart Master |
+| `make update-agent-linux` | Quick update: build + copy + restart Agent |
+| `make help` | Show all available commands |
 
-```yaml
-version: '3.8'
-
-services:
-  dsp-master:
-    build: .
-    ports:
-      - "441:441"
-      - "447:447"
-    environment:
-      - JWT_SECRET=RahasiaKuat123!
-    volumes:
-      - ./data:/app/data  # Persist dsp.db
-    restart: unless-stopped
-```
+---
 
 ## 🔒 Security Checklist
 
 - [ ] **Ganti Password Admin**: Login pertama kali dengan default `admin` / `admin`, lalu ganti password.
 - [ ] **Firewall**: Buka port 441 (Web/API) dan 447 (Agent).
 - [ ] **HTTPS**: Gunakan Nginx/Caddy sebagai Reverse Proxy untuk handle SSL/HTTPS di depan port 441.
+- [ ] **JWT Secret**: Set environment variable `JWT_SECRET` dengan nilai yang kuat.
+

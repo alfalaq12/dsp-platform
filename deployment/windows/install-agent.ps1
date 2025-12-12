@@ -1,5 +1,11 @@
 # Windows Agent Installation Script for DSP Platform
-# Run as Administrator: .\install-agent.ps1
+# Full install:    .\install-agent.ps1
+# Quick update:    .\install-agent.ps1 -Update
+# Run as Administrator
+
+param(
+    [switch]$Update  # Quick update mode - just copy binary and restart service
+)
 
 # Check if running as Administrator
 $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
@@ -8,6 +14,43 @@ if (-not $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Adm
     exit 1
 }
 
+$InstallDir = "C:\Program Files\DSP-Agent"
+
+# Quick Update Mode
+if ($Update) {
+    Write-Host "[+] Quick Update Mode - Updating DSP Agent..." -ForegroundColor Cyan
+    
+    $SourceBin = "..\..\bin\windows\dsp-agent.exe"
+    if (-not (Test-Path $SourceBin)) {
+        # Try building first
+        Write-Host "[*] Binary not found, attempting to build..." -ForegroundColor Yellow
+        Push-Location "..\..\"
+        go build -o bin\windows\dsp-agent.exe .\cmd\agent
+        Pop-Location
+    }
+    
+    if (Test-Path $SourceBin) {
+        Write-Host "[*] Stopping service..." -ForegroundColor Yellow
+        Stop-Service -Name DSPAgent -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 2
+        
+        Write-Host "[*] Copying new binary..." -ForegroundColor Yellow
+        Copy-Item $SourceBin -Destination $InstallDir -Force
+        
+        Write-Host "[*] Starting service..." -ForegroundColor Yellow
+        Start-Service -Name DSPAgent
+        
+        Write-Host "[+] Update complete!" -ForegroundColor Green
+        Get-Service DSPAgent | Format-Table Status, Name, DisplayName
+    }
+    else {
+        Write-Host "[-] Failed to build/find dsp-agent.exe" -ForegroundColor Red
+        exit 1
+    }
+    exit 0
+}
+
+# Full Installation Mode
 Write-Host "[+] Installing DSP Agent..." -ForegroundColor Cyan
 
 # Configuration Prompts
@@ -21,9 +64,6 @@ $AgentName = Read-Host "[?] Enter Agent Name (e.g., windows-agent-1)"
 if ([string]::IsNullOrWhiteSpace($AgentName)) {
     $AgentName = "windows-agent-1"
 }
-
-# Install directory
-$InstallDir = "C:\Program Files\DSP-Agent"
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 New-Item -ItemType Directory -Force -Path "$InstallDir\logs" | Out-Null
 

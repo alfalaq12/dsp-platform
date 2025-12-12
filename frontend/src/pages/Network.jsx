@@ -574,7 +574,7 @@ function Network() {
             )}
 
             {/* Networks Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-stagger">
                 {networks
                     .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                     .map((network) => (
