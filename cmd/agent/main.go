@@ -524,12 +524,19 @@ func executeFileSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, jobN
 	// Get FTP config
 	ftpConfig := filesync.FTPConfig{}
 	privateKey := ""
+
+	// Debug: Log raw ftp_config
+	logger.Logger.Debug().Interface("ftp_config_raw", msg.Data["ftp_config"]).Msg("Received ftp_config")
+
 	if cfg, ok := msg.Data["ftp_config"].(map[string]interface{}); ok {
 		if host, ok := cfg["host"].(string); ok {
 			ftpConfig.Host = host
 		}
+		// Port can be string or float64 (from JSON)
 		if port, ok := cfg["port"].(string); ok {
 			ftpConfig.Port = port
+		} else if portNum, ok := cfg["port"].(float64); ok {
+			ftpConfig.Port = fmt.Sprintf("%.0f", portNum)
 		}
 		if user, ok := cfg["user"].(string); ok {
 			ftpConfig.User = user
@@ -546,6 +553,19 @@ func executeFileSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, jobN
 		if passive, ok := cfg["passive"].(bool); ok {
 			ftpConfig.Passive = passive
 		}
+
+		// Debug log extracted values
+		logger.Logger.Info().
+			Str("host", ftpConfig.Host).
+			Str("port", ftpConfig.Port).
+			Str("user", ftpConfig.User).
+			Bool("has_password", ftpConfig.Password != "").
+			Int("password_len", len(ftpConfig.Password)).
+			Bool("has_private_key", privateKey != "").
+			Int("private_key_len", len(privateKey)).
+			Msg("Extracted FTP config values")
+	} else {
+		logger.Logger.Error().Msg("ftp_config is not a valid map or is missing!")
 	}
 
 	// Get file config
@@ -574,6 +594,8 @@ func executeFileSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, jobN
 		Str("path", ftpConfig.Path).
 		Str("pattern", filePattern).
 		Str("format", fileFormat).
+		Bool("has_private_key", privateKey != "").
+		Bool("has_password", ftpConfig.Password != "").
 		Msg("Starting file sync job")
 
 	// Read file from FTP/SFTP

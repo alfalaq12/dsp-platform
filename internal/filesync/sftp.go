@@ -51,8 +51,8 @@ func NewSFTPClient(config SFTPConfig) (*SFTPClient, error) {
 		authMethods = append(authMethods, ssh.PublicKeys(signer))
 	}
 
-	// Add password authentication as fallback
-	if config.Password != "" && config.PrivateKey == "" {
+	// Add password authentication as fallback (always add if password is provided)
+	if config.Password != "" {
 		authMethods = append(authMethods, ssh.Password(config.Password))
 	}
 
