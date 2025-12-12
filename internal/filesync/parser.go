@@ -189,6 +189,19 @@ func ParseFile(data []byte, format string, hasHeader bool, delimiter string) ([]
 			delim = rune(delimiter[0])
 		}
 		return ParseCSV(data, hasHeader, delim)
+	case "txt", "text":
+		// TXT files: try to parse as delimited, otherwise line-by-line
+		delim := ','
+		if len(delimiter) > 0 {
+			delim = rune(delimiter[0])
+		}
+		// Try parsing as delimited first
+		records, err := ParseCSV(data, hasHeader, delim)
+		if err != nil || len(records) == 0 {
+			// Fallback to line-by-line parsing
+			return ParseTextLines(data)
+		}
+		return records, nil
 	case "xlsx", "excel":
 		return ParseExcel(data, hasHeader)
 	case "json":
@@ -196,4 +209,24 @@ func ParseFile(data []byte, format string, hasHeader bool, delimiter string) ([]
 	default:
 		return nil, fmt.Errorf("unsupported file format: %s", format)
 	}
+}
+
+// ParseTextLines parses plain text file line by line
+func ParseTextLines(data []byte) ([]map[string]interface{}, error) {
+	lines := strings.Split(string(data), "\n")
+	var records []map[string]interface{}
+
+	for i, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue // Skip empty lines
+		}
+		record := map[string]interface{}{
+			"line_number": i + 1,
+			"content":     line,
+		}
+		records = append(records, record)
+	}
+
+	return records, nil
 }

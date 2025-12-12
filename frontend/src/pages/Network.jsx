@@ -11,7 +11,7 @@ function Network() {
         name: '',
         ip_address: '',
         type: 'source',
-        source_type: 'database', // database, ftp, sftp
+        source_type: 'database', // database, ftp, sftp, api
         // Database fields
         db_driver: 'postgres',
         db_host: '',
@@ -28,6 +28,14 @@ function Network() {
         ftp_private_key: '', // SSH private key (PEM format)
         ftp_path: '',
         ftp_passive: true,
+        // API fields
+        api_url: '',
+        api_method: 'GET',
+        api_headers: '',
+        api_auth_type: 'none',
+        api_auth_key: '',
+        api_auth_value: '',
+        api_body: '',
     });
 
     // New states for enhanced UX
@@ -79,7 +87,7 @@ function Network() {
         setFormData({
             name: network.name,
             ip_address: network.ip_address,
-            type: network.type,
+            type: network.type || 'source',
             source_type: network.source_type || 'database',
             db_driver: network.db_driver || 'postgres',
             db_host: network.db_host || '',
@@ -95,6 +103,14 @@ function Network() {
             ftp_private_key: network.ftp_private_key || '',
             ftp_path: network.ftp_path || '',
             ftp_passive: network.ftp_passive !== false,
+            // API fields
+            api_url: network.api_url || '',
+            api_method: network.api_method || 'GET',
+            api_headers: network.api_headers || '',
+            api_auth_type: network.api_auth_type || 'none',
+            api_auth_key: network.api_auth_key || '',
+            api_auth_value: network.api_auth_value || '',
+            api_body: network.api_body || '',
         });
         setEditingId(network.id);
         setShowForm(true);
@@ -121,7 +137,8 @@ function Network() {
             name: '', ip_address: '', type: 'source', source_type: 'database',
             db_driver: 'postgres', db_host: '', db_port: '5432',
             db_user: '', db_password: '', db_name: '', db_sslmode: 'disable',
-            ftp_host: '', ftp_port: '21', ftp_user: '', ftp_password: '', ftp_private_key: '', ftp_path: '', ftp_passive: true
+            ftp_host: '', ftp_port: '21', ftp_user: '', ftp_password: '', ftp_private_key: '', ftp_path: '', ftp_passive: true,
+            api_url: '', api_method: 'GET', api_headers: '', api_auth_type: 'none', api_auth_key: '', api_auth_value: '', api_body: ''
         });
         setEditingId(null);
         setShowForm(false);
@@ -222,6 +239,7 @@ function Network() {
                                 <option value="database">Database</option>
                                 <option value="ftp">FTP</option>
                                 <option value="sftp">SFTP</option>
+                                <option value="api">REST API</option>
                             </select>
                         </div>
 
@@ -425,6 +443,105 @@ function Network() {
                                                 />
                                                 Use Passive Mode (recommended)
                                             </label>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* API Configuration */}
+                        {formData.source_type === 'api' && (
+                            <div className="border-t border-slate-700 pt-4 mt-2">
+                                <h3 className="text-md font-semibold text-cyan-400 mb-4 flex items-center gap-2">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                                    </svg>
+                                    REST API Configuration
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">API URL</label>
+                                        <input
+                                            type="url"
+                                            value={formData.api_url}
+                                            onChange={(e) => setFormData({ ...formData, api_url: e.target.value })}
+                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                                            placeholder="https://api.example.com/data"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">Method</label>
+                                        <select
+                                            value={formData.api_method}
+                                            onChange={(e) => setFormData({ ...formData, api_method: e.target.value })}
+                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                                        >
+                                            <option value="GET">GET</option>
+                                            <option value="POST">POST</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">Authentication</label>
+                                        <select
+                                            value={formData.api_auth_type}
+                                            onChange={(e) => setFormData({ ...formData, api_auth_type: e.target.value })}
+                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                                        >
+                                            <option value="none">No Auth</option>
+                                            <option value="bearer">Bearer Token</option>
+                                            <option value="basic">Basic Auth</option>
+                                            <option value="api_key">API Key</option>
+                                        </select>
+                                    </div>
+                                    {formData.api_auth_type === 'api_key' && (
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-300 mb-1">Header Name</label>
+                                            <input
+                                                type="text"
+                                                value={formData.api_auth_key}
+                                                onChange={(e) => setFormData({ ...formData, api_auth_key: e.target.value })}
+                                                className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                                                placeholder="X-API-Key"
+                                            />
+                                        </div>
+                                    )}
+                                    {formData.api_auth_type !== 'none' && (
+                                        <div className={formData.api_auth_type === 'api_key' ? '' : 'md:col-span-2'}>
+                                            <label className="block text-sm font-medium text-slate-300 mb-1">
+                                                {formData.api_auth_type === 'bearer' ? 'Token' :
+                                                    formData.api_auth_type === 'basic' ? 'username:password' : 'API Key Value'}
+                                            </label>
+                                            <input
+                                                type="password"
+                                                value={formData.api_auth_value}
+                                                onChange={(e) => setFormData({ ...formData, api_auth_value: e.target.value })}
+                                                className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                                                placeholder={formData.api_auth_type === 'basic' ? 'user:password' : 'Enter token/key...'}
+                                            />
+                                        </div>
+                                    )}
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">
+                                            Custom Headers <span className="text-slate-500">(JSON format, optional)</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={formData.api_headers}
+                                            onChange={(e) => setFormData({ ...formData, api_headers: e.target.value })}
+                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white font-mono text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                                            placeholder='{"Content-Type": "application/json"}'
+                                        />
+                                    </div>
+                                    {formData.api_method === 'POST' && (
+                                        <div className="md:col-span-2">
+                                            <label className="block text-sm font-medium text-slate-300 mb-1">Request Body (JSON)</label>
+                                            <textarea
+                                                value={formData.api_body}
+                                                onChange={(e) => setFormData({ ...formData, api_body: e.target.value })}
+                                                rows="3"
+                                                className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white font-mono text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                                                placeholder='{"query": "value"}'
+                                            />
                                         </div>
                                     )}
                                 </div>

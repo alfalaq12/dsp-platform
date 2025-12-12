@@ -404,8 +404,7 @@ func executeRunJobCommand(conn net.Conn, msg AgentMessage) {
 	if n, ok := msg.Data["name"].(string); ok {
 		jobName = n
 	}
-
-	// Get source type (database, ftp, sftp)
+	// Get source type (database, ftp, sftp, api)
 	sourceType := "database" // default
 	if st, ok := msg.Data["source_type"].(string); ok && st != "" {
 		sourceType = st
@@ -422,6 +421,8 @@ func executeRunJobCommand(conn net.Conn, msg AgentMessage) {
 	switch sourceType {
 	case "ftp", "sftp":
 		executeFileSyncJob(conn, msg, jobID, logID, jobName, sourceType)
+	case "api":
+		executeAPISyncJob(conn, msg, jobID, logID, jobName)
 	default:
 		executeDatabaseSyncJob(conn, msg, jobID, logID, jobName)
 	}
@@ -517,6 +518,105 @@ func executeDatabaseSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, 
 
 	// Send final completion response
 	sendDataResponse(conn, jobID, logID, nil, 0, "", false)
+}
+
+// executeAPISyncJob handles REST API based sync jobs
+func executeAPISyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, jobName string) {
+	logger.Logger.Info().
+		Uint("job_id", jobID).
+		Str("job", jobName).
+		Msg("Starting API sync job")
+
+	// Extract API config from message
+	apiConfig := filesync.APIConfig{}
+	if cfg, ok := msg.Data["api_config"].(map[string]interface{}); ok {
+		if url, ok := cfg["url"].(string); ok {
+			apiConfig.URL = url
+		}
+		if method, ok := cfg["method"].(string); ok {
+			apiConfig.Method = method
+		}
+		if authType, ok := cfg["auth_type"].(string); ok {
+			apiConfig.AuthType = authType
+		}
+		if authKey, ok := cfg["auth_key"].(string); ok {
+			apiConfig.AuthKey = authKey
+		}
+		if authValue, ok := cfg["auth_value"].(string); ok {
+			apiConfig.AuthValue = authValue
+		}
+		if body, ok := cfg["body"].(string); ok {
+			apiConfig.Body = body
+		}
+		// Parse headers JSON string
+		if headersStr, ok := cfg["headers"].(string); ok && headersStr != "" {
+			var headers map[string]string
+			if err := json.Unmarshal([]byte(headersStr), &headers); err == nil {
+				apiConfig.Headers = headers
+			}
+		}
+	}
+
+	// Validate URL
+	if apiConfig.URL == "" {
+		err := fmt.Errorf("API URL is not configured")
+		logger.Logger.Error().Msg(err.Error())
+		sendDataResponse(conn, jobID, logID, nil, 0, err.Error(), false)
+		return
+	}
+
+	logger.Logger.Info().
+		Str("url", apiConfig.URL).
+		Str("method", apiConfig.Method).
+		Str("auth_type", apiConfig.AuthType).
+		Bool("has_body", apiConfig.Body != "").
+		Msg("Fetching data from API")
+
+	// Create API client and fetch data
+	client := filesync.NewAPIClient()
+	data, err := client.FetchAPI(apiConfig)
+	if err != nil {
+		logger.Logger.Error().Err(err).Msg("Failed to fetch API data")
+		sendDataResponse(conn, jobID, logID, nil, 0, err.Error(), false)
+		return
+	}
+
+	logger.Logger.Info().
+		Int("response_size", len(data)).
+		Msg("API response received, parsing JSON")
+
+	// Parse JSON response
+	records, err := filesync.ParseAPIResponse(data)
+	if err != nil {
+		logger.Logger.Error().Err(err).Msg("Failed to parse API response")
+		sendDataResponse(conn, jobID, logID, nil, 0, err.Error(), false)
+		return
+	}
+
+	logger.Logger.Info().
+		Str("job", jobName).
+		Int("total_records", len(records)).
+		Msg("API data parsed successfully")
+
+	// Send records in batches
+	batchSize := 5000
+	for i := 0; i < len(records); i += batchSize {
+		end := i + batchSize
+		if end > len(records) {
+			end = len(records)
+		}
+		batch := records[i:end]
+		isPartial := end < len(records)
+
+		sendDataResponse(conn, jobID, logID, batch, len(batch), "", isPartial)
+	}
+
+	// Send final completion if needed
+	if len(records) == 0 {
+		sendDataResponse(conn, jobID, logID, nil, 0, "", false)
+	} else if len(records)%batchSize == 0 {
+		sendDataResponse(conn, jobID, logID, nil, 0, "", false)
+	}
 }
 
 // executeFileSyncJob handles FTP/SFTP file sync jobs

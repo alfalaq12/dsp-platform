@@ -32,7 +32,7 @@ type Network struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 
-	// Source Type: database, ftp, sftp
+	// Source Type: database, ftp, sftp, api
 	SourceType string `json:"source_type" gorm:"default:'database'"`
 
 	// Source Database Configuration (for agent to use when SourceType=database)
@@ -52,6 +52,15 @@ type Network struct {
 	FTPPrivateKey string `json:"ftp_private_key" gorm:"type:text"` // SSH private key (PEM format)
 	FTPPath       string `json:"ftp_path"`                         // Remote directory path
 	FTPPassive    bool   `json:"ftp_passive" gorm:"default:true"`  // Use passive mode
+
+	// API Configuration (for agent to use when SourceType=api)
+	APIURL       string `json:"api_url"`                         // API endpoint URL
+	APIMethod    string `json:"api_method" gorm:"default:'GET'"` // GET, POST
+	APIHeaders   string `json:"api_headers" gorm:"type:text"`    // JSON string of headers {"key": "value"}
+	APIAuthType  string `json:"api_auth_type"`                   // none, bearer, basic, api_key
+	APIAuthKey   string `json:"api_auth_key"`                    // Header name for API key (e.g., X-API-Key)
+	APIAuthValue string `json:"api_auth_value"`                  // Token/key value
+	APIBody      string `json:"api_body" gorm:"type:text"`       // Request body for POST
 }
 
 // Job represents a data synchronization job linking a Schema to a Network

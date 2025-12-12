@@ -365,6 +365,16 @@ func (h *Handler) RunJob(c *gin.Context) {
 				"delimiter":         job.Schema.Delimiter,
 				"unique_key_column": job.Schema.UniqueKeyColumn,
 			},
+			// API config (for source_type=api)
+			"api_config": map[string]interface{}{
+				"url":        job.Network.APIURL,
+				"method":     job.Network.APIMethod,
+				"headers":    job.Network.APIHeaders,
+				"auth_type":  job.Network.APIAuthType,
+				"auth_key":   job.Network.APIAuthKey,
+				"auth_value": job.Network.APIAuthValue,
+				"body":       job.Network.APIBody,
+			},
 		},
 	}
 

@@ -194,6 +194,7 @@ function Schema() {
                                             className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                                         >
                                             <option value="csv">CSV</option>
+                                            <option value="txt">TXT (Text File)</option>
                                             <option value="xlsx">Excel (.xlsx)</option>
                                             <option value="json">JSON</option>
                                         </select>
@@ -208,7 +209,7 @@ function Schema() {
                                             placeholder="data.csv atau *.csv"
                                         />
                                     </div>
-                                    {formData.file_format === 'csv' && (
+                                    {(formData.file_format === 'csv' || formData.file_format === 'txt') && (
                                         <>
                                             <div>
                                                 <label className="block text-sm font-medium text-slate-300 mb-1">Delimiter</label>
@@ -222,6 +223,9 @@ function Schema() {
                                                     <option value="\t">Tab</option>
                                                     <option value="|">Pipe (|)</option>
                                                 </select>
+                                                {formData.file_format === 'txt' && (
+                                                    <p className="text-xs text-slate-500 mt-1">Jika file tidak terstruktur, setiap baris akan jadi 1 record</p>
+                                                )}
                                             </div>
                                             <div className="flex items-center">
                                                 <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
