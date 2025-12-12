@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -738,6 +739,44 @@ func executeTestConnection(conn net.Conn, msg AgentMessage) {
 
 	startTime := time.Now()
 
+	// Check source type (database, ftp, sftp)
+	sourceType := "database"
+	if st, ok := msg.Data["source_type"].(string); ok && st != "" {
+		sourceType = st
+	}
+
+	logger.Logger.Info().Str("source_type", sourceType).Msg("Testing connection")
+
+	response := AgentMessage{
+		Type:      "TEST_CONNECTION_RESULT",
+		AgentName: AgentName,
+		Timestamp: time.Now(),
+		Data:      make(map[string]interface{}),
+	}
+
+	// Route based on source type
+	switch sourceType {
+	case "ftp", "sftp":
+		testFTPConnection(msg, sourceType, &response, startTime)
+	default:
+		testDatabaseConnection(msg, &response, startTime)
+	}
+
+	// Send response to master
+	data, err := json.Marshal(response)
+	if err != nil {
+		logger.Logger.Error().Err(err).Msg("Failed to marshal test result")
+		return
+	}
+	data = append(data, '\n')
+
+	if _, err := conn.Write(data); err != nil {
+		logger.Logger.Error().Err(err).Msg("Failed to send test result to Master")
+	}
+}
+
+// testDatabaseConnection tests database connection
+func testDatabaseConnection(msg AgentMessage, response *AgentMessage, startTime time.Time) {
 	// Extract DB config from message
 	var testConfig database.Config
 	if dbConfig, ok := msg.Data["db_config"].(map[string]interface{}); ok {
@@ -784,17 +823,10 @@ func executeTestConnection(conn net.Conn, msg AgentMessage) {
 	dbConn, err := database.Connect(testConfig)
 	duration := time.Since(startTime).Milliseconds()
 
-	response := AgentMessage{
-		Type:      "TEST_CONNECTION_RESULT",
-		AgentName: AgentName,
-		Timestamp: time.Now(),
-		Data:      make(map[string]interface{}),
-	}
-
 	if err != nil {
-		logger.Logger.Error().Err(err).Msg("Test connection failed")
+		logger.Logger.Error().Err(err).Msg("Test database connection failed")
 		response.Data["success"] = false
-		response.Data["error"] = err.Error()
+		response.Data["error"] = fmt.Sprintf("Database connection failed: %v", err)
 		response.Data["duration"] = duration
 	} else {
 		defer dbConn.Close()
@@ -811,26 +843,144 @@ func executeTestConnection(conn net.Conn, msg AgentMessage) {
 		logger.Logger.Info().
 			Str("host", testConfig.Host).
 			Int64("duration_ms", duration).
-			Msg("Test connection successful")
+			Msg("Test database connection successful")
 
 		response.Data["success"] = true
-		response.Data["message"] = "Connection successful"
+		response.Data["message"] = "Database connection successful"
 		response.Data["duration"] = duration
 		response.Data["version"] = version
 		response.Data["host"] = testConfig.Host
 		response.Data["port"] = testConfig.Port
 		response.Data["database"] = testConfig.DBName
 	}
+}
 
-	// Send response to master
-	data, err := json.Marshal(response)
-	if err != nil {
-		logger.Logger.Error().Err(err).Msg("Failed to marshal test result")
+// testFTPConnection tests FTP/SFTP connection
+func testFTPConnection(msg AgentMessage, sourceType string, response *AgentMessage, startTime time.Time) {
+	// Extract FTP config
+	ftpConfig := filesync.FTPConfig{}
+	privateKey := ""
+	if cfg, ok := msg.Data["ftp_config"].(map[string]interface{}); ok {
+		if host, ok := cfg["host"].(string); ok {
+			ftpConfig.Host = host
+		}
+		if port, ok := cfg["port"].(string); ok {
+			ftpConfig.Port = port
+		}
+		if user, ok := cfg["user"].(string); ok {
+			ftpConfig.User = user
+		}
+		if password, ok := cfg["password"].(string); ok {
+			ftpConfig.Password = password
+		}
+		if key, ok := cfg["private_key"].(string); ok {
+			privateKey = key
+		}
+		if path, ok := cfg["path"].(string); ok {
+			ftpConfig.Path = path
+		}
+		if passive, ok := cfg["passive"].(bool); ok {
+			ftpConfig.Passive = passive
+		}
+	}
+
+	duration := time.Since(startTime).Milliseconds()
+
+	if ftpConfig.Host == "" {
+		logger.Logger.Error().Msg("FTP/SFTP host is not configured")
+		response.Data["success"] = false
+		response.Data["error"] = fmt.Sprintf("%s host is not configured", strings.ToUpper(sourceType))
+		response.Data["duration"] = duration
 		return
 	}
-	data = append(data, '\n')
 
-	if _, err := conn.Write(data); err != nil {
-		logger.Logger.Error().Err(err).Msg("Failed to send test result to Master")
+	if sourceType == "sftp" {
+		// Test SFTP connection
+		sftpConfig := filesync.SFTPConfig{
+			Host:       ftpConfig.Host,
+			Port:       ftpConfig.Port,
+			User:       ftpConfig.User,
+			Password:   ftpConfig.Password,
+			PrivateKey: privateKey,
+			Path:       ftpConfig.Path,
+		}
+		if sftpConfig.Port == "" || sftpConfig.Port == "21" {
+			sftpConfig.Port = "22" // Default SFTP port
+		}
+
+		client, err := filesync.NewSFTPClient(sftpConfig)
+		duration = time.Since(startTime).Milliseconds()
+
+		if err != nil {
+			logger.Logger.Error().Err(err).Msg("Test SFTP connection failed")
+			response.Data["success"] = false
+			response.Data["error"] = fmt.Sprintf("SFTP connection failed: %v", err)
+			response.Data["duration"] = duration
+		} else {
+			defer client.Close()
+
+			// Try to list directory to verify connection
+			_, listErr := client.ListFiles(sftpConfig.Path, "")
+			duration = time.Since(startTime).Milliseconds()
+
+			if listErr != nil {
+				logger.Logger.Error().Err(listErr).Msg("Test SFTP list directory failed")
+				response.Data["success"] = false
+				response.Data["error"] = fmt.Sprintf("SFTP connected but failed to list directory: %v", listErr)
+				response.Data["duration"] = duration
+			} else {
+				logger.Logger.Info().
+					Str("host", ftpConfig.Host).
+					Int64("duration_ms", duration).
+					Msg("Test SFTP connection successful")
+
+				response.Data["success"] = true
+				response.Data["message"] = "SFTP connection successful"
+				response.Data["duration"] = duration
+				response.Data["host"] = ftpConfig.Host
+				response.Data["port"] = sftpConfig.Port
+				response.Data["path"] = ftpConfig.Path
+			}
+		}
+	} else {
+		// Test FTP connection
+		if ftpConfig.Port == "" {
+			ftpConfig.Port = "21"
+		}
+
+		client, err := filesync.NewFTPClient(ftpConfig)
+		duration = time.Since(startTime).Milliseconds()
+
+		if err != nil {
+			logger.Logger.Error().Err(err).Msg("Test FTP connection failed")
+			response.Data["success"] = false
+			response.Data["error"] = fmt.Sprintf("FTP connection failed: %v", err)
+			response.Data["duration"] = duration
+		} else {
+			defer client.Close()
+
+			// Try to list directory to verify connection
+			_, listErr := client.ListFiles(ftpConfig.Path, "")
+			duration = time.Since(startTime).Milliseconds()
+
+			if listErr != nil {
+				logger.Logger.Error().Err(listErr).Msg("Test FTP list directory failed")
+				response.Data["success"] = false
+				response.Data["error"] = fmt.Sprintf("FTP connected but failed to list directory: %v", listErr)
+				response.Data["duration"] = duration
+			} else {
+				logger.Logger.Info().
+					Str("host", ftpConfig.Host).
+					Int64("duration_ms", duration).
+					Msg("Test FTP connection successful")
+
+				response.Data["success"] = true
+				response.Data["message"] = "FTP connection successful"
+				response.Data["duration"] = duration
+				response.Data["host"] = ftpConfig.Host
+				response.Data["port"] = ftpConfig.Port
+				response.Data["path"] = ftpConfig.Path
+			}
+		}
 	}
 }

@@ -88,15 +88,21 @@ function Jobs() {
         e?.stopPropagation();
         setRunningJobs(prev => new Set([...prev, jobId]));
         try {
-            await runJob(jobId);
-            addToast('Job started successfully!', 'success');
+            const response = await runJob(jobId);
+            // Check if response indicates success or has error
+            if (response.data?.job?.status === 'failed') {
+                addToast(`Job failed: ${response.data?.error || 'Unknown error'}`, 'error');
+            } else {
+                addToast('Job started successfully!', 'success');
+            }
             setTimeout(loadData, 1000);
             if (selectedJob?.id === jobId) {
                 setTimeout(() => loadJobDetails(jobId), 2000);
             }
         } catch (error) {
             console.error('Failed to run job:', error);
-            addToast('Failed to run job. Please try again.', 'error');
+            const errorMsg = error.response?.data?.error || error.message || 'Unknown error';
+            addToast(`Job failed: ${errorMsg}`, 'error');
         } finally {
             setRunningJobs(prev => {
                 const newSet = new Set(prev);
@@ -423,7 +429,7 @@ function Jobs() {
                                                 <div className="flex items-center justify-between mb-3">
                                                     <div className="flex items-center gap-2">
                                                         {getStatusIcon(log.status)}
-                                                        <span className={`text-sm font-medium ${log.status === 'completed' ? 'text-emerald-400' : log.status === 'running' ? 'text-blue-400' : 'text-panda-text-muted'}`}>
+                                                        <span className={`text-sm font-medium ${log.status === 'completed' ? 'text-emerald-400' : log.status === 'running' ? 'text-blue-400' : log.status === 'failed' ? 'text-red-400' : 'text-panda-text-muted'}`}>
                                                             {log.status?.charAt(0).toUpperCase() + log.status?.slice(1)}
                                                         </span>
                                                     </div>
@@ -441,6 +447,14 @@ function Jobs() {
                                                         <p className="text-panda-text font-medium">{log.record_count || '-'}</p>
                                                     </div>
                                                 </div>
+
+                                                {/* Error Message Display */}
+                                                {log.status === 'failed' && log.error_message && (
+                                                    <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                                                        <p className="text-xs text-red-400 font-medium mb-1">Error Details:</p>
+                                                        <p className="text-sm text-red-300 font-mono break-all">{log.error_message}</p>
+                                                    </div>
+                                                )}
 
                                                 {/* Sample Data Preview */}
                                                 {log.sample_data && (

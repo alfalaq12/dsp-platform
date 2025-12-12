@@ -726,7 +726,7 @@ func (h *Handler) TestTargetDBConnection(c *gin.Context) {
 	})
 }
 
-// TestNetworkConnection sends test command to agent to test source DB
+// TestNetworkConnection sends test command to agent to test source DB or FTP/SFTP
 func (h *Handler) TestNetworkConnection(c *gin.Context) {
 	id := c.Param("id")
 
@@ -742,12 +742,13 @@ func (h *Handler) TestNetworkConnection(c *gin.Context) {
 		return
 	}
 
-	// Send TEST_CONNECTION command to agent
+	// Send TEST_CONNECTION command to agent with source_type
 	command := core.AgentMessage{
 		Type:      "TEST_CONNECTION",
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
-			"network_id": network.ID,
+			"network_id":  network.ID,
+			"source_type": network.SourceType,
 			"db_config": map[string]interface{}{
 				"driver":   network.DBDriver,
 				"host":     network.DBHost,
@@ -756,6 +757,15 @@ func (h *Handler) TestNetworkConnection(c *gin.Context) {
 				"password": network.DBPassword,
 				"db_name":  network.DBName,
 				"sslmode":  network.DBSSLMode,
+			},
+			"ftp_config": map[string]interface{}{
+				"host":        network.FTPHost,
+				"port":        network.FTPPort,
+				"user":        network.FTPUser,
+				"password":    network.FTPPassword,
+				"private_key": network.FTPPrivateKey,
+				"path":        network.FTPPath,
+				"passive":     network.FTPPassive,
 			},
 		},
 	}
