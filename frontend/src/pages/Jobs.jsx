@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Plus, Play, RefreshCw, X, Clock, Database, CheckCircle, XCircle, Loader2, Trash2, Eye, Pause } from 'lucide-react';
 import { getJobs, getSchemas, getNetworks, createJob, runJob, getJob, deleteJob, toggleJob } from '../services/api';
 import { useToast, ToastContainer, ConfirmModal } from '../components/Toast';
+import Pagination from '../components/Pagination';
 
 function Jobs() {
     const [jobs, setJobs] = useState([]);
@@ -21,6 +22,10 @@ function Jobs() {
     const [runningJobs, setRunningJobs] = useState(new Set());
     const { toasts, addToast, removeToast } = useToast();
     const userRole = localStorage.getItem('role') || 'viewer';
+
+    // Pagination states
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
 
     const loadData = useCallback(async () => {
         setIsRefreshing(true);
@@ -313,75 +318,88 @@ function Jobs() {
 
             {/* Jobs Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {jobs.map((job) => (
-                    <div
-                        key={job.id}
-                        className="bg-panda-dark-100 border border-panda-dark-300 rounded-2xl p-6 cursor-pointer hover:border-panda-gold/50 transition-all group card-hover"
-                    >
-                        <div className="flex justify-between items-start mb-4">
-                            <div onClick={() => handleJobClick(job)} className="flex-1">
-                                <h3 className="text-lg font-semibold text-panda-text group-hover:text-panda-gold transition">{job.name}</h3>
-                                <p className="text-sm text-panda-text-muted mt-1">Schema: {job.schema?.name}</p>
-                                <p className="text-sm text-panda-text-muted">Network: {job.network?.name}</p>
+                {jobs
+                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                    .map((job) => (
+                        <div
+                            key={job.id}
+                            className="bg-panda-dark-100 border border-panda-dark-300 rounded-2xl p-6 cursor-pointer hover:border-panda-gold/50 transition-all group card-hover"
+                        >
+                            <div className="flex justify-between items-start mb-4">
+                                <div onClick={() => handleJobClick(job)} className="flex-1">
+                                    <h3 className="text-lg font-semibold text-panda-text group-hover:text-panda-gold transition">{job.name}</h3>
+                                    <p className="text-sm text-panda-text-muted mt-1">Schema: {job.schema?.name}</p>
+                                    <p className="text-sm text-panda-text-muted">Network: {job.network?.name}</p>
+                                </div>
+                                <div className="flex flex-col items-end gap-2">
+                                    <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(job.status)}`}>
+                                        {job.status}
+                                    </span>
+                                    <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded text-xs">
+                                        {getScheduleLabel(job.schedule)}
+                                    </span>
+                                </div>
                             </div>
-                            <div className="flex flex-col items-end gap-2">
-                                <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(job.status)}`}>
-                                    {job.status}
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs text-panda-text-muted">
+                                    Last run: {job.last_run ? new Date(job.last_run).toLocaleString('id-ID') : 'Never'}
                                 </span>
-                                <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded text-xs">
-                                    {getScheduleLabel(job.schedule)}
-                                </span>
-                            </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-xs text-panda-text-muted">
-                                Last run: {job.last_run ? new Date(job.last_run).toLocaleString('id-ID') : 'Never'}
-                            </span>
-                            <div className="flex items-center gap-2">
-                                {userRole === 'admin' && (
+                                <div className="flex items-center gap-2">
+                                    {userRole === 'admin' && (
+                                        <button
+                                            onClick={(e) => handleToggle(job, e)}
+                                            className={`action-btn ${job.enabled !== false ? 'bg-orange-600/20 hover:bg-orange-600/40 text-orange-400' : 'bg-green-600/20 hover:bg-green-600/40 text-green-400'}`}
+                                            title={job.enabled !== false ? 'Pause Schedule' : 'Resume Schedule'}
+                                        >
+                                            {job.enabled !== false ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                                        </button>
+                                    )}
                                     <button
-                                        onClick={(e) => handleToggle(job, e)}
-                                        className={`action-btn ${job.enabled !== false ? 'bg-orange-600/20 hover:bg-orange-600/40 text-orange-400' : 'bg-green-600/20 hover:bg-green-600/40 text-green-400'}`}
-                                        title={job.enabled !== false ? 'Pause Schedule' : 'Resume Schedule'}
+                                        onClick={() => handleJobClick(job)}
+                                        className="action-btn action-btn-view"
+                                        title="View Details"
                                     >
-                                        {job.enabled !== false ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                                        <Eye className="w-4 h-4" />
                                     </button>
-                                )}
-                                <button
-                                    onClick={() => handleJobClick(job)}
-                                    className="action-btn action-btn-view"
-                                    title="View Details"
-                                >
-                                    <Eye className="w-4 h-4" />
-                                </button>
-                                {userRole === 'admin' && (
-                                    <>
-                                        <button
-                                            onClick={(e) => handleDeleteClick(job, e)}
-                                            className="action-btn action-btn-delete"
-                                            title="Delete"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                            onClick={(e) => handleRunJob(job.id, e)}
-                                            disabled={job.status === 'running' || runningJobs.has(job.id)}
-                                            className="flex items-center gap-2 px-4 py-2 bg-panda-dark-300 hover:bg-panda-gold hover:text-panda-dark text-panda-text rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            {(job.status === 'running' || runningJobs.has(job.id)) ? (
-                                                <Loader2 className="w-4 h-4 animate-spin" />
-                                            ) : (
-                                                <Play className="w-4 h-4" />
-                                            )}
-                                            {(job.status === 'running' || runningJobs.has(job.id)) ? 'Running...' : 'Run'}
-                                        </button>
-                                    </>
-                                )}
+                                    {userRole === 'admin' && (
+                                        <>
+                                            <button
+                                                onClick={(e) => handleDeleteClick(job, e)}
+                                                className="action-btn action-btn-delete"
+                                                title="Delete"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={(e) => handleRunJob(job.id, e)}
+                                                disabled={job.status === 'running' || runningJobs.has(job.id)}
+                                                className="flex items-center gap-2 px-4 py-2 bg-panda-dark-300 hover:bg-panda-gold hover:text-panda-dark text-panda-text rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                {(job.status === 'running' || runningJobs.has(job.id)) ? (
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                ) : (
+                                                    <Play className="w-4 h-4" />
+                                                )}
+                                                {(job.status === 'running' || runningJobs.has(job.id)) ? 'Running...' : 'Run'}
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                ))}
+                    ))}
             </div>
+
+            {/* Pagination */}
+            {jobs.length > 0 && (
+                <Pagination
+                    currentPage={currentPage}
+                    totalItems={jobs.length}
+                    itemsPerPage={itemsPerPage}
+                    onPageChange={setCurrentPage}
+                    onItemsPerPageChange={setItemsPerPage}
+                />
+            )}
 
             {
                 jobs.length === 0 && (

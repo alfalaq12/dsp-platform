@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Trash2, Search, User, Shield, Key, Edit, X } from 'lucide-react';
 import { getUsers, createUser, deleteUser, updateUser } from '../services/api';
 import { ConfirmModal, useToast, ToastContainer } from '../components/Toast';
+import Pagination from '../components/Pagination';
 
 function Users() {
     const [users, setUsers] = useState([]);
@@ -20,6 +21,10 @@ function Users() {
     // Delete state
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
+
+    // Pagination states
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
 
     useEffect(() => {
         fetchUsers();
@@ -165,55 +170,68 @@ function Users() {
                                     <td colSpan="4" className="px-6 py-8 text-center text-panda-text-muted">No users found</td>
                                 </tr>
                             ) : (
-                                filteredUsers.map((user) => (
-                                    <tr key={user.id} className="hover:bg-panda-dark-300/30 transition-colors">
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-panda-dark-400 flex items-center justify-center text-panda-gold">
-                                                    <User className="w-4 h-4" />
+                                filteredUsers
+                                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                                    .map((user) => (
+                                        <tr key={user.id} className="hover:bg-panda-dark-300/30 transition-colors">
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-full bg-panda-dark-400 flex items-center justify-center text-panda-gold">
+                                                        <User className="w-4 h-4" />
+                                                    </div>
+                                                    <span className="font-medium text-panda-text">{user.username}</span>
                                                 </div>
-                                                <span className="font-medium text-panda-text">{user.username}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${user.role === 'admin'
-                                                ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
-                                                : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-                                                }`}>
-                                                <Shield className="w-3 h-3" />
-                                                {user.role}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-sm text-panda-text-muted">
-                                            {new Date(user.created_at).toLocaleDateString()}
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <button
-                                                    onClick={() => handleOpenEdit(user)}
-                                                    className="p-2 text-panda-text-muted hover:text-panda-gold hover:bg-panda-gold/10 rounded-lg transition-colors"
-                                                    title="Edit User"
-                                                >
-                                                    <Edit className="w-4 h-4" />
-                                                </button>
-
-                                                {user.username !== 'admin' && (
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${user.role === 'admin'
+                                                    ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                                                    : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                                                    }`}>
+                                                    <Shield className="w-3 h-3" />
+                                                    {user.role}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-panda-text-muted">
+                                                {new Date(user.created_at).toLocaleDateString()}
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <div className="flex items-center justify-end gap-2">
                                                     <button
-                                                        onClick={() => handleDeleteClick(user)}
-                                                        className="p-2 text-panda-text-muted hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
-                                                        title="Delete User"
+                                                        onClick={() => handleOpenEdit(user)}
+                                                        className="p-2 text-panda-text-muted hover:text-panda-gold hover:bg-panda-gold/10 rounded-lg transition-colors"
+                                                        title="Edit User"
                                                     >
-                                                        <Trash2 className="w-4 h-4" />
+                                                        <Edit className="w-4 h-4" />
                                                     </button>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
+
+                                                    {user.username !== 'admin' && (
+                                                        <button
+                                                            onClick={() => handleDeleteClick(user)}
+                                                            className="p-2 text-panda-text-muted hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
+                                                            title="Delete User"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
                             )}
                         </tbody>
                     </table>
                 </div>
+
+                {/* Pagination */}
+                {filteredUsers.length > 0 && (
+                    <Pagination
+                        currentPage={currentPage}
+                        totalItems={filteredUsers.length}
+                        itemsPerPage={itemsPerPage}
+                        onPageChange={setCurrentPage}
+                        onItemsPerPageChange={setItemsPerPage}
+                    />
+                )}
             </div>
 
             {/* Add/Edit User Modal */}

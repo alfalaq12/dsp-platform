@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Plus, Edit, Trash2, Database, Eye, Code } from 'lucide-react';
 import { getSchemas, createSchema, updateSchema, deleteSchema } from '../services/api';
 import { useToast, ToastContainer, ConfirmModal, ViewModal } from '../components/Toast';
+import Pagination from '../components/Pagination';
 
 function Schema() {
     const [schemas, setSchemas] = useState([]);
@@ -28,6 +29,10 @@ function Schema() {
     const [deleteTarget, setDeleteTarget] = useState(null);
     const { toasts, addToast, removeToast } = useToast();
     const userRole = localStorage.getItem('role') || 'viewer';
+
+    // Pagination states
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
 
     useEffect(() => {
         loadSchemas();
@@ -349,54 +354,67 @@ function Schema() {
                                     </td>
                                 </tr>
                             ) : (
-                                schemas.map((schema) => (
-                                    <tr key={schema.id} className="hover:bg-slate-700/30 transition">
-                                        <td className="px-6 py-4 text-white font-medium">{schema.name}</td>
-                                        <td className="px-6 py-4 text-slate-300 font-mono text-sm max-w-md">
-                                            <div className="truncate" title={schema.sql_command}>
-                                                {schema.sql_command}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 rounded-full text-sm font-medium">
-                                                {schema.target_table}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <button
-                                                    onClick={() => setSelectedSchema(schema)}
-                                                    className="action-btn action-btn-view"
-                                                    title="View Details"
-                                                >
-                                                    <Eye className="w-4 h-4" />
-                                                </button>
-                                                {userRole === 'admin' && (
-                                                    <>
-                                                        <button
-                                                            onClick={() => handleEdit(schema)}
-                                                            className="action-btn action-btn-edit"
-                                                            title="Edit"
-                                                        >
-                                                            <Edit className="w-4 h-4" />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => setDeleteTarget(schema)}
-                                                            className="action-btn action-btn-delete"
-                                                            title="Delete"
-                                                        >
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </button>
-                                                    </>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
+                                schemas
+                                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                                    .map((schema) => (
+                                        <tr key={schema.id} className="hover:bg-slate-700/30 transition">
+                                            <td className="px-6 py-4 text-white font-medium">{schema.name}</td>
+                                            <td className="px-6 py-4 text-slate-300 font-mono text-sm max-w-md">
+                                                <div className="truncate" title={schema.sql_command}>
+                                                    {schema.sql_command}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 rounded-full text-sm font-medium">
+                                                    {schema.target_table}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <button
+                                                        onClick={() => setSelectedSchema(schema)}
+                                                        className="action-btn action-btn-view"
+                                                        title="View Details"
+                                                    >
+                                                        <Eye className="w-4 h-4" />
+                                                    </button>
+                                                    {userRole === 'admin' && (
+                                                        <>
+                                                            <button
+                                                                onClick={() => handleEdit(schema)}
+                                                                className="action-btn action-btn-edit"
+                                                                title="Edit"
+                                                            >
+                                                                <Edit className="w-4 h-4" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setDeleteTarget(schema)}
+                                                                className="action-btn action-btn-delete"
+                                                                title="Delete"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
                             )}
                         </tbody>
                     </table>
                 </div>
+
+                {/* Pagination */}
+                {schemas.length > 0 && (
+                    <Pagination
+                        currentPage={currentPage}
+                        totalItems={schemas.length}
+                        itemsPerPage={itemsPerPage}
+                        onPageChange={setCurrentPage}
+                        onItemsPerPageChange={setItemsPerPage}
+                    />
+                )}
             </div>
 
             {/* View Detail Modal */}

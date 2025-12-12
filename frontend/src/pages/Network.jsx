@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Plus, Edit, Trash2, Network as NetworkIcon, Circle, Eye, Loader2, Zap } from 'lucide-react';
 import { getNetworks, createNetwork, updateNetwork, deleteNetwork, testNetworkConnection } from '../services/api';
 import { useToast, ToastContainer, ConfirmModal, ViewModal } from '../components/Toast';
+import Pagination from '../components/Pagination';
 
 function Network() {
     const [networks, setNetworks] = useState([]);
@@ -46,6 +47,10 @@ function Network() {
     const [testingNetwork, setTestingNetwork] = useState(null);
     const { toasts, addToast, removeToast } = useToast();
     const userRole = localStorage.getItem('role') || 'viewer';
+
+    // Pagination states
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
 
     useEffect(() => {
         loadNetworks();
@@ -570,74 +575,87 @@ function Network() {
 
             {/* Networks Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {networks.map((network) => (
-                    <div
-                        key={network.id}
-                        className="bg-slate-800/80 backdrop-blur-sm border border-slate-700 rounded-2xl p-6 card-hover"
-                    >
-                        <div className="flex justify-between mb-4">
-                            <div>
-                                <h3 className="text-lg font-semibold text-white">{network.name}</h3>
-                                <p className="text-sm text-slate-400">{network.ip_address}</p>
-                            </div>
-                            <div className="flex gap-1">
-                                {userRole === 'admin' && (
+                {networks
+                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                    .map((network) => (
+                        <div
+                            key={network.id}
+                            className="bg-slate-800/80 backdrop-blur-sm border border-slate-700 rounded-2xl p-6 card-hover"
+                        >
+                            <div className="flex justify-between mb-4">
+                                <div>
+                                    <h3 className="text-lg font-semibold text-white">{network.name}</h3>
+                                    <p className="text-sm text-slate-400">{network.ip_address}</p>
+                                </div>
+                                <div className="flex gap-1">
+                                    {userRole === 'admin' && (
+                                        <button
+                                            onClick={() => handleTestConnection(network)}
+                                            disabled={testingNetwork === network.id}
+                                            className="action-btn bg-amber-600/20 hover:bg-amber-600/40 text-amber-400"
+                                            title="Test Connection"
+                                        >
+                                            {testingNetwork === network.id ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                <Zap className="w-4 h-4" />
+                                            )}
+                                        </button>
+                                    )}
                                     <button
-                                        onClick={() => handleTestConnection(network)}
-                                        disabled={testingNetwork === network.id}
-                                        className="action-btn bg-amber-600/20 hover:bg-amber-600/40 text-amber-400"
-                                        title="Test Connection"
+                                        onClick={() => setSelectedNetwork(network)}
+                                        className="action-btn action-btn-view"
+                                        title="View Details"
                                     >
-                                        {testingNetwork === network.id ? (
-                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                        ) : (
-                                            <Zap className="w-4 h-4" />
-                                        )}
+                                        <Eye className="w-4 h-4" />
                                     </button>
-                                )}
-                                <button
-                                    onClick={() => setSelectedNetwork(network)}
-                                    className="action-btn action-btn-view"
-                                    title="View Details"
-                                >
-                                    <Eye className="w-4 h-4" />
-                                </button>
-                                {userRole === 'admin' && (
-                                    <>
-                                        <button
-                                            onClick={() => handleEdit(network)}
-                                            className="action-btn action-btn-edit"
-                                            title="Edit"
-                                        >
-                                            <Edit className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                            onClick={() => setDeleteTarget(network)}
-                                            className="action-btn action-btn-delete"
-                                            title="Delete"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    </>
-                                )}
+                                    {userRole === 'admin' && (
+                                        <>
+                                            <button
+                                                onClick={() => handleEdit(network)}
+                                                className="action-btn action-btn-edit"
+                                                title="Edit"
+                                            >
+                                                <Edit className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => setDeleteTarget(network)}
+                                                className="action-btn action-btn-delete"
+                                                title="Delete"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="flex justify-between items-center pt-4 border-t border-slate-700">
+                                <span className="text-sm text-slate-400">Status</span>
+                                <span className={`flex items-center gap-2 text-sm font-medium ${network.status === 'online' ? 'text-emerald-400' : 'text-red-400'}`}>
+                                    <Circle className="w-2 h-2 fill-current" />
+                                    {network.status || 'Unknown'}
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center pt-3">
+                                <span className="text-sm text-slate-400">Type</span>
+                                <span className={`px-3 py-1 rounded-full text-xs font-medium ${network.type === 'source' ? 'bg-blue-500/20 text-blue-400' : 'bg-green-500/20 text-green-400'}`}>
+                                    {network.type}
+                                </span>
                             </div>
                         </div>
-                        <div className="flex justify-between items-center pt-4 border-t border-slate-700">
-                            <span className="text-sm text-slate-400">Status</span>
-                            <span className={`flex items-center gap-2 text-sm font-medium ${network.status === 'online' ? 'text-emerald-400' : 'text-red-400'}`}>
-                                <Circle className="w-2 h-2 fill-current" />
-                                {network.status || 'Unknown'}
-                            </span>
-                        </div>
-                        <div className="flex justify-between items-center pt-3">
-                            <span className="text-sm text-slate-400">Type</span>
-                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${network.type === 'source' ? 'bg-blue-500/20 text-blue-400' : 'bg-green-500/20 text-green-400'}`}>
-                                {network.type}
-                            </span>
-                        </div>
-                    </div>
-                ))}
+                    ))}
             </div>
+
+            {/* Pagination */}
+            {networks.length > 0 && (
+                <Pagination
+                    currentPage={currentPage}
+                    totalItems={networks.length}
+                    itemsPerPage={itemsPerPage}
+                    onPageChange={setCurrentPage}
+                    onItemsPerPageChange={setItemsPerPage}
+                />
+            )}
 
             {networks.length === 0 && (
                 <div className="text-center py-12 text-slate-400">

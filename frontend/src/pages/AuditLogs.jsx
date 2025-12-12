@@ -2,11 +2,16 @@
 import { useState, useEffect } from 'react';
 import { Shield, Search, Filter, AlertCircle } from 'lucide-react';
 import { getAuditLogs } from '../services/api';
+import Pagination from '../components/Pagination';
 
 function AuditLogs() {
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState({ action: '', entity: '' });
+
+    // Pagination states
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
 
     useEffect(() => {
         fetchLogs();
@@ -86,39 +91,52 @@ function AuditLogs() {
                                     </td>
                                 </tr>
                             ) : (
-                                logs.map((log) => (
-                                    <tr key={log.id} className="hover:bg-panda-dark-200/50 transition-colors">
-                                        <td className="px-6 py-4 text-sm text-panda-text-muted whitespace-nowrap">
-                                            {new Date(log.created_at).toLocaleString()}
-                                        </td>
-                                        <td className="px-6 py-4 text-sm font-medium text-panda-text">
-                                            {log.username}
-                                        </td>
-                                        <td className="px-6 py-4 text-sm">
-                                            <span className={`px-2 py-1 rounded text-xs font-semibold
+                                logs
+                                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                                    .map((log) => (
+                                        <tr key={log.id} className="hover:bg-panda-dark-200/50 transition-colors">
+                                            <td className="px-6 py-4 text-sm text-panda-text-muted whitespace-nowrap">
+                                                {new Date(log.created_at).toLocaleString()}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm font-medium text-panda-text">
+                                                {log.username}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm">
+                                                <span className={`px-2 py-1 rounded text-xs font-semibold
                                                 ${log.action === 'DELETE' ? 'bg-red-900/30 text-red-400 border border-red-900/50' :
-                                                    log.action === 'CREATE' ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-900/50' :
-                                                        log.action === 'LOGIN' ? 'bg-blue-900/30 text-blue-400 border border-blue-900/50' :
-                                                            'bg-panda-dark-300 text-panda-text-muted'}
+                                                        log.action === 'CREATE' ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-900/50' :
+                                                            log.action === 'LOGIN' ? 'bg-blue-900/30 text-blue-400 border border-blue-900/50' :
+                                                                'bg-panda-dark-300 text-panda-text-muted'}
                                             `}>
-                                                {log.action}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-sm text-panda-text-muted">
-                                            {log.entity} {log.entity_id ? `#${log.entity_id}` : ''}
-                                        </td>
-                                        <td className="px-6 py-4 text-sm text-panda-text-muted font-mono">
-                                            {log.ip_address}
-                                        </td>
-                                        <td className="px-6 py-4 text-sm text-panda-text-muted max-w-xs truncate" title={log.details}>
-                                            {log.details || '-'}
-                                        </td>
-                                    </tr>
-                                ))
+                                                    {log.action}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-panda-text-muted">
+                                                {log.entity} {log.entity_id ? `#${log.entity_id}` : ''}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-panda-text-muted font-mono">
+                                                {log.ip_address}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-panda-text-muted max-w-xs truncate" title={log.details}>
+                                                {log.details || '-'}
+                                            </td>
+                                        </tr>
+                                    ))
                             )}
                         </tbody>
                     </table>
                 </div>
+
+                {/* Pagination */}
+                {logs.length > 0 && (
+                    <Pagination
+                        currentPage={currentPage}
+                        totalItems={logs.length}
+                        itemsPerPage={itemsPerPage}
+                        onPageChange={setCurrentPage}
+                        onItemsPerPageChange={setItemsPerPage}
+                    />
+                )}
             </div>
         </div>
     );
