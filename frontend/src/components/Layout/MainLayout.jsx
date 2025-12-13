@@ -23,19 +23,32 @@ function MainLayout() {
     const userInitials = username.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
     // Close dropdowns when clicking outside
+    // Close dropdowns when clicking outside
     useEffect(() => {
-        const handleClickOutside = (event) => {
+        if (!isProfileOpen) return;
+
+        const handleProfileClickOutside = (event) => {
             if (profileRef.current && !profileRef.current.contains(event.target)) {
                 setIsProfileOpen(false);
             }
+        };
+
+        document.addEventListener('mousedown', handleProfileClickOutside);
+        return () => document.removeEventListener('mousedown', handleProfileClickOutside);
+    }, [isProfileOpen]);
+
+    useEffect(() => {
+        if (!isNotifOpen) return;
+
+        const handleNotifClickOutside = (event) => {
             if (notifRef.current && !notifRef.current.contains(event.target)) {
                 setIsNotifOpen(false);
             }
         };
 
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+        document.addEventListener('mousedown', handleNotifClickOutside);
+        return () => document.removeEventListener('mousedown', handleNotifClickOutside);
+    }, [isNotifOpen]);
 
 
     const [notifications, setNotifications] = useState([]);
@@ -56,7 +69,7 @@ function MainLayout() {
     const fetchNotifications = async () => {
         try {
             const response = await getNotifications();
-            const logs = response.data;
+            const logs = response.data.slice(0, 20); // Limit to 20 items for performance
 
             const mapped = logs.map(log => {
                 let title = 'Job Status';

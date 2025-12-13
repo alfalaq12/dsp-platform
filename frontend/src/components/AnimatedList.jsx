@@ -23,12 +23,10 @@ export const AnimatedList = ({ children, className = '', delay = 0.1 }) => {
         hidden: {
             opacity: 0,
             y: 20,
-            filter: 'blur(10px)'
         },
         visible: {
             opacity: 1,
             y: 0,
-            filter: 'blur(0px)',
             transition: {
                 type: 'spring',
                 stiffness: 300,
@@ -50,6 +48,7 @@ export const AnimatedList = ({ children, className = '', delay = 0.1 }) => {
 
                 return (
                     <motion.div
+                        key={child.key || index}
                         initial="hidden"
                         whileInView="visible"
                         viewport={{ once: true, margin: "-10%" }}
