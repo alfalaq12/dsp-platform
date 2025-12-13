@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider } from './contexts/ThemeContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Schema from './pages/Schema';
@@ -22,26 +23,29 @@ const ProtectedRoute = ({ children }) => {
 
 function App() {
     return (
-        <BrowserRouter>
-            <Routes>
-                <Route path="/login" element={<Login />} />
+        <ThemeProvider>
+            <BrowserRouter>
+                <Routes>
+                    <Route path="/login" element={<Login />} />
 
-                <Route path="/" element={
-                    <ProtectedRoute>
-                        <MainLayout />
-                    </ProtectedRoute>
-                }>
-                    <Route index element={<Dashboard />} />
-                    <Route path="schema" element={<Schema />} />
-                    <Route path="network" element={<Network />} />
-                    <Route path="/jobs" element={<Jobs />} />
-                    <Route path="/users" element={<Users />} />
-                    <Route path="/audit-logs" element={<AuditLogs />} />
-                    <Route path="/settings" element={<Settings />} />
-                </Route>
-            </Routes>
-        </BrowserRouter>
+                    <Route path="/" element={
+                        <ProtectedRoute>
+                            <MainLayout />
+                        </ProtectedRoute>
+                    }>
+                        <Route index element={<Dashboard />} />
+                        <Route path="schema" element={<Schema />} />
+                        <Route path="network" element={<Network />} />
+                        <Route path="/jobs" element={<Jobs />} />
+                        <Route path="/users" element={<Users />} />
+                        <Route path="/audit-logs" element={<AuditLogs />} />
+                        <Route path="/settings" element={<Settings />} />
+                    </Route>
+                </Routes>
+            </BrowserRouter>
+        </ThemeProvider>
     );
 }
 
 export default App;
+

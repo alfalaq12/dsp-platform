@@ -1,4 +1,5 @@
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { useTheme } from '../contexts/ThemeContext';
 
 /**
  * Professional Pagination Component
@@ -12,6 +13,7 @@ function Pagination({
     onItemsPerPageChange,
     showItemsPerPage = true
 }) {
+    const { isDark } = useTheme();
     const totalPages = Math.ceil(totalItems / itemsPerPage);
     const startItem = totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
     const endItem = Math.min(currentPage * itemsPerPage, totalItems);
@@ -49,11 +51,11 @@ function Pagination({
     if (totalItems === 0) return null;
 
     return (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 p-4 bg-slate-800/50 rounded-xl border border-slate-700">
+        <div className={`flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 p-4 rounded-xl border transition-colors ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200 shadow-sm'}`}>
             {/* Items info and per page selector */}
-            <div className="flex items-center gap-4 text-sm text-slate-400">
+            <div className={`flex items-center gap-4 text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                 <span>
-                    Menampilkan <span className="text-white font-medium">{startItem}</span> - <span className="text-white font-medium">{endItem}</span> dari <span className="text-white font-medium">{totalItems}</span> data
+                    Menampilkan <span className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>{startItem}</span> - <span className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>{endItem}</span> dari <span className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>{totalItems}</span> data
                 </span>
 
                 {showItemsPerPage && (
@@ -66,7 +68,7 @@ function Pagination({
                                 onItemsPerPageChange(Number(e.target.value));
                                 onPageChange(1); // Reset to first page
                             }}
-                            className="px-2 py-1 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                            className={`px-2 py-1 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition-colors ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-slate-50 border-slate-200 text-slate-700'}`}
                         >
                             <option value={5}>5</option>
                             <option value={10}>10</option>
@@ -86,7 +88,7 @@ function Pagination({
                 <button
                     onClick={() => onPageChange(1)}
                     disabled={currentPage === 1}
-                    className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-400 transition"
+                    className={`p-2 rounded-lg transition ${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-700' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'} disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent`}
                     title="Halaman Pertama"
                 >
                     <ChevronsLeft className="w-4 h-4" />
@@ -96,7 +98,7 @@ function Pagination({
                 <button
                     onClick={() => onPageChange(currentPage - 1)}
                     disabled={currentPage === 1}
-                    className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-400 transition"
+                    className={`p-2 rounded-lg transition ${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-700' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'} disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent`}
                     title="Sebelumnya"
                 >
                     <ChevronLeft className="w-4 h-4" />
@@ -112,8 +114,8 @@ function Pagination({
                                 key={page}
                                 onClick={() => onPageChange(page)}
                                 className={`min-w-[36px] h-9 px-3 rounded-lg text-sm font-medium transition ${currentPage === page
-                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
-                                        : 'text-slate-400 hover:text-white hover:bg-slate-700'
+                                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
+                                    : (isDark ? 'text-slate-400 hover:text-white hover:bg-slate-700' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100')
                                     }`}
                             >
                                 {page}
@@ -126,7 +128,7 @@ function Pagination({
                 <button
                     onClick={() => onPageChange(currentPage + 1)}
                     disabled={currentPage === totalPages}
-                    className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-400 transition"
+                    className={`p-2 rounded-lg transition ${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-700' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'} disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent`}
                     title="Selanjutnya"
                 >
                     <ChevronRight className="w-4 h-4" />
@@ -136,7 +138,7 @@ function Pagination({
                 <button
                     onClick={() => onPageChange(totalPages)}
                     disabled={currentPage === totalPages}
-                    className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-400 transition"
+                    className={`p-2 rounded-lg transition ${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-700' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'} disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent`}
                     title="Halaman Terakhir"
                 >
                     <ChevronsRight className="w-4 h-4" />

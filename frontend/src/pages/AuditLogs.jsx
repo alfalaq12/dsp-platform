@@ -3,8 +3,10 @@ import { useState, useEffect } from 'react';
 import { Shield, Search, Filter, AlertCircle } from 'lucide-react';
 import { getAuditLogs } from '../services/api';
 import Pagination from '../components/Pagination';
+import { useTheme } from '../contexts/ThemeContext';
 
 function AuditLogs() {
+    const { isDark } = useTheme();
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState({ action: '', entity: '' });
@@ -36,56 +38,56 @@ function AuditLogs() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-3xl font-bold text-panda-text mb-2">Audit Logs</h1>
-                <p className="text-panda-text-muted">Track all system activities for accountability</p>
+                <h1 className={`text-3xl font-bold mb-2 ${isDark ? 'text-panda-text' : 'text-slate-800'}`}>Audit Logs</h1>
+                <p className={isDark ? 'text-panda-text-muted' : 'text-slate-600'}>Track all system activities for accountability</p>
             </div>
 
             {/* Filters */}
-            <div className="bg-panda-dark-100 p-4 rounded-xl border border-panda-dark-300 flex flex-wrap gap-4">
+            <div className={`p-4 rounded-xl border flex flex-wrap gap-4 ${isDark ? 'bg-panda-dark-100 border-panda-dark-300' : 'bg-white border-slate-200 shadow-sm'}`}>
                 <div className="relative flex-1 min-w-[200px]">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-panda-text-muted" />
+                    <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-panda-text-muted' : 'text-slate-400'}`} />
                     <input
                         type="text"
                         placeholder="Filter by Action (LOGIN, CREATE...)"
-                        className="w-full pl-10 pr-4 py-2 bg-panda-dark-200 border border-panda-dark-400 rounded-lg text-panda-text focus:border-panda-gold focus:outline-none"
+                        className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:border-blue-500 focus:outline-none transition ${isDark ? 'bg-panda-dark-200 border-panda-dark-400 text-panda-text' : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'}`}
                         onChange={(e) => setFilter({ ...filter, action: e.target.value })}
                     />
                 </div>
                 <div className="relative flex-1 min-w-[200px]">
-                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-panda-text-muted" />
+                    <Filter className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-panda-text-muted' : 'text-slate-400'}`} />
                     <input
                         type="text"
                         placeholder="Filter by Entity (JOB, AUTH...)"
-                        className="w-full pl-10 pr-4 py-2 bg-panda-dark-200 border border-panda-dark-400 rounded-lg text-panda-text focus:border-panda-gold focus:outline-none"
+                        className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:border-blue-500 focus:outline-none transition ${isDark ? 'bg-panda-dark-200 border-panda-dark-400 text-panda-text' : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'}`}
                         onChange={(e) => setFilter({ ...filter, entity: e.target.value })}
                     />
                 </div>
             </div>
 
             {/* Table */}
-            <div className="bg-panda-dark-100 border border-panda-dark-300 rounded-2xl overflow-hidden shadow-xl">
+            <div className={`rounded-2xl overflow-hidden border shadow-xl ${isDark ? 'bg-panda-dark-100 border-panda-dark-300' : 'bg-white border-slate-200'}`}>
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead>
-                            <tr className="bg-panda-dark-200 border-b border-panda-dark-300">
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-panda-text-muted uppercase tracking-wider">Time</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-panda-text-muted uppercase tracking-wider">User</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-panda-text-muted uppercase tracking-wider">Action</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-panda-text-muted uppercase tracking-wider">Entity</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-panda-text-muted uppercase tracking-wider">IP Address</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-panda-text-muted uppercase tracking-wider">Details</th>
+                            <tr className={`border-b ${isDark ? 'bg-panda-dark-200 border-panda-dark-300' : 'bg-slate-50 border-slate-100'}`}>
+                                <th className={`px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-panda-text-muted' : 'text-slate-600'}`}>Time</th>
+                                <th className={`px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-panda-text-muted' : 'text-slate-600'}`}>User</th>
+                                <th className={`px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-panda-text-muted' : 'text-slate-600'}`}>Action</th>
+                                <th className={`px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-panda-text-muted' : 'text-slate-600'}`}>Entity</th>
+                                <th className={`px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-panda-text-muted' : 'text-slate-600'}`}>IP Address</th>
+                                <th className={`px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-panda-text-muted' : 'text-slate-600'}`}>Details</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-panda-dark-300">
+                        <tbody className={`divide-y ${isDark ? 'divide-panda-dark-300' : 'divide-slate-100'}`}>
                             {loading ? (
                                 <tr>
-                                    <td colSpan="6" className="px-6 py-8 text-center text-panda-text-muted">Loading logs...</td>
+                                    <td colSpan="6" className={`px-6 py-8 text-center ${isDark ? 'text-panda-text-muted' : 'text-slate-500'}`}>Loading logs...</td>
                                 </tr>
                             ) : logs.length === 0 ? (
                                 <tr>
-                                    <td colSpan="6" className="px-6 py-8 text-center text-panda-text-muted">
+                                    <td colSpan="6" className={`px-6 py-8 text-center ${isDark ? 'text-panda-text-muted' : 'text-slate-500'}`}>
                                         <div className="flex flex-col items-center">
-                                            <Shield className="w-12 h-12 text-panda-dark-400 mb-2" />
+                                            <Shield className={`w-12 h-12 mb-2 ${isDark ? 'text-panda-dark-400' : 'text-slate-300'}`} />
                                             <p>No audit records found.</p>
                                         </div>
                                     </td>
@@ -94,30 +96,30 @@ function AuditLogs() {
                                 logs
                                     .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                                     .map((log) => (
-                                        <tr key={log.id} className="hover:bg-panda-dark-200/50 transition-colors">
-                                            <td className="px-6 py-4 text-sm text-panda-text-muted whitespace-nowrap">
+                                        <tr key={log.id} className={`transition-colors ${isDark ? 'hover:bg-panda-dark-200/50' : 'hover:bg-slate-50'}`}>
+                                            <td className={`px-6 py-4 text-sm whitespace-nowrap ${isDark ? 'text-panda-text-muted' : 'text-slate-600'}`}>
                                                 {new Date(log.created_at).toLocaleString()}
                                             </td>
-                                            <td className="px-6 py-4 text-sm font-medium text-panda-text">
+                                            <td className={`px-6 py-4 text-sm font-medium ${isDark ? 'text-panda-text' : 'text-slate-900'}`}>
                                                 {log.username}
                                             </td>
                                             <td className="px-6 py-4 text-sm">
                                                 <span className={`px-2 py-1 rounded text-xs font-semibold
-                                                ${log.action === 'DELETE' ? 'bg-red-900/30 text-red-400 border border-red-900/50' :
-                                                        log.action === 'CREATE' ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-900/50' :
-                                                            log.action === 'LOGIN' ? 'bg-blue-900/30 text-blue-400 border border-blue-900/50' :
-                                                                'bg-panda-dark-300 text-panda-text-muted'}
+                                                ${log.action === 'DELETE' ? (isDark ? 'bg-red-900/30 text-red-400 border border-red-900/50' : 'bg-red-50 text-red-700 border border-red-100') :
+                                                        log.action === 'CREATE' ? (isDark ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-900/50' : 'bg-emerald-50 text-emerald-700 border border-emerald-100') :
+                                                            log.action === 'LOGIN' ? (isDark ? 'bg-blue-900/30 text-blue-400 border border-blue-900/50' : 'bg-blue-50 text-blue-700 border border-blue-100') :
+                                                                (isDark ? 'bg-panda-dark-300 text-panda-text-muted' : 'bg-slate-100 text-slate-600 border border-slate-200')}
                                             `}>
                                                     {log.action}
                                                 </span>
                                             </td>
-                                            <td className="px-6 py-4 text-sm text-panda-text-muted">
+                                            <td className={`px-6 py-4 text-sm ${isDark ? 'text-panda-text-muted' : 'text-slate-600'}`}>
                                                 {log.entity} {log.entity_id ? `#${log.entity_id}` : ''}
                                             </td>
-                                            <td className="px-6 py-4 text-sm text-panda-text-muted font-mono">
+                                            <td className={`px-6 py-4 text-sm font-mono ${isDark ? 'text-panda-text-muted' : 'text-slate-500'}`}>
                                                 {log.ip_address}
                                             </td>
-                                            <td className="px-6 py-4 text-sm text-panda-text-muted max-w-xs truncate" title={log.details}>
+                                            <td className={`px-6 py-4 text-sm max-w-xs truncate ${isDark ? 'text-panda-text-muted' : 'text-slate-500'}`} title={log.details}>
                                                 {log.details || '-'}
                                             </td>
                                         </tr>

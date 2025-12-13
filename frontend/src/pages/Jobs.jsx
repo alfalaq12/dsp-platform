@@ -3,8 +3,10 @@ import { Plus, Play, RefreshCw, X, Clock, Database, CheckCircle, XCircle, Loader
 import { getJobs, getSchemas, getNetworks, createJob, runJob, getJob, deleteJob, toggleJob } from '../services/api';
 import { useToast, ToastContainer, ConfirmModal } from '../components/Toast';
 import Pagination from '../components/Pagination';
+import { useTheme } from '../contexts/ThemeContext';
 
 function Jobs() {
+    const { isDark } = useTheme();
     const [jobs, setJobs] = useState([]);
     const [schemas, setSchemas] = useState([]);
     const [networks, setNetworks] = useState([]);
@@ -213,8 +215,8 @@ function Jobs() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold text-panda-text mb-2">Jobs Management</h1>
-                    <div className="flex items-center gap-3 text-sm text-panda-text-muted">
+                    <h1 className={`text-2xl sm:text-3xl font-bold mb-2 ${isDark ? 'text-panda-text' : 'text-slate-800'}`}>Jobs Management</h1>
+                    <div className={`flex items-center gap-3 text-sm ${isDark ? 'text-panda-text-muted' : 'text-slate-600'}`}>
                         <span>Execute and manage sync jobs</span>
                         <span className="text-panda-dark-400">•</span>
                         <span className="flex items-center gap-1">
@@ -230,7 +232,7 @@ function Jobs() {
                 {userRole === 'admin' && (
                     <button
                         onClick={() => setShowForm(!showForm)}
-                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-panda-gold to-panda-gold-light hover:from-panda-gold-light hover:to-panda-gold text-panda-dark font-semibold rounded-xl transition shadow-lg shadow-panda-gold/20 btn-pulse-glow"
+                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-400 hover:from-blue-400 hover:to-blue-500 text-panda-dark font-semibold rounded-xl transition shadow-lg shadow-blue-500/20 btn-pulse-glow"
                     >
                         <Plus className="w-5 h-5" />
                         New Job
@@ -241,14 +243,14 @@ function Jobs() {
             {/* Create Form */}
             {
                 showForm && (
-                    <div className="bg-panda-dark-100 border border-panda-dark-300 rounded-2xl p-6 modal-scale-in">
-                        <h2 className="text-lg font-semibold text-panda-text mb-4">Create New Job</h2>
+                    <div className={`border rounded-2xl p-6 modal-scale-in ${isDark ? 'bg-panda-dark-100 border-panda-dark-300' : 'bg-white border-slate-200 shadow-lg'}`}>
+                        <h2 className={`text-lg font-semibold mb-4 ${isDark ? 'text-panda-text' : 'text-slate-900'}`}>Create New Job</h2>
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <input
                                 type="text"
                                 value={formData.name}
                                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                className="w-full px-4 py-3 bg-panda-dark border border-panda-dark-300 rounded-xl text-panda-text focus:border-panda-gold focus:outline-none transition"
+                                className={`w-full px-4 py-3 border rounded-xl focus:border-blue-500 focus:outline-none transition ${isDark ? 'bg-panda-dark border-panda-dark-300 text-panda-text' : 'bg-white border-slate-300 text-slate-900'}`}
                                 placeholder="Job Name"
                                 required
                             />
@@ -256,7 +258,7 @@ function Jobs() {
                                 <select
                                     value={formData.schema_id}
                                     onChange={(e) => setFormData({ ...formData, schema_id: e.target.value })}
-                                    className="px-4 py-3 bg-panda-dark border border-panda-dark-300 rounded-xl text-panda-text focus:border-panda-gold focus:outline-none transition"
+                                    className={`px-4 py-3 border rounded-xl focus:border-blue-500 focus:outline-none transition ${isDark ? 'bg-panda-dark border-panda-dark-300 text-panda-text' : 'bg-white border-slate-300 text-slate-900'}`}
                                     required
                                 >
                                     <option value="">Select Schema</option>
@@ -267,7 +269,7 @@ function Jobs() {
                                 <select
                                     value={formData.network_id}
                                     onChange={(e) => setFormData({ ...formData, network_id: e.target.value })}
-                                    className="px-4 py-3 bg-panda-dark border border-panda-dark-300 rounded-xl text-panda-text focus:border-panda-gold focus:outline-none transition"
+                                    className={`px-4 py-3 border rounded-xl focus:border-blue-500 focus:outline-none transition ${isDark ? 'bg-panda-dark border-panda-dark-300 text-panda-text' : 'bg-white border-slate-300 text-slate-900'}`}
                                     required
                                 >
                                     <option value="">Select Network</option>
@@ -279,7 +281,7 @@ function Jobs() {
                             <select
                                 value={formData.schedule}
                                 onChange={(e) => setFormData({ ...formData, schedule: e.target.value })}
-                                className="w-full px-4 py-3 bg-panda-dark border border-panda-dark-300 rounded-xl text-panda-text focus:border-panda-gold focus:outline-none transition"
+                                className={`w-full px-4 py-3 border rounded-xl focus:border-blue-500 focus:outline-none transition ${isDark ? 'bg-panda-dark border-panda-dark-300 text-panda-text' : 'bg-white border-slate-300 text-slate-900'}`}
                             >
                                 <option value="">Manual Only</option>
                                 <option value="1min">Every 1 minute</option>
@@ -298,7 +300,7 @@ function Jobs() {
                                 <button
                                     type="submit"
                                     disabled={isSubmitting}
-                                    className="flex items-center justify-center gap-2 px-6 py-2.5 bg-panda-gold text-panda-dark font-semibold rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed min-w-[120px]"
+                                    className="flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed min-w-[120px]"
                                 >
                                     {isSubmitting && <span className="spinner-border"></span>}
                                     Create
@@ -306,7 +308,7 @@ function Jobs() {
                                 <button
                                     type="button"
                                     onClick={resetForm}
-                                    className="px-6 py-2.5 bg-panda-dark-300 text-panda-text rounded-xl hover:bg-panda-dark-400 transition"
+                                    className={`px-6 py-2.5 rounded-xl transition ${isDark ? 'bg-panda-dark-300 text-panda-text hover:bg-panda-dark-400' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}
                                 >
                                     Cancel
                                 </button>
@@ -323,25 +325,28 @@ function Jobs() {
                     .map((job) => (
                         <div
                             key={job.id}
-                            className="bg-panda-dark-100 border border-panda-dark-300 rounded-2xl p-6 cursor-pointer hover:border-panda-gold/50 transition-all group card-hover"
+                            className={`rounded-2xl p-6 cursor-pointer transition-all duration-300 group ${isDark
+                                ? 'bg-panda-dark-100 border border-panda-dark-300 border-l-4 border-l-blue-500'
+                                : 'bg-gradient-to-br from-white to-slate-50 border border-slate-200 border-l-4 border-l-slate-500 shadow-sm hover:shadow-md hover:-translate-y-1'
+                                }`}
                         >
                             <div className="flex justify-between items-start mb-4">
                                 <div onClick={() => handleJobClick(job)} className="flex-1">
-                                    <h3 className="text-lg font-semibold text-panda-text group-hover:text-panda-gold transition">{job.name}</h3>
-                                    <p className="text-sm text-panda-text-muted mt-1">Schema: {job.schema?.name}</p>
-                                    <p className="text-sm text-panda-text-muted">Network: {job.network?.name}</p>
+                                    <h3 className={`text-lg font-semibold transition ${isDark ? 'text-panda-text group-hover:text-blue-500' : 'text-slate-900 group-hover:text-blue-600'}`}>{job.name}</h3>
+                                    <p className={`text-sm mt-1 ${isDark ? 'text-panda-text-muted' : 'text-slate-600'}`}>Schema: {job.schema?.name}</p>
+                                    <p className={`text-sm ${isDark ? 'text-panda-text-muted' : 'text-slate-600'}`}>Network: {job.network?.name}</p>
                                 </div>
                                 <div className="flex flex-col items-end gap-2">
                                     <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(job.status)}`}>
                                         {job.status}
                                     </span>
-                                    <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded text-xs">
+                                    <span className={`px-2 py-0.5 rounded text-xs border ${isDark ? 'bg-purple-500/20 text-purple-300 border-purple-500/30' : 'bg-purple-50 text-purple-700 border-purple-100'}`}>
                                         {getScheduleLabel(job.schedule)}
                                     </span>
                                 </div>
                             </div>
                             <div className="flex items-center justify-between">
-                                <span className="text-xs text-panda-text-muted">
+                                <span className={`text-xs ${isDark ? 'text-panda-text-muted' : 'text-slate-500'}`}>
                                     Last run: {job.last_run ? new Date(job.last_run).toLocaleString('id-ID') : 'Never'}
                                 </span>
                                 <div className="flex items-center gap-2">
@@ -373,7 +378,7 @@ function Jobs() {
                                             <button
                                                 onClick={(e) => handleRunJob(job.id, e)}
                                                 disabled={job.status === 'running' || runningJobs.has(job.id)}
-                                                className="flex items-center gap-2 px-4 py-2 bg-panda-dark-300 hover:bg-panda-gold hover:text-panda-dark text-panda-text rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                                className="flex items-center gap-2 px-4 py-2 bg-panda-dark-300 hover:bg-blue-500 hover:text-panda-dark text-panda-text rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
                                                 {(job.status === 'running' || runningJobs.has(job.id)) ? (
                                                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -410,75 +415,74 @@ function Jobs() {
                 )
             }
 
-            {/* Job Details Modal */}
             {
                 selectedJob && (
                     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedJob(null)}>
-                        <div className="bg-panda-dark-100 border border-panda-dark-300 rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden modal-scale-in" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-between p-6 border-b border-panda-dark-300">
+                        <div className={`border rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden modal-scale-in ${isDark ? 'bg-panda-dark-100 border-panda-dark-300' : 'bg-white border-slate-200 shadow-2xl'}`} onClick={(e) => e.stopPropagation()}>
+                            <div className={`flex items-center justify-between p-6 border-b ${isDark ? 'border-panda-dark-300' : 'border-slate-100'}`}>
                                 <div>
-                                    <h2 className="text-xl font-bold text-panda-text">{selectedJob.name}</h2>
-                                    <p className="text-sm text-panda-text-muted">Job Details & Execution History</p>
+                                    <h2 className={`text-xl font-bold ${isDark ? 'text-panda-text' : 'text-slate-900'}`}>{selectedJob.name}</h2>
+                                    <p className={`text-sm ${isDark ? 'text-panda-text-muted' : 'text-slate-500'}`}>Job Details & Execution History</p>
                                 </div>
-                                <button onClick={() => setSelectedJob(null)} className="p-2 hover:bg-panda-dark-300 rounded-lg transition">
-                                    <X className="w-5 h-5 text-panda-text-muted" />
+                                <button onClick={() => setSelectedJob(null)} className={`p-2 rounded-lg transition ${isDark ? 'hover:bg-panda-dark-300 text-panda-text-muted' : 'hover:bg-slate-100 text-slate-500 hover:text-slate-700'}`}>
+                                    <X className="w-5 h-5" />
                                 </button>
                             </div>
 
                             <div className="p-6 overflow-y-auto max-h-[calc(80vh-120px)]">
                                 {/* Job Info */}
                                 <div className="grid grid-cols-2 gap-4 mb-6">
-                                    <div className="bg-panda-dark/50 rounded-xl p-4">
-                                        <p className="text-xs text-panda-text-muted mb-1">Schema</p>
-                                        <p className="text-panda-text font-medium">{selectedJob.schema?.name}</p>
+                                    <div className={`rounded-xl p-4 ${isDark ? 'bg-panda-dark/50' : 'bg-slate-50 border border-slate-100'}`}>
+                                        <p className={`text-xs mb-1 ${isDark ? 'text-panda-text-muted' : 'text-slate-500'}`}>Schema</p>
+                                        <p className={`font-medium ${isDark ? 'text-panda-text' : 'text-slate-900'}`}>{selectedJob.schema?.name}</p>
                                     </div>
-                                    <div className="bg-panda-dark/50 rounded-xl p-4">
-                                        <p className="text-xs text-panda-text-muted mb-1">Network</p>
-                                        <p className="text-panda-text font-medium">{selectedJob.network?.name}</p>
+                                    <div className={`rounded-xl p-4 ${isDark ? 'bg-panda-dark/50' : 'bg-slate-50 border border-slate-100'}`}>
+                                        <p className={`text-xs mb-1 ${isDark ? 'text-panda-text-muted' : 'text-slate-500'}`}>Network</p>
+                                        <p className={`font-medium ${isDark ? 'text-panda-text' : 'text-slate-900'}`}>{selectedJob.network?.name}</p>
                                     </div>
                                 </div>
 
                                 {/* Execution Logs */}
-                                <h3 className="text-lg font-semibold text-panda-text mb-4">Execution History</h3>
+                                <h3 className={`text-lg font-semibold mb-4 ${isDark ? 'text-panda-text' : 'text-slate-900'}`}>Execution History</h3>
                                 {jobDetails?.logs?.length > 0 ? (
                                     <div className="space-y-3">
                                         {jobDetails.logs.map((log, idx) => (
-                                            <div key={log.id || idx} className="bg-panda-dark/50 rounded-xl p-4">
+                                            <div key={log.id || idx} className={`rounded-xl p-4 ${isDark ? 'bg-panda-dark/50' : 'bg-slate-50 border border-slate-100'}`}>
                                                 <div className="flex items-center justify-between mb-3">
                                                     <div className="flex items-center gap-2">
                                                         {getStatusIcon(log.status)}
-                                                        <span className={`text-sm font-medium ${log.status === 'completed' ? 'text-emerald-400' : log.status === 'running' ? 'text-blue-400' : log.status === 'failed' ? 'text-red-400' : 'text-panda-text-muted'}`}>
+                                                        <span className={`text-sm font-medium ${log.status === 'completed' ? (isDark ? 'text-emerald-400' : 'text-emerald-600') : log.status === 'running' ? 'text-blue-400' : log.status === 'failed' ? 'text-red-400' : (isDark ? 'text-panda-text-muted' : 'text-slate-500')}`}>
                                                             {log.status?.charAt(0).toUpperCase() + log.status?.slice(1)}
                                                         </span>
                                                     </div>
-                                                    <span className="text-xs text-panda-text-muted">
+                                                    <span className={`text-xs ${isDark ? 'text-panda-text-muted' : 'text-slate-500'}`}>
                                                         {new Date(log.started_at).toLocaleString('id-ID')}
                                                     </span>
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-4 text-sm">
                                                     <div>
-                                                        <p className="text-panda-text-muted">Duration</p>
-                                                        <p className="text-panda-text font-medium">{formatDuration(log.duration)}</p>
+                                                        <p className={`${isDark ? 'text-panda-text-muted' : 'text-slate-500'}`}>Duration</p>
+                                                        <p className={`font-medium ${isDark ? 'text-panda-text' : 'text-slate-900'}`}>{formatDuration(log.duration)}</p>
                                                     </div>
                                                     <div>
-                                                        <p className="text-panda-text-muted">Records Synced</p>
-                                                        <p className="text-panda-text font-medium">{log.record_count || '-'}</p>
+                                                        <p className={`${isDark ? 'text-panda-text-muted' : 'text-slate-500'}`}>Records Synced</p>
+                                                        <p className={`font-medium ${isDark ? 'text-panda-text' : 'text-slate-900'}`}>{log.record_count || '-'}</p>
                                                     </div>
                                                 </div>
 
                                                 {/* Error Message Display */}
                                                 {log.status === 'failed' && log.error_message && (
-                                                    <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-                                                        <p className="text-xs text-red-400 font-medium mb-1">Error Details:</p>
-                                                        <p className="text-sm text-red-300 font-mono break-all">{log.error_message}</p>
+                                                    <div className={`mt-4 p-3 rounded-lg border ${isDark ? 'bg-red-500/10 border-red-500/30' : 'bg-red-50 border-red-100'}`}>
+                                                        <p className={`text-xs font-medium mb-1 ${isDark ? 'text-red-400' : 'text-red-700'}`}>Error Details:</p>
+                                                        <p className={`text-sm font-mono break-all ${isDark ? 'text-red-300' : 'text-red-600'}`}>{log.error_message}</p>
                                                     </div>
                                                 )}
 
                                                 {/* Sample Data Preview */}
                                                 {log.sample_data && (
                                                     <div className="mt-4">
-                                                        <p className="text-xs text-panda-text-muted mb-2">Sample Data Preview</p>
-                                                        <pre className="bg-panda-dark rounded-lg p-3 text-xs text-panda-text overflow-x-auto">
+                                                        <p className={`text-xs mb-2 ${isDark ? 'text-panda-text-muted' : 'text-slate-500'}`}>Sample Data Preview</p>
+                                                        <pre className={`rounded-lg p-3 text-xs overflow-x-auto ${isDark ? 'bg-panda-dark text-panda-text' : 'bg-white border border-slate-200 text-slate-800'}`}>
                                                             {JSON.stringify(JSON.parse(log.sample_data), null, 2)}
                                                         </pre>
                                                     </div>
@@ -487,7 +491,7 @@ function Jobs() {
                                         ))}
                                     </div>
                                 ) : (
-                                    <div className="text-center py-8 text-panda-text-muted">
+                                    <div className={`text-center py-8 ${isDark ? 'text-panda-text-muted' : 'text-slate-500'}`}>
                                         <p>No execution history yet. Run the job to see logs.</p>
                                     </div>
                                 )}

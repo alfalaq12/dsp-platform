@@ -3,8 +3,10 @@ import { Plus, Edit, Trash2, Database, Eye, Code } from 'lucide-react';
 import { getSchemas, createSchema, updateSchema, deleteSchema } from '../services/api';
 import { useToast, ToastContainer, ConfirmModal, ViewModal } from '../components/Toast';
 import Pagination from '../components/Pagination';
+import { useTheme } from '../contexts/ThemeContext';
 
 function Schema() {
+    const { isDark } = useTheme();
     const [schemas, setSchemas] = useState([]);
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState(null);
@@ -119,8 +121,8 @@ function Schema() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold text-white mb-2">Schema Management</h1>
-                    <p className="text-slate-400">Define SQL queries for data synchronization</p>
+                    <h1 className={`text-3xl font-bold mb-2 ${isDark ? 'text-white' : 'text-slate-800'}`}>Schema Management</h1>
+                    <p className={isDark ? 'text-slate-400' : 'text-slate-600'}>Define SQL queries for data synchronization</p>
                 </div>
                 {userRole === 'admin' && (
                     <button
@@ -135,18 +137,18 @@ function Schema() {
 
             {/* Create/Edit Form */}
             {showForm && (
-                <div className="bg-slate-800/80 backdrop-blur-sm border border-slate-700 rounded-2xl p-6 modal-scale-in">
-                    <h2 className="text-xl font-semibold text-white mb-4">
+                <div className={`backdrop-blur-sm border rounded-2xl p-6 modal-scale-in ${isDark ? 'bg-slate-800/80 border-slate-700' : 'bg-white border-slate-200 shadow-lg'}`}>
+                    <h2 className={`text-xl font-semibold mb-4 ${isDark ? 'text-white' : 'text-slate-900'}`}>
                         {editingId ? 'Edit Schema' : 'Create New Schema'}
                     </h2>
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-slate-300 mb-2">Name</label>
+                            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Name</label>
                             <input
                                 type="text"
                                 value={formData.name}
                                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${isDark ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-500' : 'bg-white border-slate-200 text-slate-900 placeholder-slate-400'}`}
                                 placeholder="Schema Name"
                                 required
                             />
@@ -154,11 +156,11 @@ function Schema() {
 
                         {/* Source Type Selection */}
                         <div>
-                            <label className="block text-sm font-medium text-slate-300 mb-2">Source Type</label>
+                            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Source Type</label>
                             <select
                                 value={formData.source_type}
                                 onChange={(e) => setFormData({ ...formData, source_type: e.target.value })}
-                                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
                             >
                                 <option value="query">SQL Query (Database)</option>
                                 <option value="file">File (FTP/SFTP)</option>
@@ -169,12 +171,12 @@ function Schema() {
                         {/* SQL Query Fields - shown when source_type is 'query' */}
                         {formData.source_type === 'query' && (
                             <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-2">SQL Command</label>
+                                <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>SQL Command</label>
                                 <textarea
                                     value={formData.sql_command}
                                     onChange={(e) => setFormData({ ...formData, sql_command: e.target.value })}
                                     rows="4"
-                                    className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-xl text-white font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                    className={`w-full px-4 py-3 border rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${isDark ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-500' : 'bg-white border-slate-200 text-slate-900 placeholder-slate-400'}`}
                                     placeholder="SELECT * FROM users WHERE..."
                                     required
                                 />
@@ -183,16 +185,16 @@ function Schema() {
 
                         {/* API Response Info - shown when source_type is 'api' */}
                         {formData.source_type === 'api' && (
-                            <div className="border-t border-slate-700 pt-4 mt-2">
-                                <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-4">
-                                    <h3 className="text-cyan-400 font-medium mb-2 flex items-center gap-2">
+                            <div className={`border-t pt-4 mt-2 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+                                <div className={`border rounded-xl p-4 ${isDark ? 'bg-cyan-500/10 border-cyan-500/30' : 'bg-cyan-50 border-cyan-200'}`}>
+                                    <h3 className={`font-medium mb-2 flex items-center gap-2 ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`}>
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                         </svg>
                                         API Response Configuration
                                     </h3>
-                                    <p className="text-sm text-slate-300">
-                                        API endpoint dan authentication dikonfigurasi di <span className="text-cyan-400 font-medium">Network</span> dengan Source Type "REST API".
+                                    <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                                        API endpoint dan authentication dikonfigurasi di <span className={`font-medium ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`}>Network</span> dengan Source Type "REST API".
                                         Response akan otomatis di-parse sebagai JSON.
                                     </p>
                                 </div>
@@ -201,8 +203,8 @@ function Schema() {
 
                         {/* File Sync Fields - shown when source_type is 'file' */}
                         {formData.source_type === 'file' && (
-                            <div className="border-t border-slate-700 pt-4 mt-2 space-y-4">
-                                <h3 className="text-md font-semibold text-amber-400 mb-2 flex items-center gap-2">
+                            <div className={`border-t pt-4 mt-2 space-y-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+                                <h3 className={`text-md font-semibold mb-2 flex items-center gap-2 ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                                     </svg>
@@ -211,11 +213,11 @@ function Schema() {
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-300 mb-1">File Format</label>
+                                        <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>File Format</label>
                                         <select
                                             value={formData.file_format}
                                             onChange={(e) => setFormData({ ...formData, file_format: e.target.value })}
-                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                            className={`w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
                                         >
                                             <option value="csv">CSV</option>
                                             <option value="txt">TXT (Text File)</option>
@@ -224,23 +226,23 @@ function Schema() {
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-300 mb-1">File Pattern</label>
+                                        <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>File Pattern</label>
                                         <input
                                             type="text"
                                             value={formData.file_pattern}
                                             onChange={(e) => setFormData({ ...formData, file_pattern: e.target.value })}
-                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                            className={`w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 ${isDark ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-500' : 'bg-white border-slate-200 text-slate-900 placeholder-slate-400'}`}
                                             placeholder="data.csv atau *.csv"
                                         />
                                     </div>
                                     {(formData.file_format === 'csv' || formData.file_format === 'txt') && (
                                         <>
                                             <div>
-                                                <label className="block text-sm font-medium text-slate-300 mb-1">Delimiter</label>
+                                                <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Delimiter</label>
                                                 <select
                                                     value={formData.delimiter}
                                                     onChange={(e) => setFormData({ ...formData, delimiter: e.target.value })}
-                                                    className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                                    className={`w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
                                                 >
                                                     <option value=",">Comma (,)</option>
                                                     <option value=";">Semicolon (;)</option>
@@ -248,11 +250,11 @@ function Schema() {
                                                     <option value="|">Pipe (|)</option>
                                                 </select>
                                                 {formData.file_format === 'txt' && (
-                                                    <p className="text-xs text-slate-500 mt-1">Jika file tidak terstruktur, setiap baris akan jadi 1 record</p>
+                                                    <p className={`text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Jika file tidak terstruktur, setiap baris akan jadi 1 record</p>
                                                 )}
                                             </div>
                                             <div className="flex items-center">
-                                                <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                                                <label className={`flex items-center gap-2 text-sm cursor-pointer ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                                                     <input
                                                         type="checkbox"
                                                         checked={formData.has_header}
@@ -269,12 +271,12 @@ function Schema() {
                         )}
 
                         <div>
-                            <label className="block text-sm font-medium text-slate-300 mb-2">Target Table</label>
+                            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Target Table</label>
                             <input
                                 type="text"
                                 value={formData.target_table}
                                 onChange={(e) => setFormData({ ...formData, target_table: e.target.value })}
-                                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${isDark ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-500' : 'bg-white border-slate-200 text-slate-900 placeholder-slate-400'}`}
                                 placeholder="sync_users"
                                 required
                             />
@@ -282,24 +284,24 @@ function Schema() {
 
                         {/* Unique Key Column for Upsert */}
                         <div>
-                            <label className="block text-sm font-medium text-slate-300 mb-2">Unique Key Column (for Upsert)</label>
+                            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Unique Key Column (for Upsert)</label>
                             <input
                                 type="text"
                                 value={formData.unique_key_column}
                                 onChange={(e) => setFormData({ ...formData, unique_key_column: e.target.value })}
-                                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${isDark ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-500' : 'bg-white border-slate-200 text-slate-900 placeholder-slate-400'}`}
                                 placeholder="id atau email (kosongkan untuk insert biasa)"
                             />
-                            <p className="text-xs text-slate-500 mt-1">Column untuk menentukan apakah data di-update atau insert baru</p>
+                            <p className={`text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Column untuk menentukan apakah data di-update atau insert baru</p>
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-slate-300 mb-2">Description (Optional)</label>
+                            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Description (Optional)</label>
                             <input
                                 type="text"
                                 value={formData.description}
                                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${isDark ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-500' : 'bg-white border-slate-200 text-slate-900 placeholder-slate-400'}`}
                                 placeholder="Brief description of this schema"
                             />
                         </div>
@@ -326,29 +328,32 @@ function Schema() {
             )}
 
             {/* Schemas Table */}
-            <div className="bg-slate-800/80 backdrop-blur-sm border border-slate-700 rounded-2xl overflow-hidden">
+            <div className={`backdrop-blur-sm border rounded-2xl overflow-hidden transition-all duration-300 ${isDark
+                ? 'bg-slate-800/80 border-slate-700 border-l-4 border-l-blue-500'
+                : 'bg-gradient-to-br from-white to-blue-50 border-slate-200 border-l-4 border-l-blue-500 shadow-sm hover:shadow-md'
+                }`}>
                 <div className="overflow-x-auto">
                     <table className="w-full">
-                        <thead className="bg-slate-900/50 border-b border-slate-700">
+                        <thead className={isDark ? 'bg-slate-900/50 border-b border-slate-700' : 'bg-slate-50 border-b border-slate-100'}>
                             <tr>
-                                <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
+                                <th className={`px-6 py-4 text-left text-xs font-medium uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                                     Name
                                 </th>
-                                <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
+                                <th className={`px-6 py-4 text-left text-xs font-medium uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                                     SQL Command
                                 </th>
-                                <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
+                                <th className={`px-6 py-4 text-left text-xs font-medium uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                                     Target Table
                                 </th>
-                                <th className="px-6 py-4 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">
+                                <th className={`px-6 py-4 text-right text-xs font-medium uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                                     Actions
                                 </th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-700">
+                        <tbody className={`divide-y ${isDark ? 'divide-slate-700' : 'divide-slate-100'}`}>
                             {schemas.length === 0 ? (
                                 <tr>
-                                    <td colSpan="4" className="px-6 py-12 text-center text-slate-400">
+                                    <td colSpan="4" className={`px-6 py-12 text-center ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                         <Database className="w-12 h-12 mx-auto mb-3 opacity-50" />
                                         <p>No schemas yet. Create one to get started.</p>
                                     </td>
@@ -357,15 +362,15 @@ function Schema() {
                                 schemas
                                     .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                                     .map((schema) => (
-                                        <tr key={schema.id} className="hover:bg-slate-700/30 transition">
-                                            <td className="px-6 py-4 text-white font-medium">{schema.name}</td>
-                                            <td className="px-6 py-4 text-slate-300 font-mono text-sm max-w-md">
+                                        <tr key={schema.id} className={`transition ${isDark ? 'hover:bg-slate-700/30' : 'hover:bg-slate-50'}`}>
+                                            <td className={`px-6 py-4 font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>{schema.name}</td>
+                                            <td className={`px-6 py-4 font-mono text-sm max-w-md ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                                                 <div className="truncate" title={schema.sql_command}>
                                                     {schema.sql_command}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 rounded-full text-sm font-medium">
+                                                <span className={`px-3 py-1 rounded-full text-sm font-medium ${isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'}`}>
                                                     {schema.target_table}
                                                 </span>
                                             </td>
@@ -425,39 +430,39 @@ function Schema() {
             >
                 {selectedSchema && (
                     <div className="space-y-4">
-                        <div className="bg-slate-800/50 rounded-xl p-4">
-                            <div className="detail-row">
-                                <span className="detail-label">ID</span>
-                                <span className="detail-value">#{selectedSchema.id}</span>
+                        <div className={`rounded-xl p-4 ${isDark ? 'bg-slate-800/50' : 'bg-slate-50 border border-slate-100'}`}>
+                            <div className="detail-row mb-3 flex justify-between">
+                                <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>ID</span>
+                                <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>#{selectedSchema.id}</span>
                             </div>
-                            <div className="detail-row">
-                                <span className="detail-label">Name</span>
-                                <span className="detail-value">{selectedSchema.name}</span>
+                            <div className="detail-row mb-3 flex justify-between">
+                                <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Name</span>
+                                <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>{selectedSchema.name}</span>
                             </div>
-                            <div className="detail-row">
-                                <span className="detail-label">Target Table</span>
-                                <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 rounded-full text-sm font-medium">
+                            <div className="detail-row mb-3 flex justify-between items-center">
+                                <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Target Table</span>
+                                <span className={`px-3 py-1 rounded-full text-sm font-medium ${isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'}`}>
                                     {selectedSchema.target_table}
                                 </span>
                             </div>
-                            <div className="detail-row">
-                                <span className="detail-label">Description</span>
-                                <span className="detail-value">{selectedSchema.description || '-'}</span>
+                            <div className="detail-row mb-3 flex justify-between">
+                                <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Description</span>
+                                <span className={`text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>{selectedSchema.description || '-'}</span>
                             </div>
-                            <div className="detail-row">
-                                <span className="detail-label">Created At</span>
-                                <span className="detail-value">
+                            <div className="detail-row flex justify-between">
+                                <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Created At</span>
+                                <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                     {selectedSchema.created_at ? new Date(selectedSchema.created_at).toLocaleString('id-ID') : '-'}
                                 </span>
                             </div>
                         </div>
 
-                        <div className="bg-slate-800/50 rounded-xl p-4">
+                        <div className={`rounded-xl p-4 ${isDark ? 'bg-slate-800/50' : 'bg-slate-50 border border-slate-100'}`}>
                             <div className="flex items-center gap-2 mb-3">
                                 <Code className="w-4 h-4 text-blue-400" />
-                                <span className="text-sm font-medium text-slate-300">SQL Command</span>
+                                <span className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>SQL Command</span>
                             </div>
-                            <pre className="bg-slate-900 rounded-lg p-4 text-sm text-slate-300 font-mono overflow-x-auto whitespace-pre-wrap">
+                            <pre className={`rounded-lg p-4 text-sm font-mono overflow-x-auto whitespace-pre-wrap ${isDark ? 'bg-slate-900 text-slate-300' : 'bg-white border border-slate-200 text-slate-800'}`}>
                                 {selectedSchema.sql_command}
                             </pre>
                         </div>

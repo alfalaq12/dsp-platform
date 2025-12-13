@@ -31,6 +31,22 @@ export default {
             dark: '#737373',
           }
         },
+        // Government Theme
+        gov: {
+          blue: {
+            DEFAULT: '#0F4C81', // Classic Blue
+            50: '#E6F0F6',
+            100: '#CCE2ED',
+            200: '#99C5DB',
+            300: '#66A8C9',
+            400: '#338BB7',
+            500: '#0F4C81', // Main
+            600: '#0C3D67',
+            700: '#092D4D',
+            800: '#061E33',
+            900: '#030F1A',
+          }
+        },
         primary: {
           50: '#FFF8DC',
           100: '#FAEBD7',

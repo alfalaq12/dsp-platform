@@ -1,7 +1,10 @@
 import { NavLink } from 'react-router-dom';
 import { Database, Network as NetworkIcon, Play, LayoutDashboard, X, Settings, Shield, Users } from 'lucide-react';
+import { useTheme } from '../../contexts/ThemeContext';
 
 function Sidebar({ isOpen, onClose }) {
+    const { isDark } = useTheme();
+
     const menuItems = [
         { path: '/', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/schema', label: 'Schema', icon: Database },
@@ -27,18 +30,22 @@ function Sidebar({ isOpen, onClose }) {
             {/* Sidebar */}
             <aside className={`
                 fixed lg:static inset-y-0 left-0 z-50
-                w-64 bg-panda-dark-100 border-r border-panda-dark-300 flex flex-col
+                w-64 flex flex-col
                 transform transition-transform duration-300 ease-in-out
                 ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+                ${isDark
+                    ? 'bg-panda-dark-100 border-r border-panda-dark-300'
+                    : 'bg-gov-blue-900 border-r border-gov-blue-800 shadow-xl' // Government Blue Sidebar
+                }
             `}>
-                <div className="p-6 border-b border-panda-dark-300 flex items-start justify-between">
+                <div className={`p-6 flex items-start justify-between ${isDark ? 'border-b border-panda-dark-300' : 'border-b border-gov-blue-800'}`}>
                     <div>
-                        <h1 className="text-2xl font-bold text-panda-gold">DSP Platform</h1>
-                        <p className="text-sm text-panda-text-muted mt-1">Data Sync</p>
+                        <h1 className={`text-2xl font-bold ${isDark ? 'text-blue-500' : 'text-white'}`}>DSP Platform</h1>
+                        <p className={`text-sm mt-1 ${isDark ? 'text-panda-text-muted' : 'text-blue-200'}`}>Data Sync</p>
                     </div>
                     <button
                         onClick={onClose}
-                        className="lg:hidden text-panda-text-muted hover:text-panda-gold transition-colors"
+                        className={`lg:hidden transition-colors ${isDark ? 'text-panda-text-muted hover:text-blue-500' : 'text-blue-200 hover:text-white'}`}
                         aria-label="Close sidebar"
                     >
                         <X className="w-6 h-6" />
@@ -57,8 +64,10 @@ function Sidebar({ isOpen, onClose }) {
                                         onClick={onClose}
                                         className={({ isActive }) =>
                                             `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${isActive
-                                                ? 'bg-panda-gold text-panda-dark font-semibold shadow-lg shadow-panda-gold/30'
-                                                : 'text-panda-text-muted hover:bg-panda-dark-300 hover:text-panda-gold'
+                                                ? 'bg-blue-500 text-white font-semibold shadow-lg shadow-blue-500/30'
+                                                : isDark
+                                                    ? 'text-panda-text-muted hover:bg-panda-dark-300 hover:text-blue-500'
+                                                    : 'text-blue-100 hover:bg-gov-blue-800 hover:text-white'
                                             }`
                                         }
                                     >
@@ -71,18 +80,21 @@ function Sidebar({ isOpen, onClose }) {
                     </ul>
                 </nav>
 
-                <div className="p-4 border-t border-panda-dark-300">
-                    <div className="flex items-center gap-3 px-4 py-3 bg-panda-dark/50 rounded-xl border border-panda-dark-300">
-                        <div className="w-10 h-10 bg-gradient-to-br from-panda-gold to-panda-gold-light rounded-full flex items-center justify-center shadow-lg shadow-panda-gold/20">
-                            <span className="text-panda-dark font-bold">
+                <div className={`p-4 ${isDark ? 'border-t border-panda-dark-300' : 'border-t border-gov-blue-800'}`}>
+                    <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${isDark
+                        ? 'bg-panda-dark/50 border-panda-dark-300'
+                        : 'bg-gov-blue-800 border-gov-blue-700'
+                        }`}>
+                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-400 rounded-full flex items-center justify-center shadow-lg shadow-blue-500/20">
+                            <span className="text-white font-bold">
                                 {localStorage.getItem('username')?.charAt(0).toUpperCase() || 'U'}
                             </span>
                         </div>
                         <div className="flex-1">
-                            <p className="text-sm font-medium text-panda-text">
+                            <p className={`text-sm font-medium ${isDark ? 'text-panda-text' : 'text-white'}`}>
                                 {localStorage.getItem('username') || 'User'}
                             </p>
-                            <p className="text-xs text-panda-text-muted">
+                            <p className={`text-xs ${isDark ? 'text-panda-text-muted' : 'text-blue-200'}`}>
                                 {userRole.charAt(0).toUpperCase() + userRole.slice(1)}
                             </p>
                         </div>
@@ -94,3 +106,4 @@ function Sidebar({ isOpen, onClose }) {
 }
 
 export default Sidebar;
+
