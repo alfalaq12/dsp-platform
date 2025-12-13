@@ -31,11 +31,18 @@ function Dashboard() {
     const loadStats = async () => {
         try {
             const [schemasRes, networksRes, jobsRes, auditLogsRes] = await Promise.all([
-                getSchemas(),
-                getNetworks(),
-                getJobs(),
-                getAuditLogs({ limit: 5 }) // Fetch recent logs
+                getSchemas().catch(err => { console.error('Schemas failed', err); return { data: [] }; }),
+                getNetworks().catch(err => { console.error('Networks failed', err); return { data: [] }; }),
+                getJobs().catch(err => { console.error('Jobs failed', err); return { data: [] }; }),
+                getAuditLogs({ limit: 5 }).catch(err => { console.error('AuditLogs failed', err); return { data: [] }; })
             ]);
+
+            console.log('Dashboard Data Debug:', {
+                schemas: schemasRes.data,
+                networks: networksRes.data,
+                jobs: jobsRes.data,
+                auditLogs: auditLogsRes.data
+            });
 
             const activeAgents = networksRes.data.filter((n) => n.status === 'online').length;
 
@@ -66,7 +73,8 @@ function Dashboard() {
             });
 
             // Process Audit Logs Activity
-            const logActivities = (auditLogsRes.data || []).map((log, idx) => ({
+            // Fix: API returns { data: [...], total: ... } so we need .data.data
+            const logActivities = (auditLogsRes.data?.data || []).map((log, idx) => ({
                 id: `log-${idx}`,
                 action: log.action,
                 target: log.details || 'System Action',
