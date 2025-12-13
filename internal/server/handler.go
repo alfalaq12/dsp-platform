@@ -218,14 +218,43 @@ func (h *Handler) DeleteNetwork(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Network deleted successfully"})
 }
 
-// GetJobs returns all jobs
+// GetJobs returns paginated jobs
 func (h *Handler) GetJobs(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
+
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 10
+	}
+
+	offset := (page - 1) * pageSize
+
 	var jobs []core.Job
-	if err := h.db.Preload("Schema").Preload("Network").Find(&jobs).Error; err != nil {
+	var total int64
+
+	// Get total count
+	if err := h.db.Model(&core.Job{}).Count(&total).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count jobs"})
+		return
+	}
+
+	// Get paginated data
+	if err := h.db.Preload("Schema").Preload("Network").Limit(pageSize).Offset(offset).Find(&jobs).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, jobs)
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": jobs,
+		"meta": gin.H{
+			"total":     total,
+			"page":      page,
+			"page_size": pageSize,
+		},
+	})
 }
 
 // CreateJob creates a new job
@@ -471,6 +500,18 @@ func (h *Handler) GetJobLogs(c *gin.Context) {
 
 	var logs []core.JobLog
 	if err := h.db.Where("job_id = ?", id).Order("created_at DESC").Limit(50).Find(&logs).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, logs)
+}
+
+// GetRecentJobLogs returns the most recent execution logs across all jobs for notifications
+func (h *Handler) GetRecentJobLogs(c *gin.Context) {
+	var logs []core.JobLog
+	// Get last 10 logs with Job details
+	if err := h.db.Preload("Job").Order("created_at DESC").Limit(10).Find(&logs).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

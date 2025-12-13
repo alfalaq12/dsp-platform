@@ -43,7 +43,7 @@ export const updateNetwork = (id, data) => api.put(`/networks/${id}`, data);
 export const deleteNetwork = (id) => api.delete(`/networks/${id}`);
 
 // Jobs
-export const getJobs = () => api.get('/jobs');
+export const getJobs = (params) => api.get('/jobs', { params });
 export const getJob = (id) => api.get(`/jobs/${id}`);
 export const getJobLogs = (id) => api.get(`/jobs/${id}/logs`);
 export const createJob = (data) => api.post('/jobs', data);
@@ -51,6 +51,7 @@ export const updateJob = (id, data) => api.put(`/jobs/${id}`, data);
 export const deleteJob = (id) => api.delete(`/jobs/${id}`);
 export const runJob = (id) => api.post(`/jobs/${id}/run`);
 export const toggleJob = (id) => api.post(`/jobs/${id}/toggle`);
+export const getNotifications = () => api.get('/notifications');
 
 // Settings
 export const getSettings = () => api.get('/settings');

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { getTargetDBConfig, updateTargetDBConfig, testTargetDBConnection } from '../services/api';
 import { useToast, ToastContainer } from '../components/Toast';
 import { useTheme } from '../contexts/ThemeContext';
+import { Shield, Database, Save, RefreshCw, CheckCircle, Server, AlertCircle, Info, Play, Settings as SettingsIcon } from 'lucide-react';
 
 function Settings() {
     const { isDark } = useTheme();
@@ -88,230 +89,221 @@ function Settings() {
         }
     };
 
-    // Theme-aware classes
-    const cardClass = isDark
-        ? 'bg-slate-800/50 border-slate-700'
-        : 'bg-white border-slate-300 shadow-[0_2px_8px_rgba(0,0,0,0.08)]';
-    const inputClass = isDark
-        ? 'bg-slate-700/50 border-slate-600 text-white placeholder-slate-400'
-        : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500';
-    const labelClass = isDark ? 'text-slate-300' : 'text-slate-700 font-medium';
-    const textClass = isDark ? 'text-white' : 'text-slate-900';
-    const mutedClass = isDark ? 'text-slate-400' : 'text-slate-600';
+    // Unified Input Styles
+    const inputClass = `w-full px-4 py-3 rounded-xl border transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isDark
+        ? 'bg-slate-900/50 border-slate-700 text-white placeholder-slate-500'
+        : 'bg-white border-slate-200 text-slate-900 placeholder-slate-400'
+        }`;
+
+    const labelClass = `block text-sm font-semibold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`;
 
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-64">
-                <div className="spinner"></div>
+                <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
             </div>
         );
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-8">
             <ToastContainer toasts={toasts} removeToast={removeToast} />
 
-            <div className="flex items-center justify-between">
-                <h1 className={`text-2xl font-bold ${textClass}`}>Settings</h1>
+            {/* Premium Page Header */}
+            <div className={`relative overflow-hidden rounded-2xl p-8 border hover:shadow-xl transition-all duration-300 ${isDark ? 'bg-gradient-to-br from-slate-800 via-slate-800/95 to-slate-900 border-slate-700/50' : 'bg-gradient-to-br from-white via-blue-50/30 to-purple-50/20 border-slate-200/60 shadow-lg'}`}>
+                {/* Decorative Elements */}
+                <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-500/10 to-teal-500/10 rounded-full blur-3xl"></div>
+
+                <div className="relative">
+                    <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium mb-3 ${isDark ? 'bg-teal-500/20 text-teal-300' : 'bg-teal-100 text-teal-700'}`}>
+                        <SettingsIcon className="w-3 h-3" />
+                        System Administration
+                    </div>
+                    <h1 className={`text-3xl font-bold mb-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>Platform Settings</h1>
+                    <p className={isDark ? 'text-slate-400' : 'text-slate-600'}>Configure global system preferences and database connections</p>
+                </div>
             </div>
 
             {/* Target Database Configuration */}
-            <div className={`rounded-xl p-6 border ${cardClass}`}>
-                <h2 className={`text-lg font-semibold ${textClass} mb-4 flex items-center gap-2`}>
-                    <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
-                    </svg>
-                    Target Database Configuration
-                </h2>
-                <p className={`text-sm mb-6 ${mutedClass}`}>
-                    Configure the database where synced data will be stored.
-                </p>
-
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Driver */}
-                        <div>
-                            <label className={`block text-sm font-medium ${labelClass} mb-1`}>Database Driver</label>
-                            <select
-                                name="driver"
-                                value={config.driver}
-                                onChange={handleChange}
-                                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${inputClass}`}
-                            >
-                                <option value="postgres">PostgreSQL</option>
-                                <option value="mysql">MySQL</option>
-                            </select>
-                        </div>
-
-                        {/* SSL Mode */}
-                        <div>
-                            <label className={`block text-sm font-medium ${labelClass} mb-1`}>SSL Mode</label>
-                            <select
-                                name="sslmode"
-                                value={config.sslmode}
-                                onChange={handleChange}
-                                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${inputClass}`}
-                            >
-                                <option value="disable">Disable</option>
-                                <option value="require">Require</option>
-                                <option value="verify-full">Verify Full</option>
-                            </select>
-                        </div>
-
-                        {/* Host */}
-                        <div>
-                            <label className={`block text-sm font-medium ${labelClass} mb-1`}>Host</label>
-                            <input
-                                type="text"
-                                name="host"
-                                value={config.host}
-                                onChange={handleChange}
-                                placeholder="localhost or IP address"
-                                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${inputClass}`}
-                            />
-                        </div>
-
-                        {/* Port */}
-                        <div>
-                            <label className={`block text-sm font-medium ${labelClass} mb-1`}>Port</label>
-                            <input
-                                type="text"
-                                name="port"
-                                value={config.port}
-                                onChange={handleChange}
-                                placeholder="5432"
-                                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${inputClass}`}
-                            />
-                        </div>
-
-                        {/* User */}
-                        <div>
-                            <label className={`block text-sm font-medium ${labelClass} mb-1`}>Username</label>
-                            <input
-                                type="text"
-                                name="user"
-                                value={config.user}
-                                onChange={handleChange}
-                                placeholder="postgres"
-                                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${inputClass}`}
-                            />
-                        </div>
-
-                        {/* Password */}
-                        <div>
-                            <label className={`block text-sm font-medium ${labelClass} mb-1`}>Password</label>
-                            <input
-                                type="password"
-                                name="password"
-                                value={config.password}
-                                onChange={handleChange}
-                                placeholder="••••••••"
-                                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${inputClass}`}
-                            />
-                        </div>
-
-                        {/* Database Name */}
-                        <div className="md:col-span-2">
-                            <label className={`block text-sm font-medium ${labelClass} mb-1`}>Database Name</label>
-                            <input
-                                type="text"
-                                name="db_name"
-                                value={config.db_name}
-                                onChange={handleChange}
-                                placeholder="dsp_sync"
-                                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${inputClass}`}
-                            />
-                        </div>
+            <div className={`rounded-2xl border shadow-xl overflow-hidden ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200 shadow-lg'}`}>
+                <div className={`px-8 py-6 border-b flex items-center gap-3 ${isDark ? 'border-slate-700 bg-slate-900/50' : 'border-slate-100 bg-slate-50/80'}`}>
+                    <div className={`p-3 rounded-xl ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>
+                        <Database className="w-6 h-6" />
                     </div>
-
-                    <div className={`flex justify-between items-center pt-4 border-t mt-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-                        <button
-                            type="button"
-                            onClick={handleTest}
-                            disabled={isTesting}
-                            className={`px-6 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 disabled:opacity-50 ${isDark ? 'bg-slate-600 hover:bg-slate-500 text-white' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
-                                }`}
-                        >
-                            {isTesting ? (
-                                <>
-                                    <div className="spinner w-4 h-4"></div>
-                                    Testing...
-                                </>
-                            ) : (
-                                <>
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                    </svg>
-                                    Test Connection
-                                </>
-                            )}
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={isSaving}
-                            className="px-6 py-2 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-all duration-200 flex items-center gap-2 disabled:opacity-50"
-                        >
-                            {isSaving ? (
-                                <>
-                                    <div className="spinner w-4 h-4"></div>
-                                    Saving...
-                                </>
-                            ) : (
-                                <>
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    Save Configuration
-                                </>
-                            )}
-                        </button>
+                    <div>
+                        <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                            Target Database Configuration
+                        </h2>
+                        <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Configure where synced data will be stored
+                        </p>
                     </div>
-                </form>
+                </div>
 
-                {/* Test Result */}
-                {testResult && (
-                    <div className={`mt-4 p-4 rounded-lg border ${testResult.success
-                        ? isDark ? 'bg-emerald-900/30 border-emerald-700' : 'bg-emerald-50 border-emerald-200'
-                        : isDark ? 'bg-red-900/30 border-red-700' : 'bg-red-50 border-red-200'
-                        }`}>
-                        <div className="flex items-center gap-2 mb-2">
-                            {testResult.success ? (
-                                <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                            ) : (
-                                <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                            )}
-                            <span className={`font-semibold ${testResult.success
-                                ? isDark ? 'text-emerald-300' : 'text-emerald-700'
-                                : isDark ? 'text-red-300' : 'text-red-700'
-                                }`}>
-                                {testResult.success ? 'Connection Successful' : 'Connection Failed'}
-                            </span>
-                        </div>
-                        {testResult.success ? (
-                            <div className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                                <p>Host: {testResult.host}:{testResult.port}</p>
-                                <p>Database: {testResult.database}</p>
+                <div className="p-8">
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Driver */}
+                            <div>
+                                <label className={labelClass}>Database Driver</label>
+                                <div className="relative">
+                                    <Server className={`absolute left-4 top-3.5 w-5 h-5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                                    <select
+                                        name="driver"
+                                        value={config.driver}
+                                        onChange={handleChange}
+                                        className={`${inputClass} pl-12 appearance-none`}
+                                    >
+                                        <option value="postgres">PostgreSQL</option>
+                                        <option value="mysql">MySQL</option>
+                                    </select>
+                                </div>
                             </div>
-                        ) : (
-                            <p className={`text-sm ${isDark ? 'text-red-300' : 'text-red-600'}`}>{testResult.error}</p>
+
+                            {/* SSL Mode */}
+                            <div>
+                                <label className={labelClass}>SSL Mode</label>
+                                <div className="relative">
+                                    <Shield className={`absolute left-4 top-3.5 w-5 h-5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                                    <select
+                                        name="sslmode"
+                                        value={config.sslmode}
+                                        onChange={handleChange}
+                                        className={`${inputClass} pl-12 appearance-none`}
+                                    >
+                                        <option value="disable">Disable</option>
+                                        <option value="require">Require</option>
+                                        <option value="verify-full">Verify Full</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Host */}
+                            <div>
+                                <label className={labelClass}>Host</label>
+                                <input
+                                    type="text"
+                                    name="host"
+                                    value={config.host}
+                                    onChange={handleChange}
+                                    placeholder="localhost or IP address"
+                                    className={inputClass}
+                                />
+                            </div>
+
+                            {/* Port */}
+                            <div>
+                                <label className={labelClass}>Port</label>
+                                <input
+                                    type="text"
+                                    name="port"
+                                    value={config.port}
+                                    onChange={handleChange}
+                                    placeholder="5432"
+                                    className={inputClass}
+                                />
+                            </div>
+
+                            {/* User */}
+                            <div>
+                                <label className={labelClass}>Username</label>
+                                <input
+                                    type="text"
+                                    name="user"
+                                    value={config.user}
+                                    onChange={handleChange}
+                                    placeholder="postgres"
+                                    className={inputClass}
+                                />
+                            </div>
+
+                            {/* Password */}
+                            <div>
+                                <label className={labelClass}>Password</label>
+                                <input
+                                    type="password"
+                                    name="password"
+                                    value={config.password}
+                                    onChange={handleChange}
+                                    placeholder="••••••••"
+                                    className={inputClass}
+                                />
+                            </div>
+
+                            {/* Database Name */}
+                            <div className="md:col-span-2">
+                                <label className={labelClass}>Database Name</label>
+                                <input
+                                    type="text"
+                                    name="db_name"
+                                    value={config.db_name}
+                                    onChange={handleChange}
+                                    placeholder="dsp_sync"
+                                    className={inputClass}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Test Result Display */}
+                        {testResult && (
+                            <div className={`p-4 rounded-xl border flex items-start gap-3 modal-scale-in ${testResult.success
+                                ? isDark ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                : isDark ? 'bg-red-500/10 border-red-500/20 text-red-300' : 'bg-red-50 border-red-200 text-red-800'
+                                }`}>
+                                <div className={`p-1.5 rounded-full mt-0.5 ${testResult.success
+                                    ? isDark ? 'bg-emerald-500/20' : 'bg-emerald-100'
+                                    : isDark ? 'bg-red-500/20' : 'bg-red-100'}`}>
+                                    {testResult.success ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                                </div>
+                                <div className="flex-1">
+                                    <h4 className="font-bold flex items-center gap-2">
+                                        {testResult.success ? 'Connection Successful' : 'Connection Failed'}
+                                    </h4>
+                                    {testResult.success && (
+                                        <div className={`text-sm mt-1 opacity-80 font-mono`}>
+                                            <p>Host: {testResult.host}:{testResult.port}</p>
+                                            <p>Database: {testResult.database}</p>
+                                        </div>
+                                    )}
+                                    {!testResult.success && (
+                                        <p className="text-sm mt-1 opacity-90">{testResult.error}</p>
+                                    )}
+                                </div>
+                            </div>
                         )}
-                    </div>
-                )}
+
+                        <div className={`flex flex-col sm:flex-row justify-end items-center gap-4 pt-6 border-t ${isDark ? 'border-slate-700' : 'border-slate-100'}`}>
+                            <button
+                                type="button"
+                                onClick={handleTest}
+                                disabled={isTesting}
+                                className={`w-full sm:w-auto px-6 py-3 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 ${isDark ? 'bg-slate-700 hover:bg-slate-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
+                            >
+                                {isTesting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                                {isTesting ? 'Testing...' : 'Test Connection'}
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={isSaving}
+                                className="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                                {isSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                {isSaving ? 'Saving...' : 'Save Configuration'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
 
             {/* Info Box */}
-            <div className={`rounded-xl p-4 border ${isDark ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200'}`}>
-                <div className="flex items-start gap-3">
-                    <svg className="w-5 h-5 text-blue-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+            <div className={`rounded-2xl p-6 border ${isDark ? 'bg-blue-900/10 border-blue-800' : 'bg-blue-50 border-blue-200'}`}>
+                <div className="flex items-start gap-4">
+                    <div className={`p-3 rounded-xl ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>
+                        <Info className="w-5 h-5" />
+                    </div>
                     <div>
-                        <h3 className={`font-medium ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>Cara Kerja</h3>
-                        <p className={`text-sm mt-1 ${isDark ? 'text-blue-200/70' : 'text-blue-600'}`}>
+                        <h3 className={`font-bold text-lg mb-1 ${isDark ? 'text-blue-300' : 'text-blue-800'}`}>Cara Kerja</h3>
+                        <p className={`text-base leading-relaxed ${isDark ? 'text-blue-200/70' : 'text-blue-700/80'}`}>
                             Data dari database sumber akan diambil oleh agent dan dikirim ke Master server, kemudian dimasukkan ke database target yang dikonfigurasi di atas.
                         </p>
                     </div>

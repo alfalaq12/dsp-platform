@@ -102,8 +102,39 @@ func initDatabase() (*gorm.DB, error) {
 		return nil, err
 	}
 
+	// Migrate existing preset schedules to cron expressions
+	migratePresetSchedulesToCron(db)
+
 	logger.Logger.Info().Msg("Database initialized and migrated successfully")
 	return db, nil
+}
+
+// migratePresetSchedulesToCron converts old preset schedules to cron expressions
+func migratePresetSchedulesToCron(db *gorm.DB) {
+	presetMap := map[string]string{
+		"1min":   "*/1 * * * *",
+		"5min":   "*/5 * * * *",
+		"10min":  "*/10 * * * *",
+		"15min":  "*/15 * * * *",
+		"30min":  "*/30 * * * *",
+		"1hour":  "0 * * * *",
+		"3hour":  "0 */3 * * *",
+		"6hour":  "0 */6 * * *",
+		"12hour": "0 */12 * * *",
+		"daily":  "0 0 * * *",
+		"weekly": "0 0 * * 0",
+	}
+
+	for preset, cronExpr := range presetMap {
+		result := db.Model(&core.Job{}).Where("schedule = ?", preset).Update("schedule", cronExpr)
+		if result.RowsAffected > 0 {
+			logger.Logger.Info().
+				Str("preset", preset).
+				Str("cron", cronExpr).
+				Int64("count", result.RowsAffected).
+				Msg("Migrated preset schedules to cron")
+		}
+	}
 }
 
 // setupRouter configures the Gin router with all routes
@@ -149,6 +180,7 @@ func setupRouter(handler *server.Handler) *gin.Engine {
 		api.POST("/jobs", auth.RequireRole("admin"), handler.CreateJob)
 		api.GET("/jobs/:id", handler.GetJob)
 		api.GET("/jobs/:id/logs", handler.GetJobLogs)
+		api.GET("/notifications", handler.GetRecentJobLogs)
 		api.PUT("/jobs/:id", auth.RequireRole("admin"), handler.UpdateJob)
 		api.DELETE("/jobs/:id", auth.RequireRole("admin"), handler.DeleteJob)
 		api.POST("/jobs/:id/run", auth.RequireRole("admin"), handler.RunJob)

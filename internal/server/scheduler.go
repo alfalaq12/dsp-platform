@@ -3,30 +3,38 @@ package server
 import (
 	"dsp-platform/internal/core"
 	"log"
+	"strings"
 	"time"
 
+	"github.com/robfig/cron/v3"
 	"gorm.io/gorm"
 )
 
-// Scheduler manages automatic job execution
+// Scheduler manages automatic job execution using cron expressions
 type Scheduler struct {
 	db            *gorm.DB
 	agentListener *AgentListener
 	stopChan      chan struct{}
+	cronParser    cron.Parser
 }
 
 // NewScheduler creates a new scheduler instance
 func NewScheduler(db *gorm.DB, listener *AgentListener) *Scheduler {
+	// Create parser that supports standard 5-field cron expressions
+	// minute hour day-of-month month day-of-week
+	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+
 	return &Scheduler{
 		db:            db,
 		agentListener: listener,
 		stopChan:      make(chan struct{}),
+		cronParser:    parser,
 	}
 }
 
 // Start begins the scheduler loop
 func (s *Scheduler) Start() {
-	log.Println("Scheduler started")
+	log.Println("Scheduler started (cron expression mode)")
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
@@ -66,14 +74,16 @@ func (s *Scheduler) checkAndRunJobs() {
 	}
 }
 
-// shouldRun determines if a job should run based on its schedule
+// shouldRun determines if a job should run based on its cron expression
 func (s *Scheduler) shouldRun(job core.Job, now time.Time) bool {
 	// Skip if job is disabled (paused)
 	if !job.Enabled {
 		return false
 	}
 
-	if job.Schedule == "" || job.Schedule == "manual" {
+	// Skip if no schedule or manual
+	schedule := strings.TrimSpace(job.Schedule)
+	if schedule == "" || schedule == "manual" {
 		return false
 	}
 
@@ -82,47 +92,57 @@ func (s *Scheduler) shouldRun(job core.Job, now time.Time) bool {
 		return false
 	}
 
-	interval := s.parseSchedule(job.Schedule)
-	if interval == 0 {
+	// Parse cron expression
+	cronSchedule, err := s.cronParser.Parse(schedule)
+	if err != nil {
+		log.Printf("Scheduler: Invalid cron expression for job %s: %s (error: %v)", job.Name, schedule, err)
 		return false
 	}
 
-	// Check if enough time has passed since last run
+	// If never run before, check if current minute matches the cron schedule
 	if job.LastRun.IsZero() {
-		return true // Never run before
+		// Get the next scheduled time from a minute ago
+		nextRun := cronSchedule.Next(now.Add(-1 * time.Minute))
+		// Check if next run is within current minute
+		return nextRun.Year() == now.Year() &&
+			nextRun.Month() == now.Month() &&
+			nextRun.Day() == now.Day() &&
+			nextRun.Hour() == now.Hour() &&
+			nextRun.Minute() == now.Minute()
 	}
 
-	return now.Sub(job.LastRun) >= interval
+	// Get next scheduled run time after the last run
+	nextRun := cronSchedule.Next(job.LastRun)
+
+	// Check if the next run time has passed or is within the current minute
+	return now.After(nextRun) || now.Equal(nextRun) ||
+		(nextRun.Year() == now.Year() &&
+			nextRun.Month() == now.Month() &&
+			nextRun.Day() == now.Day() &&
+			nextRun.Hour() == now.Hour() &&
+			nextRun.Minute() == now.Minute())
 }
 
-// parseSchedule converts schedule string to duration
-func (s *Scheduler) parseSchedule(schedule string) time.Duration {
-	switch schedule {
-	case "1min":
-		return 1 * time.Minute
-	case "5min":
-		return 5 * time.Minute
-	case "10min":
-		return 10 * time.Minute
-	case "15min":
-		return 15 * time.Minute
-	case "30min":
-		return 30 * time.Minute
-	case "1hour":
-		return 1 * time.Hour
-	case "3hour":
-		return 3 * time.Hour
-	case "6hour":
-		return 6 * time.Hour
-	case "12hour":
-		return 12 * time.Hour
-	case "daily":
-		return 24 * time.Hour
-	case "weekly":
-		return 7 * 24 * time.Hour
-	default:
-		return 0
+// GetNextRunTime returns the next scheduled run time for a job
+func (s *Scheduler) GetNextRunTime(job core.Job) (time.Time, error) {
+	schedule := strings.TrimSpace(job.Schedule)
+	if schedule == "" || schedule == "manual" {
+		return time.Time{}, nil
 	}
+
+	cronSchedule, err := s.cronParser.Parse(schedule)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	var baseTime time.Time
+	if job.LastRun.IsZero() {
+		baseTime = time.Now()
+	} else {
+		baseTime = job.LastRun
+	}
+
+	return cronSchedule.Next(baseTime), nil
 }
 
 // runJob executes a job via the agent
@@ -168,4 +188,28 @@ func (s *Scheduler) runJob(job core.Job) {
 			"error":        err.Error(),
 		})
 	}
+}
+
+// MigratePresetToCron converts old preset schedules to cron expressions
+func MigratePresetToCron(schedule string) string {
+	presetMap := map[string]string{
+		"1min":   "*/1 * * * *",
+		"5min":   "*/5 * * * *",
+		"10min":  "*/10 * * * *",
+		"15min":  "*/15 * * * *",
+		"30min":  "*/30 * * * *",
+		"1hour":  "0 * * * *",
+		"3hour":  "0 */3 * * *",
+		"6hour":  "0 */6 * * *",
+		"12hour": "0 */12 * * *",
+		"daily":  "0 0 * * *",
+		"weekly": "0 0 * * 0",
+	}
+
+	if cronExpr, exists := presetMap[schedule]; exists {
+		return cronExpr
+	}
+
+	// Already a cron expression or manual
+	return schedule
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Edit, Trash2, Network as NetworkIcon, Circle, Eye, Loader2, Zap } from 'lucide-react';
+import { Plus, Edit, Trash2, Network as NetworkIcon, Circle, Eye, Loader2, Zap, Database, Server, Shield, Globe, Folder } from 'lucide-react';
 import { getNetworks, createNetwork, updateNetwork, deleteNetwork, testNetworkConnection } from '../services/api';
 import { useToast, ToastContainer, ConfirmModal, ViewModal } from '../components/Toast';
 import Pagination from '../components/Pagination';
@@ -152,8 +152,27 @@ function Network() {
     };
 
     const handleTestConnection = async (network) => {
-        if (!network.db_host) {
-            addToast('No database configured for this network', 'warning');
+        // Validate based on source type
+        const type = network.source_type || 'database';
+        let hasHost = false;
+
+        switch (type) {
+            case 'database':
+                hasHost = !!network.db_host;
+                break;
+            case 'ftp':
+            case 'sftp':
+                hasHost = !!network.ftp_host;
+                break;
+            case 'api':
+                hasHost = !!network.api_url;
+                break;
+            default:
+                hasHost = false;
+        }
+
+        if (!hasHost) {
+            addToast(`No host/URL configured for this ${type} network`, 'warning');
             return;
         }
         try {
@@ -177,90 +196,119 @@ function Network() {
             {/* Toast Notifications */}
             <ToastContainer toasts={toasts} removeToast={removeToast} />
 
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className={`text-3xl font-bold mb-2 ${isDark ? 'text-white' : 'text-slate-800'}`}>Network Management</h1>
-                    <p className={isDark ? 'text-slate-400' : 'text-slate-600'}>Manage data sources and targets</p>
+            {/* Premium Page Header */}
+            <div className={`relative overflow-hidden rounded-2xl p-8 border hover:shadow-xl transition-all duration-300 ${isDark ? 'bg-gradient-to-br from-slate-800 via-slate-800/95 to-slate-900 border-slate-700/50' : 'bg-gradient-to-br from-white via-purple-50/30 to-blue-50/20 border-slate-200/60 shadow-lg'}`}>
+                {/* Decorative Elements */}
+                <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-purple-500/10 to-blue-500/10 rounded-full blur-3xl"></div>
+
+                <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium mb-3 ${isDark ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>
+                            <NetworkIcon className="w-3 h-3" />
+                            Connectivity
+                        </div>
+                        <h1 className={`text-3xl font-bold mb-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>Network Management</h1>
+                        <p className={isDark ? 'text-slate-400' : 'text-slate-600'}>Manage database connections and file servers</p>
+                    </div>
+                    {userRole === 'admin' && (
+                        <button
+                            onClick={() => setShowForm(!showForm)}
+                            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white rounded-xl transition-all duration-200 shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 hover:-translate-y-0.5"
+                        >
+                            <Plus className="w-5 h-5" />
+                            <span className="font-medium">New Network</span>
+                        </button>
+                    )}
                 </div>
-                {userRole === 'admin' && (
-                    <button
-                        onClick={() => setShowForm(!showForm)}
-                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white rounded-xl transition shadow-lg shadow-purple-500/20 btn-pulse-glow"
-                    >
-                        <Plus className="w-5 h-5" />
-                        New Network
-                    </button>
-                )}
             </div>
 
             {/* Create/Edit Form */}
             {showForm && (
-                <div className={`backdrop-blur-sm border rounded-2xl p-6 modal-scale-in ${isDark ? 'bg-slate-800/80 border-slate-700' : 'bg-white border-slate-200 shadow-lg'}`}>
-                    <h2 className={`text-xl font-semibold mb-4 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                <div className={`backdrop-blur-sm border rounded-2xl p-8 modal-scale-in mb-8 ${isDark ? 'bg-slate-800/80 border-slate-700' : 'bg-white border-slate-200 shadow-xl'}`}>
+                    <h2 className={`text-xl font-bold mb-6 flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                        {editingId ? <Edit className="w-5 h-5 text-purple-500" /> : <Plus className="w-5 h-5 text-purple-500" />}
                         {editingId ? 'Edit Network' : 'Create New Network'}
                     </h2>
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        <div>
-                            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Name</label>
-                            <input
-                                type="text"
-                                value={formData.name}
-                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
-                                placeholder="Network Name"
-                                required
-                            />
-                        </div>
-                        <div>
-                            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>IP Address</label>
-                            <input
-                                type="text"
-                                value={formData.ip_address}
-                                onChange={(e) => setFormData({ ...formData, ip_address: e.target.value })}
-                                className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
-                                placeholder="192.168.1.1"
-                                required
-                            />
-                        </div>
-                        <div>
-                            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Type</label>
-                            <select
-                                value={formData.type}
-                                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                                className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
-                            >
-                                <option value="source">Source</option>
-                                <option value="target">Target</option>
-                            </select>
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="md:col-span-2">
+                                <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Name</label>
+                                <input
+                                    type="text"
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                    className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition ${isDark ? 'bg-slate-900/50 border-slate-700 text-white placeholder-slate-500' : 'bg-white border-slate-200 text-slate-900 placeholder-slate-400'}`}
+                                    placeholder="e.g., Production Database"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>IP Address</label>
+                                <input
+                                    type="text"
+                                    value={formData.ip_address}
+                                    onChange={(e) => setFormData({ ...formData, ip_address: e.target.value })}
+                                    className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition ${isDark ? 'bg-slate-900/50 border-slate-700 text-white placeholder-slate-500' : 'bg-white border-slate-200 text-slate-900 placeholder-slate-400'}`}
+                                    placeholder="e.g., 192.168.1.100"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Network Type</label>
+                                <div className="flex bg-slate-100 dark:bg-slate-900 rounded-xl p-1 border border-slate-200 dark:border-slate-700">
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData({ ...formData, type: 'source' })}
+                                        className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${formData.type === 'source' ? 'bg-white dark:bg-slate-700 shadow text-purple-600 dark:text-purple-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                                    >
+                                        Source
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData({ ...formData, type: 'target' })}
+                                        className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${formData.type === 'target' ? 'bg-white dark:bg-slate-700 shadow text-emerald-600 dark:text-emerald-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                                    >
+                                        Target
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
                         {/* Source Type Selection */}
-                        <div>
-                            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Source Type</label>
-                            <select
-                                value={formData.source_type}
-                                onChange={(e) => setFormData({ ...formData, source_type: e.target.value })}
-                                className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
-                            >
-                                <option value="database">Database</option>
-                                <option value="ftp">FTP</option>
-                                <option value="sftp">SFTP</option>
-                                <option value="api">REST API</option>
-                            </select>
+                        <div className="space-y-3">
+                            <label className={`block text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Connection Protocol</label>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                {[
+                                    { id: 'database', label: 'Database', icon: Database },
+                                    { id: 'ftp', label: 'FTP', icon: Server },
+                                    { id: 'sftp', label: 'SFTP (SSH)', icon: Shield },
+                                    { id: 'api', label: 'REST API', icon: Globe }
+                                ].map((type) => (
+                                    <button
+                                        key={type.id}
+                                        type="button"
+                                        onClick={() => setFormData({ ...formData, source_type: type.id })}
+                                        className={`flex flex-col items-center justify-center gap-2 p-4 rounded-xl border transition-all ${formData.source_type === type.id
+                                            ? 'border-purple-500 bg-purple-500/10 text-purple-600 dark:text-purple-400'
+                                            : isDark ? 'border-slate-700 bg-slate-800/50 text-slate-400 hover:bg-slate-800' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                                            }`}
+                                    >
+                                        <type.icon className="w-6 h-6" />
+                                        <span className="font-semibold">{type.label}</span>
+                                    </button>
+                                ))}
+                            </div>
                         </div>
 
                         {/* Database Configuration - shown when source_type is 'database' */}
                         {formData.source_type === 'database' && (
-                            <div className={`border-t pt-4 mt-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-                                <h3 className={`text-md font-semibold mb-3 flex items-center gap-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-                                    <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
-                                    </svg>
+                            <div className={`border-t pt-6 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+                                <h3 className={`text-md font-semibold mb-4 flex items-center gap-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                                    <div className="p-1.5 rounded-lg bg-orange-100 dark:bg-orange-500/20 text-orange-600 dark:text-orange-400">
+                                        <Database className="w-4 h-4" />
+                                    </div>
                                     Database Configuration
                                 </h3>
-                                <p className={`text-xs mb-4 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>Configure the database that this agent will sync data from</p>
-
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Driver</label>
@@ -327,16 +375,15 @@ function Network() {
                             </div>
                         )}
 
-                        {/* FTP/SFTP Configuration - shown when source_type is 'ftp' or 'sftp' */}
+                        {/* FTP/SFTP Configuration */}
                         {(formData.source_type === 'ftp' || formData.source_type === 'sftp') && (
-                            <div className={`border-t pt-4 mt-4 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-                                <h3 className={`text-md font-semibold mb-3 flex items-center gap-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-                                    <svg className="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                                    </svg>
+                            <div className={`border-t pt-6 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+                                <h3 className={`text-md font-semibold mb-4 flex items-center gap-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                                    <div className="p-1.5 rounded-lg bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                                        <Server className="w-4 h-4" />
+                                    </div>
                                     {formData.source_type.toUpperCase()} Configuration
                                 </h3>
-                                <p className={`text-xs mb-4 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>Configure the file server that this agent will sync files from</p>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
@@ -434,8 +481,7 @@ function Network() {
                                                 placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;...&#10;-----END RSA PRIVATE KEY-----"
                                             />
                                             <p className={`text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
-                                                Upload file .pem/.ppk atau paste isi key.
-                                                <span className="text-amber-400 ml-1">Note: File .ppk (PuTTY) harus dikonversi ke format OpenSSH/PEM dulu.</span>
+                                                Upload .pem/.key file. Note: .ppk must be converted to OpenSSH/PEM.
                                             </p>
                                         </div>
                                     )}
@@ -458,11 +504,11 @@ function Network() {
 
                         {/* API Configuration */}
                         {formData.source_type === 'api' && (
-                            <div className={`border-t pt-4 mt-2 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+                            <div className={`border-t pt-6 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
                                 <h3 className={`text-md font-semibold mb-4 flex items-center gap-2 ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`}>
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-                                    </svg>
+                                    <div className="p-1.5 rounded-lg bg-cyan-100 dark:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400">
+                                        <Globe className="w-4 h-4" />
+                                    </div>
                                     REST API Configuration
                                 </h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -554,19 +600,19 @@ function Network() {
                                 </div>
                             </div>
                         )}
-                        <div className="flex gap-3 pt-2">
+
+                        <div className="flex gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
                             <button
                                 type="submit"
                                 disabled={isSubmitting}
-                                className="flex items-center justify-center gap-2 px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed min-w-[120px]"
+                                className="flex items-center justify-center gap-2 px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition disabled:opacity-50 shadow-lg shadow-purple-500/20 min-w-[120px]"
                             >
-                                {isSubmitting && <span className="spinner-border"></span>}
-                                {editingId ? 'Update' : 'Create'}
+                                {isSubmitting ? 'Saving...' : (editingId ? 'Update Network' : 'Create Network')}
                             </button>
                             <button
                                 type="button"
                                 onClick={resetForm}
-                                className="px-6 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl transition"
+                                className={`px-6 py-2.5 rounded-xl transition ${isDark ? 'bg-slate-700 hover:bg-slate-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
                             >
                                 Cancel
                             </button>
@@ -582,34 +628,38 @@ function Network() {
                     .map((network) => (
                         <div
                             key={network.id}
-                            className={`backdrop-blur-sm border rounded-2xl p-6 transition-all duration-300 ${isDark
-                                ? 'bg-slate-800/80 border-slate-700 border-l-4 border-l-purple-500'
-                                : 'bg-gradient-to-br from-white to-purple-50 border-slate-300 border-l-4 border-l-purple-500 shadow-[0_2px_8px_rgba(0,0,0,0.08)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.12)] hover:-translate-y-1'
+                            className={`group border rounded-2xl p-6 transition-all duration-300 ${isDark
+                                ? 'bg-slate-800/50 border-slate-700 hover:bg-slate-800 hover:border-purple-500/50'
+                                : 'bg-white border-slate-200 hover:border-purple-300 hover:shadow-xl shadow-sm'
                                 }`}
                         >
                             <div className="flex justify-between mb-4">
-                                <div>
-                                    <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{network.name}</h3>
-                                    <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600 font-mono'}`}>{network.ip_address}</p>
+                                <div className="flex items-start gap-3">
+                                    <div className={`p-3 rounded-xl ${network.type === 'source'
+                                        ? (isDark ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-50 text-purple-600')
+                                        : (isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-50 text-emerald-600')
+                                        }`}>
+                                        <NetworkIcon className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-slate-900 group-hover:text-purple-700'} transition-colors`}>{network.name}</h3>
+                                        <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500 font-mono'}`}>{network.ip_address}</p>
+                                    </div>
                                 </div>
                                 <div className="flex gap-1">
                                     {userRole === 'admin' && (
                                         <button
                                             onClick={() => handleTestConnection(network)}
                                             disabled={testingNetwork === network.id}
-                                            className="action-btn bg-amber-600/20 hover:bg-amber-600/40 text-amber-500"
+                                            className={`p-2 rounded-lg transition ${isDark ? 'hover:bg-slate-700 text-slate-400 hover:text-amber-400' : 'hover:bg-amber-50 text-slate-400 hover:text-amber-600'}`}
                                             title="Test Connection"
                                         >
-                                            {testingNetwork === network.id ? (
-                                                <Loader2 className="w-4 h-4 animate-spin" />
-                                            ) : (
-                                                <Zap className="w-4 h-4" />
-                                            )}
+                                            {testingNetwork === network.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
                                         </button>
                                     )}
                                     <button
                                         onClick={() => setSelectedNetwork(network)}
-                                        className="action-btn action-btn-view"
+                                        className={`p-2 rounded-lg transition ${isDark ? 'hover:bg-slate-700 text-slate-400 hover:text-blue-400' : 'hover:bg-blue-50 text-slate-400 hover:text-blue-600'}`}
                                         title="View Details"
                                     >
                                         <Eye className="w-4 h-4" />
@@ -618,14 +668,14 @@ function Network() {
                                         <>
                                             <button
                                                 onClick={() => handleEdit(network)}
-                                                className="action-btn action-btn-edit"
+                                                className={`p-2 rounded-lg transition ${isDark ? 'hover:bg-slate-700 text-slate-400 hover:text-emerald-400' : 'hover:bg-emerald-50 text-slate-400 hover:text-emerald-600'}`}
                                                 title="Edit"
                                             >
                                                 <Edit className="w-4 h-4" />
                                             </button>
                                             <button
                                                 onClick={() => setDeleteTarget(network)}
-                                                className="action-btn action-btn-delete"
+                                                className={`p-2 rounded-lg transition ${isDark ? 'hover:bg-slate-700 text-slate-400 hover:text-red-400' : 'hover:bg-red-50 text-slate-400 hover:text-red-600'}`}
                                                 title="Delete"
                                             >
                                                 <Trash2 className="w-4 h-4" />
@@ -634,18 +684,27 @@ function Network() {
                                     )}
                                 </div>
                             </div>
-                            <div className={`flex justify-between items-center pt-4 border-t ${isDark ? 'border-slate-700' : 'border-slate-100'}`}>
-                                <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Status</span>
-                                <span className={`flex items-center gap-2 text-sm font-medium ${network.status === 'online' ? (isDark ? 'text-emerald-400' : 'text-emerald-600') : (isDark ? 'text-red-400' : 'text-red-600')}`}>
-                                    <Circle className="w-2 h-2 fill-current" />
-                                    {network.status || 'Unknown'}
-                                </span>
-                            </div>
-                            <div className="flex justify-between items-center pt-3">
-                                <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Type</span>
-                                <span className={`px-3 py-1 rounded-full text-xs font-medium ${network.type === 'source' ? (isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-700 border border-blue-100') : (isDark ? 'bg-green-500/20 text-green-400' : 'bg-green-50 text-green-700 border border-green-100')}`}>
-                                    {network.type}
-                                </span>
+
+                            <div className="space-y-3">
+                                <div className={`flex justify-between items-center text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                                    <span>Status</span>
+                                    <span className={`flex items-center gap-2 font-medium ${network.status === 'online' ? 'text-emerald-500' : 'text-red-500'}`}>
+                                        <Circle className="w-2 h-2 fill-current" />
+                                        {network.status || 'Unknown'}
+                                    </span>
+                                </div>
+                                <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                                    <div
+                                        className={`h-full rounded-full ${network.status === 'online' ? 'bg-emerald-500' : 'bg-slate-400'}`}
+                                        style={{ width: network.status === 'online' ? '100%' : '5%' }}
+                                    ></div>
+                                </div>
+                                <div className="flex justify-between items-center pt-2">
+                                    <span className={`text-xs px-2 py-1 rounded border ${isDark ? 'bg-slate-800 border-slate-700 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
+                                        {network.source_type || 'database'}
+                                    </span>
+                                    <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>#{network.id}</span>
+                                </div>
                             </div>
                         </div>
                     ))}

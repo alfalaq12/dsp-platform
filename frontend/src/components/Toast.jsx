@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CheckCircle, XCircle, AlertCircle, X } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -77,13 +78,43 @@ export function ToastContainer({ toasts, removeToast }) {
 }
 
 // Confirmation Modal Component
-export function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confirmText = 'Delete', isLoading = false }) {
+// Confirmation Modal Component
+export function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confirmText = 'Delete', isLoading = false, variant = 'danger', showCancel = true }) {
     const { isDark } = useTheme();
     if (!isOpen) return null;
 
+    const getStyles = () => {
+        switch (variant) {
+            case 'warning':
+                return {
+                    iconBg: 'bg-amber-500/20',
+                    iconColor: 'text-amber-400',
+                    btnBg: 'bg-amber-600 hover:bg-amber-700',
+                    icon: <AlertCircle className="w-6 h-6 text-amber-400" />
+                };
+            case 'info':
+                return {
+                    iconBg: 'bg-blue-500/20',
+                    iconColor: 'text-blue-400',
+                    btnBg: 'bg-blue-600 hover:bg-blue-700',
+                    icon: <AlertCircle className="w-6 h-6 text-blue-400" />
+                };
+            case 'danger':
+            default:
+                return {
+                    iconBg: 'bg-red-500/20',
+                    iconColor: 'text-red-400',
+                    btnBg: 'bg-red-600 hover:bg-red-700',
+                    icon: <AlertCircle className="w-6 h-6 text-red-400" />
+                };
+        }
+    };
+
+    const styles = getStyles();
+
     return (
         <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/70 backdrop-blur-md z-[100] flex items-center justify-center p-4"
             onClick={onClose}
         >
             <div
@@ -91,8 +122,8 @@ export function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confi
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-center gap-4 mb-4">
-                    <div className="p-3 bg-red-500/20 rounded-xl">
-                        <AlertCircle className="w-6 h-6 text-red-400" />
+                    <div className={`p-3 rounded-xl ${styles.iconBg}`}>
+                        {styles.icon}
                     </div>
                     <div>
                         <h3 className={`text-lg font-semibold ${isDark ? 'text-panda-text' : 'text-slate-900'}`}>{title}</h3>
@@ -101,17 +132,19 @@ export function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confi
                 </div>
 
                 <div className="flex gap-3 mt-6">
-                    <button
-                        onClick={onClose}
-                        disabled={isLoading}
-                        className={`flex-1 px-4 py-2.5 rounded-xl transition disabled:opacity-50 ${isDark ? 'bg-panda-dark-300 hover:bg-panda-dark-400 text-panda-text' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
-                    >
-                        Cancel
-                    </button>
+                    {showCancel && (
+                        <button
+                            onClick={onClose}
+                            disabled={isLoading}
+                            className={`flex-1 px-4 py-2.5 rounded-xl transition disabled:opacity-50 ${isDark ? 'bg-panda-dark-300 hover:bg-panda-dark-400 text-panda-text' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
+                        >
+                            Cancel
+                        </button>
+                    )}
                     <button
                         onClick={onConfirm}
                         disabled={isLoading}
-                        className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-50"
+                        className={`flex-1 px-4 py-2.5 text-white rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-50 ${styles.btnBg}`}
                     >
                         {isLoading && <span className="spinner-border"></span>}
                         {confirmText}
@@ -129,7 +162,7 @@ export function ViewModal({ isOpen, onClose, title, children }) {
 
     return (
         <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/70 backdrop-blur-md z-[100] flex items-center justify-center p-4"
             onClick={onClose}
         >
             <div
