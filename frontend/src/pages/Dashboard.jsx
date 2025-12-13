@@ -24,6 +24,8 @@ function Dashboard() {
 
     useEffect(() => {
         loadStats();
+        const interval = setInterval(loadStats, 10000); // Poll every 10s
+        return () => clearInterval(interval);
     }, []);
 
     const loadStats = async () => {
