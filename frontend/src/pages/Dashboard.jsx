@@ -37,12 +37,6 @@ function Dashboard() {
                 getAuditLogs({ limit: 5 }).catch(err => { console.error('AuditLogs failed', err); return { data: [] }; })
             ]);
 
-            console.log('Dashboard Data Debug:', {
-                schemas: schemasRes.data,
-                networks: networksRes.data,
-                jobs: jobsRes.data,
-                auditLogs: auditLogsRes.data
-            });
 
             const activeAgents = networksRes.data.filter((n) => n.status === 'online').length;
 

@@ -334,7 +334,7 @@ function Schema() {
                 }`}>
                 <div className="overflow-x-auto">
                     <table className="w-full">
-                        <thead className={isDark ? 'bg-slate-900/50 border-b border-slate-700' : 'bg-slate-50 border-b border-slate-100'}>
+                        <thead className={isDark ? 'bg-slate-900/50 border-b border-slate-700' : 'bg-slate-100 border-b-2 border-slate-200'}>
                             <tr>
                                 <th className={`px-6 py-4 text-left text-xs font-medium uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                                     Name
@@ -350,7 +350,7 @@ function Schema() {
                                 </th>
                             </tr>
                         </thead>
-                        <tbody className={`divide-y ${isDark ? 'divide-slate-700' : 'divide-slate-100'}`}>
+                        <tbody className={`divide-y ${isDark ? 'divide-slate-700' : 'divide-slate-200'}`}>
                             {schemas.length === 0 ? (
                                 <tr>
                                     <td colSpan="4" className={`px-6 py-12 text-center ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>

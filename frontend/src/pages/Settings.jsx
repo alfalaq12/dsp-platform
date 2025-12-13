@@ -91,7 +91,7 @@ function Settings() {
     // Theme-aware classes
     const cardClass = isDark
         ? 'bg-slate-800/50 border-slate-700'
-        : 'bg-white border-slate-200 shadow-sm';
+        : 'bg-white border-slate-300 shadow-[0_2px_8px_rgba(0,0,0,0.08)]';
     const inputClass = isDark
         ? 'bg-slate-700/50 border-slate-600 text-white placeholder-slate-400'
         : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500';

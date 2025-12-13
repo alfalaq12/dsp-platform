@@ -327,7 +327,7 @@ function Jobs() {
                             key={job.id}
                             className={`rounded-2xl p-6 cursor-pointer transition-all duration-300 group ${isDark
                                 ? 'bg-panda-dark-100 border border-panda-dark-300 border-l-4 border-l-blue-500'
-                                : 'bg-gradient-to-br from-white to-slate-50 border border-slate-200 border-l-4 border-l-slate-500 shadow-sm hover:shadow-md hover:-translate-y-1'
+                                : 'bg-gradient-to-br from-white to-slate-50 border border-slate-300 border-l-4 border-l-slate-500 shadow-[0_2px_8px_rgba(0,0,0,0.08)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.12)] hover:-translate-y-1'
                                 }`}
                         >
                             <div className="flex justify-between items-start mb-4">

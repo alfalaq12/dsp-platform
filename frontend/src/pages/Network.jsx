@@ -584,7 +584,7 @@ function Network() {
                             key={network.id}
                             className={`backdrop-blur-sm border rounded-2xl p-6 transition-all duration-300 ${isDark
                                 ? 'bg-slate-800/80 border-slate-700 border-l-4 border-l-purple-500'
-                                : 'bg-gradient-to-br from-white to-purple-50 border-slate-200 border-l-4 border-l-purple-500 shadow-sm hover:shadow-md hover:-translate-y-1'
+                                : 'bg-gradient-to-br from-white to-purple-50 border-slate-300 border-l-4 border-l-purple-500 shadow-[0_2px_8px_rgba(0,0,0,0.08)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.12)] hover:-translate-y-1'
                                 }`}
                         >
                             <div className="flex justify-between mb-4">

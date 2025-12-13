@@ -155,14 +155,14 @@ function Users() {
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
                         <thead>
-                            <tr className={`border-b ${isDark ? 'border-panda-dark-300 bg-panda-dark-300/50' : 'border-slate-100 bg-slate-50'}`}>
+                            <tr className={`border-b ${isDark ? 'border-panda-dark-300 bg-panda-dark-300/50' : 'border-slate-200 bg-slate-100'}`}>
                                 <th className={`px-6 py-4 text-sm font-semibold ${isDark ? 'text-panda-text-muted' : 'text-slate-600'}`}>Username</th>
                                 <th className={`px-6 py-4 text-sm font-semibold ${isDark ? 'text-panda-text-muted' : 'text-slate-600'}`}>Role</th>
                                 <th className={`px-6 py-4 text-sm font-semibold ${isDark ? 'text-panda-text-muted' : 'text-slate-600'}`}>Created At</th>
                                 <th className={`px-6 py-4 text-sm font-semibold text-right ${isDark ? 'text-panda-text-muted' : 'text-slate-600'}`}>Actions</th>
                             </tr>
                         </thead>
-                        <tbody className={`divide-y ${isDark ? 'divide-panda-dark-300' : 'divide-slate-100'}`}>
+                        <tbody className={`divide-y ${isDark ? 'divide-panda-dark-300' : 'divide-slate-200'}`}>
                             {loading ? (
                                 <tr>
                                     <td colSpan="4" className={`px-6 py-8 text-center ${isDark ? 'text-panda-text-muted' : 'text-slate-500'}`}>Loading users...</td>

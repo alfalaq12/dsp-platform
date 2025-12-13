@@ -69,7 +69,7 @@ function AuditLogs() {
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead>
-                            <tr className={`border-b ${isDark ? 'bg-panda-dark-200 border-panda-dark-300' : 'bg-slate-50 border-slate-100'}`}>
+                            <tr className={`border-b ${isDark ? 'bg-panda-dark-200 border-panda-dark-300' : 'bg-slate-100 border-slate-200'}`}>
                                 <th className={`px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-panda-text-muted' : 'text-slate-600'}`}>Time</th>
                                 <th className={`px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-panda-text-muted' : 'text-slate-600'}`}>User</th>
                                 <th className={`px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-panda-text-muted' : 'text-slate-600'}`}>Action</th>
@@ -78,7 +78,7 @@ function AuditLogs() {
                                 <th className={`px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-panda-text-muted' : 'text-slate-600'}`}>Details</th>
                             </tr>
                         </thead>
-                        <tbody className={`divide-y ${isDark ? 'divide-panda-dark-300' : 'divide-slate-100'}`}>
+                        <tbody className={`divide-y ${isDark ? 'divide-panda-dark-300' : 'divide-slate-200'}`}>
                             {loading ? (
                                 <tr>
                                     <td colSpan="6" className={`px-6 py-8 text-center ${isDark ? 'text-panda-text-muted' : 'text-slate-500'}`}>Loading logs...</td>
