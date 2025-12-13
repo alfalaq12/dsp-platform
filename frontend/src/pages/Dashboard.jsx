@@ -45,15 +45,23 @@ function Dashboard() {
             });
 
             // Process Jobs Activity
-            const jobActivities = jobsRes.data.map((job, idx) => ({
-                id: `job-${idx}`,
-                action: job.last_status === 'completed' ? 'Sinkronisasi selesai' : 'Job terjadwal',
-                target: job.name,
-                rawTime: job.last_run ? new Date(job.last_run) : new Date(0), // For sorting
-                time: job.last_run ? new Date(job.last_run).toLocaleTimeString('id-ID') : '-',
-                status: job.last_status || 'pending',
-                type: 'job'
-            }));
+            // Process Jobs Activity
+            const jobActivities = jobsRes.data.map((job, idx) => {
+                let actionText = 'Job terjadwal';
+                if (job.status === 'completed') actionText = 'Sinkronisasi selesai';
+                else if (job.status === 'running') actionText = 'Sinkronisasi berjalan';
+                else if (job.status === 'failed') actionText = 'Sinkronisasi gagal';
+
+                return {
+                    id: `job-${idx}`,
+                    action: actionText,
+                    target: job.name,
+                    rawTime: job.last_run ? new Date(job.last_run) : new Date(0), // For sorting
+                    time: job.last_run && new Date(job.last_run).getFullYear() > 2000 ? new Date(job.last_run).toLocaleTimeString('id-ID') : '-',
+                    status: job.status || 'pending',
+                    type: 'job'
+                };
+            });
 
             // Process Audit Logs Activity
             const logActivities = (auditLogsRes.data || []).map((log, idx) => ({
