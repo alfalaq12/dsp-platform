@@ -226,6 +226,7 @@ func setupRouter(handler *server.Handler) *gin.Engine {
 		api.POST("/networks", auth.RequireRole("admin"), handler.CreateNetwork)
 		api.PUT("/networks/:id", auth.RequireRole("admin"), handler.UpdateNetwork)
 		api.DELETE("/networks/:id", auth.RequireRole("admin"), handler.DeleteNetwork)
+		api.POST("/networks/:id/clone", auth.RequireRole("admin"), handler.CloneNetwork)
 
 		// Job routes
 		api.GET("/jobs", handler.GetJobs)

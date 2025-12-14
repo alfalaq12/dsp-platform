@@ -41,6 +41,7 @@ export const getNetworks = () => api.get('/networks');
 export const createNetwork = (data) => api.post('/networks', data);
 export const updateNetwork = (id, data) => api.put(`/networks/${id}`, data);
 export const deleteNetwork = (id) => api.delete(`/networks/${id}`);
+export const cloneNetwork = (id, name) => api.post(`/networks/${id}/clone`, { name });
 
 // Jobs
 export const getJobs = (params) => api.get('/jobs', { params });

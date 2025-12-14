@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Plus, Edit, Trash2, Network as NetworkIcon, Circle, Eye, Loader2, Zap, Database, Server, Shield, Globe, Folder } from 'lucide-react';
-import { getNetworks, createNetwork, updateNetwork, deleteNetwork, testNetworkConnection } from '../services/api';
+import { Plus, Edit, Trash2, Network as NetworkIcon, Circle, Eye, Loader2, Zap, Database, Server, Shield, Globe, Folder, Copy } from 'lucide-react';
+import { getNetworks, createNetwork, updateNetwork, deleteNetwork, testNetworkConnection, cloneNetwork } from '../services/api';
 import { useToast, ToastContainer, ConfirmModal, ViewModal } from '../components/Toast';
 import Pagination from '../components/Pagination';
 import { useTheme } from '../contexts/ThemeContext';
@@ -47,6 +47,7 @@ function Network() {
     const [selectedNetwork, setSelectedNetwork] = useState(null);
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [testingNetwork, setTestingNetwork] = useState(null);
+    const [cloningNetwork, setCloningNetwork] = useState(null);
     const { toasts, addToast, removeToast } = useToast();
     const userRole = localStorage.getItem('role') || 'viewer';
 
@@ -188,6 +189,22 @@ function Network() {
             addToast('Failed to send test command: ' + (error.response?.data?.error || error.message), 'error');
         } finally {
             setTestingNetwork(null);
+        }
+    };
+
+    const handleClone = async (network) => {
+        try {
+            setCloningNetwork(network.id);
+            const response = await cloneNetwork(network.id);
+            addToast(`Network "${network.name}" cloned successfully!`, 'success');
+            loadNetworks();
+            // Scroll to top to see the new item
+            setCurrentPage(1);
+        } catch (error) {
+            console.error('Failed to clone network:', error);
+            addToast('Failed to clone network. Please try again.', 'error');
+        } finally {
+            setCloningNetwork(null);
         }
     };
 
@@ -672,6 +689,14 @@ function Network() {
                                                 title="Edit"
                                             >
                                                 <Edit className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => handleClone(network)}
+                                                disabled={cloningNetwork === network.id}
+                                                className={`p-2 rounded-lg transition ${isDark ? 'hover:bg-slate-700 text-slate-400 hover:text-purple-400' : 'hover:bg-purple-50 text-slate-400 hover:text-purple-600'}`}
+                                                title="Clone Network"
+                                            >
+                                                {cloningNetwork === network.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
                                             </button>
                                             <button
                                                 onClick={() => setDeleteTarget(network)}

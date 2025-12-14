@@ -100,10 +100,10 @@ func (h *Handler) Logout(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
 }
 
-// GetSchemas returns all schemas
+// GetSchemas returns all schemas (newest first)
 func (h *Handler) GetSchemas(c *gin.Context) {
 	var schemas []core.Schema
-	if err := h.db.Find(&schemas).Error; err != nil {
+	if err := h.db.Order("id DESC").Find(&schemas).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -159,10 +159,10 @@ func (h *Handler) DeleteSchema(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Schema deleted successfully"})
 }
 
-// GetNetworks returns all networks (agents/sources)
+// GetNetworks returns all networks (agents/sources) - newest first
 func (h *Handler) GetNetworks(c *gin.Context) {
 	var networks []core.Network
-	if err := h.db.Find(&networks).Error; err != nil {
+	if err := h.db.Order("id DESC").Find(&networks).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -218,6 +218,48 @@ func (h *Handler) DeleteNetwork(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Network deleted successfully"})
 }
 
+// CloneNetwork duplicates a network with a new name
+func (h *Handler) CloneNetwork(c *gin.Context) {
+	id := c.Param("id")
+
+	// Get original network
+	var original core.Network
+	if err := h.db.First(&original, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Network not found"})
+		return
+	}
+
+	// Get optional new name from request body
+	var req struct {
+		Name string `json:"name"`
+	}
+	c.ShouldBindJSON(&req)
+
+	// Create clone (reset ID to 0 so GORM creates new record)
+	clone := original
+	clone.ID = 0
+	clone.Status = "offline"
+
+	// Generate new name if not provided
+	if req.Name != "" {
+		clone.Name = req.Name
+	} else {
+		clone.Name = fmt.Sprintf("%s (Copy)", original.Name)
+	}
+
+	// Create the clone
+	if err := h.db.Create(&clone).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message":  "Network cloned successfully",
+		"original": original,
+		"clone":    clone,
+	})
+}
+
 // GetJobs returns paginated jobs
 func (h *Handler) GetJobs(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -241,8 +283,8 @@ func (h *Handler) GetJobs(c *gin.Context) {
 		return
 	}
 
-	// Get paginated data
-	if err := h.db.Preload("Schema").Preload("Network").Limit(pageSize).Offset(offset).Find(&jobs).Error; err != nil {
+	// Get paginated data (newest first)
+	if err := h.db.Preload("Schema").Preload("Network").Order("id DESC").Limit(pageSize).Offset(offset).Find(&jobs).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
