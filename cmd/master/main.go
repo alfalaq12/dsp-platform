@@ -4,6 +4,7 @@ import (
 	"dsp-platform/internal/auth"
 	"dsp-platform/internal/core"
 	"dsp-platform/internal/logger"
+	"dsp-platform/internal/security"
 	"dsp-platform/internal/server"
 	"os"
 	"os/signal"
@@ -26,10 +27,29 @@ func main() {
 		panic("Failed to initialize logger: " + err.Error())
 	}
 
+	// Load TLS configuration
+	tlsConfig := security.LoadTLSConfigFromEnv()
+
+	// Log startup with TLS status
 	logger.Logger.Info().
 		Str("web_port", WebPort).
 		Str("agent_port", AgentPort).
+		Bool("tls_enabled", tlsConfig.Enabled).
 		Msg("Starting DSP Platform Master Server")
+
+	// Auto-generate certificates if TLS enabled but certs don't exist
+	if tlsConfig.Enabled {
+		if _, err := os.Stat(tlsConfig.CertPath); os.IsNotExist(err) {
+			logger.Logger.Info().Msg("TLS certificates not found, generating self-signed certificates...")
+			if err := security.GenerateSelfSignedCert("./certs", []string{"localhost", "127.0.0.1"}); err != nil {
+				logger.Logger.Error().Err(err).Msg("Failed to auto-generate certificates")
+				logger.Logger.Warn().Msg("Falling back to non-TLS mode")
+				tlsConfig.Enabled = false
+			} else {
+				logger.Logger.Info().Msg("✅ Self-signed certificates generated successfully")
+			}
+		}
+	}
 
 	// Initialize database
 	db, err := initDatabase()
@@ -40,10 +60,15 @@ func main() {
 	// Create handler
 	handler := server.NewHandler(db)
 
-	// Start agent listener in goroutine
-	agentListener := server.NewAgentListener(handler, AgentPort)
+	// Start agent listener in goroutine (with TLS if enabled)
+	var agentListener *server.AgentListener
+	if tlsConfig.Enabled {
+		agentListener = server.NewAgentListenerWithTLS(handler, AgentPort, tlsConfig)
+	} else {
+		agentListener = server.NewAgentListener(handler, AgentPort)
+	}
 	go func() {
-		logger.Logger.Info().Str("port", AgentPort).Msg("Starting agent listener")
+		logger.Logger.Info().Str("port", AgentPort).Bool("tls", tlsConfig.Enabled).Msg("Starting agent listener")
 		if err := agentListener.Start(); err != nil {
 			logger.Logger.Fatal().Err(err).Msg("Agent listener error")
 		}
@@ -56,14 +81,27 @@ func main() {
 		scheduler.Start()
 	}()
 
-	// Setup HTTP server
+	// Setup HTTP/HTTPS server
 	router := setupRouter(handler)
 
-	// Graceful shutdown
+	// Graceful shutdown - Start web server
 	go func() {
-		logger.Logger.Info().Str("port", WebPort).Msg("Starting HTTP server")
-		if err := router.Run(":" + WebPort); err != nil {
-			logger.Logger.Fatal().Err(err).Msg("Failed to start HTTP server")
+		if tlsConfig.Enabled {
+			logger.Logger.Info().
+				Str("port", WebPort).
+				Str("protocol", "HTTPS").
+				Msg("🔒 Starting HTTPS server")
+			if err := router.RunTLS(":"+WebPort, tlsConfig.CertPath, tlsConfig.KeyPath); err != nil {
+				logger.Logger.Fatal().Err(err).Msg("Failed to start HTTPS server")
+			}
+		} else {
+			logger.Logger.Info().
+				Str("port", WebPort).
+				Str("protocol", "HTTP").
+				Msg("⚠️ Starting HTTP server (NO TLS - INSECURE!)")
+			if err := router.Run(":" + WebPort); err != nil {
+				logger.Logger.Fatal().Err(err).Msg("Failed to start HTTP server")
+			}
 		}
 	}()
 

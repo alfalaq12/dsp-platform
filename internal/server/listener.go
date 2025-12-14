@@ -2,8 +2,10 @@ package server
 
 import (
 	"bufio"
+	"crypto/tls"
 	"dsp-platform/internal/core"
 	"dsp-platform/internal/database"
+	"dsp-platform/internal/security"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -25,6 +27,7 @@ type AgentListener struct {
 	port        string
 	connections map[string]*AgentConnection
 	mu          sync.RWMutex
+	tlsConfig   *tls.Config
 }
 
 // NewAgentListener creates a new agent listener
@@ -39,15 +42,52 @@ func NewAgentListener(handler *Handler, port string) *AgentListener {
 	return al
 }
 
+// NewAgentListenerWithTLS creates a new agent listener with TLS support
+func NewAgentListenerWithTLS(handler *Handler, port string, tlsConfig security.TLSConfig) *AgentListener {
+	al := &AgentListener{
+		handler:     handler,
+		port:        port,
+		connections: make(map[string]*AgentConnection),
+	}
+
+	// Load TLS config if enabled
+	if tlsConfig.Enabled {
+		cfg, err := security.LoadServerTLSConfig(tlsConfig.CertPath, tlsConfig.KeyPath)
+		if err != nil {
+			log.Printf("⚠️ Failed to load TLS config for agent listener: %v", err)
+			log.Printf("⚠️ Agent listener will run WITHOUT TLS encryption!")
+		} else {
+			al.tlsConfig = cfg
+			log.Printf("🔒 TLS enabled for agent listener")
+		}
+	}
+
+	// Set reference in handler for bidirectional communication
+	handler.agentListener = al
+	return al
+}
+
 // Start begins listening for agent connections
 func (al *AgentListener) Start() error {
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", al.port))
-	if err != nil {
-		return fmt.Errorf("failed to start agent listener: %w", err)
+	address := fmt.Sprintf(":%s", al.port)
+	var listener net.Listener
+	var err error
+
+	// Use TLS if configured
+	if al.tlsConfig != nil {
+		listener, err = tls.Listen("tcp", address, al.tlsConfig)
+		if err != nil {
+			return fmt.Errorf("failed to start TLS agent listener: %w", err)
+		}
+		log.Printf("🔒 Agent TLS listener started on port %s", al.port)
+	} else {
+		listener, err = net.Listen("tcp", address)
+		if err != nil {
+			return fmt.Errorf("failed to start agent listener: %w", err)
+		}
+		log.Printf("⚠️ Agent listener started on port %s (NO TLS - INSECURE!)", al.port)
 	}
 	defer listener.Close()
-
-	log.Printf("Agent listener started on port %s", al.port)
 
 	for {
 		conn, err := listener.Accept()

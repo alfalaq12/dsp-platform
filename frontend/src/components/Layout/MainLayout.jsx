@@ -4,7 +4,7 @@ import { logout, getNotifications } from '../../services/api';
 import Sidebar from './Sidebar';
 import { useState, useEffect, useRef } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
-import AnimatedList from '../AnimatedList';
+import { AnimatedList } from '../ui/AnimatedList';
 
 
 function MainLayout() {
@@ -52,6 +52,7 @@ function MainLayout() {
 
 
     const [notifications, setNotifications] = useState([]);
+    const lastSeenNotifIdRef = useRef(0); // Track last seen notification ID
 
     // Format relative time
     const formatTime = (dateString) => {
@@ -97,7 +98,9 @@ function MainLayout() {
             });
 
             setNotifications(mapped);
-            setUnreadCount(mapped.length);
+            // Only count notifications newer than the last seen one
+            const newNotifs = mapped.filter(n => n.id > lastSeenNotifIdRef.current);
+            setUnreadCount(newNotifs.length);
         } catch (error) {
             console.error("Failed to fetch notifications:", error);
         }
@@ -215,8 +218,14 @@ function MainLayout() {
                             <div className="relative" ref={notifRef}>
                                 <button
                                     onClick={() => {
-                                        setIsNotifOpen(!isNotifOpen);
+                                        const willOpen = !isNotifOpen;
+                                        setIsNotifOpen(willOpen);
                                         setIsProfileOpen(false);
+                                        // Mark all current notifications as seen
+                                        if (willOpen && notifications.length > 0) {
+                                            lastSeenNotifIdRef.current = Math.max(...notifications.map(n => n.id));
+                                            setUnreadCount(0);
+                                        }
                                     }}
                                     className={`relative p-2 rounded-xl transition-all duration-200 hover:scale-105 ${isDark
                                         ? 'bg-panda-dark-300 hover:bg-panda-dark-400 text-panda-text-muted'
@@ -245,7 +254,7 @@ function MainLayout() {
                                                 </span>
                                             )}
                                         </div>
-                                        <AnimatedList className="max-h-96 overflow-y-auto custom-scrollbar">
+                                        <AnimatedList className="max-h-96 overflow-y-auto custom-scrollbar scroll-smooth">
                                             {notifications.map((notif) => (
                                                 <button
                                                     key={notif.id}

@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"crypto/tls"
+	"crypto/x509"
 	"dsp-platform/internal/database"
 	"dsp-platform/internal/filesync"
 	"dsp-platform/internal/logger"
@@ -28,6 +30,11 @@ var (
 	SyncInterval time.Duration
 	SyncQuery    string
 	DBConfig     database.Config
+
+	// TLS Configuration
+	TLSEnabled    bool
+	TLSCAPath     string
+	TLSSkipVerify bool
 )
 
 // AgentMessage represents the message protocol
@@ -73,6 +80,11 @@ func init() {
 		DBName:   getEnv("DB_NAME", "postgres"),
 		SSLMode:  getEnv("DB_SSLMODE", "disable"),
 	}
+
+	// TLS configuration
+	TLSEnabled = getEnv("TLS_ENABLED", "false") == "true"
+	TLSCAPath = getEnv("TLS_CA_PATH", "./certs/ca.crt")
+	TLSSkipVerify = getEnv("TLS_SKIP_VERIFY", "false") == "true"
 }
 
 func getEnv(key, defaultValue string) string {
@@ -267,7 +279,51 @@ func runAgent() {
 
 func connectToMaster() (net.Conn, error) {
 	address := MasterHost + ":" + MasterPort
-	logger.Logger.Info().Str("address", address).Msg("Connecting to Master server")
+
+	if TLSEnabled {
+		logger.Logger.Info().
+			Str("address", address).
+			Bool("tls", true).
+			Bool("skip_verify", TLSSkipVerify).
+			Msg("🔒 Connecting to Master server with TLS")
+
+		// Create TLS config
+		tlsConfig := &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		}
+
+		if TLSSkipVerify {
+			tlsConfig.InsecureSkipVerify = true
+			logger.Logger.Warn().Msg("⚠️ TLS certificate verification disabled (INSECURE!)")
+		} else if TLSCAPath != "" {
+			// Load CA certificate
+			caCert, err := os.ReadFile(TLSCAPath)
+			if err != nil {
+				logger.Logger.Error().Err(err).Str("path", TLSCAPath).Msg("Failed to read CA certificate")
+				return nil, fmt.Errorf("failed to read CA certificate: %w", err)
+			}
+
+			caCertPool := x509.NewCertPool()
+			if !caCertPool.AppendCertsFromPEM(caCert) {
+				return nil, fmt.Errorf("failed to parse CA certificate")
+			}
+
+			tlsConfig.RootCAs = caCertPool
+			logger.Logger.Info().Str("ca_path", TLSCAPath).Msg("Loaded CA certificate for verification")
+		}
+
+		conn, err := tls.Dial("tcp", address, tlsConfig)
+		if err != nil {
+			logger.Logger.Error().Err(err).Str("address", address).Msg("TLS connection failed")
+			return nil, err
+		}
+
+		logger.Logger.Info().Msg("🔒 Successfully connected to Master server via TLS")
+		return conn, nil
+	}
+
+	// Non-TLS connection (fallback)
+	logger.Logger.Info().Str("address", address).Msg("⚠️ Connecting to Master server (NO TLS - INSECURE!)")
 
 	conn, err := net.Dial("tcp", address)
 	if err != nil {
@@ -275,7 +331,7 @@ func connectToMaster() (net.Conn, error) {
 		return nil, err
 	}
 
-	logger.Logger.Info().Msg("Successfully connected to Master server")
+	logger.Logger.Info().Msg("Successfully connected to Master server (without TLS)")
 	return conn, nil
 }
 
