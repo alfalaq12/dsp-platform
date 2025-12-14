@@ -12,6 +12,7 @@ function Network() {
     const [editingId, setEditingId] = useState(null);
     const [formData, setFormData] = useState({
         name: '',
+        agent_name: '', // Agent to route commands (leave empty to use name)
         ip_address: '',
         type: 'source',
         source_type: 'database', // database, ftp, sftp, api
@@ -94,6 +95,7 @@ function Network() {
     const handleEdit = (network) => {
         setFormData({
             name: network.name,
+            agent_name: network.agent_name || '',
             ip_address: network.ip_address,
             type: network.type || 'source',
             source_type: network.source_type || 'database',
@@ -142,7 +144,7 @@ function Network() {
 
     const resetForm = () => {
         setFormData({
-            name: '', ip_address: '', type: 'source', source_type: 'database',
+            name: '', agent_name: '', ip_address: '', type: 'source', source_type: 'database',
             db_driver: 'postgres', db_host: '', db_port: '5432',
             db_user: '', db_password: '', db_name: '', db_sslmode: 'disable',
             ftp_host: '', ftp_port: '21', ftp_user: '', ftp_password: '', ftp_private_key: '', ftp_path: '', ftp_passive: true,
@@ -248,7 +250,7 @@ function Network() {
                     </h2>
                     <form onSubmit={handleSubmit} className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="md:col-span-2">
+                            <div>
                                 <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Name</label>
                                 <input
                                     type="text"
@@ -258,6 +260,21 @@ function Network() {
                                     placeholder="e.g., Production Database"
                                     required
                                 />
+                            </div>
+                            <div>
+                                <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                    Agent Name <span className={`text-xs font-normal ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>(optional)</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    value={formData.agent_name}
+                                    onChange={(e) => setFormData({ ...formData, agent_name: e.target.value })}
+                                    className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition ${isDark ? 'bg-slate-900/50 border-slate-700 text-white placeholder-slate-500' : 'bg-white border-slate-200 text-slate-900 placeholder-slate-400'}`}
+                                    placeholder="Leave empty to use Name"
+                                />
+                                <p className={`text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                    Agent to route commands. Use this to share one agent across multiple networks.
+                                </p>
                             </div>
                             <div>
                                 <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>IP Address</label>

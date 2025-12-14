@@ -25,6 +25,7 @@ type Schema struct {
 type Network struct {
 	ID        uint      `json:"id" gorm:"primaryKey"`
 	Name      string    `json:"name" gorm:"not null;unique"`
+	AgentName string    `json:"agent_name"` // Name of agent to route commands (if empty, uses Name)
 	IPAddress string    `json:"ip_address" gorm:"not null"`
 	Status    string    `json:"status" gorm:"default:'offline'"` // online/offline
 	Type      string    `json:"type" gorm:"default:'source'"`    // source/target

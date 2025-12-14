@@ -247,6 +247,14 @@ func (h *Handler) CloneNetwork(c *gin.Context) {
 		clone.Name = fmt.Sprintf("%s (Copy)", original.Name)
 	}
 
+	// Set AgentName to point to original network's agent (for command routing)
+	// If original has agent_name set, use that; otherwise use original's name
+	if original.AgentName != "" {
+		clone.AgentName = original.AgentName
+	} else {
+		clone.AgentName = original.Name
+	}
+
 	// Create the clone
 	if err := h.db.Create(&clone).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -372,7 +380,11 @@ func (h *Handler) RunJob(c *gin.Context) {
 	h.db.Create(&jobLog)
 
 	// Check if agent is connected
+	// Use AgentName if set, otherwise use Network Name
 	agentName := job.Network.Name
+	if job.Network.AgentName != "" {
+		agentName = job.Network.AgentName
+	}
 	if h.agentListener == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Agent listener not initialized"})
 		return
