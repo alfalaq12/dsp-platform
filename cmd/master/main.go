@@ -8,9 +8,11 @@ import (
 	"dsp-platform/internal/server"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 	"gorm.io/gorm"
 
 	sqlite "github.com/glebarez/sqlite" // Pure Go SQLite driver for GORM
@@ -20,6 +22,18 @@ const (
 	WebPort   = "441"
 	AgentPort = "447"
 )
+
+func init() {
+	// Robust .env loading: Try loading from executable directory first
+	ex, err := os.Executable()
+	if err == nil {
+		exPath := filepath.Dir(ex)
+		envPath := filepath.Join(exPath, ".env")
+		godotenv.Load(envPath)
+	}
+	// Fallback to default load (current directory)
+	godotenv.Load()
+}
 
 func main() {
 	// Initialize logger
