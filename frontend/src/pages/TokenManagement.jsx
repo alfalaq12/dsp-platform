@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getAgentTokens, createAgentToken, revokeAgentToken, deleteAgentToken } from '../services/api';
-import { useToast, ToastContainer } from '../components/Toast';
+import { useToast, ToastContainer, ConfirmModal } from '../components/Toast';
 import { useTheme } from '../contexts/ThemeContext';
 import {
     Key, Plus, Trash2, Ban, RefreshCw, Copy, CheckCircle,
@@ -18,6 +18,16 @@ function TokenManagement() {
         agent_name: '',
         description: '',
         retention: '365' // Default 1 year
+    });
+
+    // Confirm modal states
+    const [confirmModal, setConfirmModal] = useState({
+        isOpen: false,
+        title: '',
+        message: '',
+        variant: 'warning',
+        onConfirm: null,
+        confirmText: 'Confirm'
     });
 
     // Retention options (up to 4 years for government projects)
@@ -78,28 +88,44 @@ function TokenManagement() {
         }
     };
 
-    const handleRevoke = async (token) => {
-        if (!confirm(`Revoke token for agent "${token.agent_name}"? Agent will not be able to connect.`)) return;
-
-        try {
-            await revokeAgentToken(token.id);
-            addToast('Token revoked successfully', 'success');
-            loadTokens();
-        } catch (error) {
-            addToast('Failed to revoke token', 'error');
-        }
+    const handleRevoke = (token) => {
+        setConfirmModal({
+            isOpen: true,
+            title: 'Revoke Token',
+            message: `Apakah Anda yakin ingin merevoke token untuk agent "${token.agent_name}"? Agent tidak akan bisa terhubung lagi.`,
+            variant: 'warning',
+            confirmText: 'Revoke',
+            onConfirm: async () => {
+                try {
+                    await revokeAgentToken(token.id);
+                    addToast('Token revoked successfully', 'success');
+                    loadTokens();
+                } catch (error) {
+                    addToast('Failed to revoke token', 'error');
+                }
+                setConfirmModal({ ...confirmModal, isOpen: false });
+            }
+        });
     };
 
-    const handleDelete = async (token) => {
-        if (!confirm(`Permanently delete token for agent "${token.agent_name}"?`)) return;
-
-        try {
-            await deleteAgentToken(token.id);
-            addToast('Token deleted successfully', 'success');
-            loadTokens();
-        } catch (error) {
-            addToast('Failed to delete token', 'error');
-        }
+    const handleDelete = (token) => {
+        setConfirmModal({
+            isOpen: true,
+            title: 'Hapus Token',
+            message: `Apakah Anda yakin ingin menghapus token untuk agent "${token.agent_name}" secara permanen?`,
+            variant: 'danger',
+            confirmText: 'Hapus',
+            onConfirm: async () => {
+                try {
+                    await deleteAgentToken(token.id);
+                    addToast('Token deleted successfully', 'success');
+                    loadTokens();
+                } catch (error) {
+                    addToast('Failed to delete token', 'error');
+                }
+                setConfirmModal({ ...confirmModal, isOpen: false });
+            }
+        });
     };
 
     const copyToClipboard = (text) => {
@@ -127,6 +153,17 @@ function TokenManagement() {
     return (
         <div className="space-y-6">
             <ToastContainer toasts={toasts} removeToast={removeToast} />
+
+            {/* Confirm Modal */}
+            <ConfirmModal
+                isOpen={confirmModal.isOpen}
+                title={confirmModal.title}
+                message={confirmModal.message}
+                confirmText={confirmModal.confirmText}
+                onConfirm={confirmModal.onConfirm}
+                onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+                variant={confirmModal.variant}
+            />
 
             {/* Header */}
             <div className={`relative overflow-hidden rounded-2xl p-8 border ${isDark ? 'bg-gradient-to-br from-slate-800 via-slate-800/95 to-slate-900 border-slate-700/50' : 'bg-gradient-to-br from-white via-amber-50/30 to-orange-50/20 border-slate-200/60 shadow-lg'}`}>
