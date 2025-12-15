@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"time"
 
-	_ "github.com/lib/pq" // PostgreSQL driver
+	_ "github.com/denisenkom/go-mssqldb" // Microsoft SQL Server driver
+	_ "github.com/lib/pq"                // PostgreSQL driver
+	_ "github.com/sijms/go-ora/v2"       // Oracle driver (pure Go, no CGO required)
 )
 
 // Config holds database connection configuration
 type Config struct {
-	Driver   string // postgres, mysql, sqlserver
+	Driver   string // postgres, mysql, sqlserver, oracle
 	Host     string
 	Port     string
 	User     string
@@ -28,25 +30,42 @@ type Connection struct {
 // Connect establishes database connection
 func Connect(config Config) (*Connection, error) {
 	var connStr string
+	var driverName string
 
 	switch config.Driver {
 	case "postgres":
+		driverName = "postgres"
 		connStr = fmt.Sprintf(
 			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 			config.Host, config.Port, config.User,
 			config.Password, config.DBName, config.SSLMode,
 		)
 	case "mysql":
+		driverName = "mysql"
 		// MySQL connection string: user:password@tcp(host:port)/dbname
 		connStr = fmt.Sprintf(
 			"%s:%s@tcp(%s:%s)/%s",
+			config.User, config.Password, config.Host, config.Port, config.DBName,
+		)
+	case "sqlserver", "mssql":
+		driverName = "sqlserver"
+		// SQL Server connection string
+		connStr = fmt.Sprintf(
+			"sqlserver://%s:%s@%s:%s?database=%s",
+			config.User, config.Password, config.Host, config.Port, config.DBName,
+		)
+	case "oracle":
+		driverName = "oracle"
+		// Oracle connection string for go-ora: oracle://user:password@host:port/service_name
+		connStr = fmt.Sprintf(
+			"oracle://%s:%s@%s:%s/%s",
 			config.User, config.Password, config.Host, config.Port, config.DBName,
 		)
 	default:
 		return nil, fmt.Errorf("unsupported driver: %s", config.Driver)
 	}
 
-	db, err := sql.Open(config.Driver, connStr)
+	db, err := sql.Open(driverName, connStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}

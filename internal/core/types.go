@@ -62,6 +62,22 @@ type Network struct {
 	APIAuthKey   string `json:"api_auth_key"`                    // Header name for API key (e.g., X-API-Key)
 	APIAuthValue string `json:"api_auth_value"`                  // Token/key value
 	APIBody      string `json:"api_body" gorm:"type:text"`       // Request body for POST
+
+	// MongoDB Configuration (for agent to use when SourceType=mongodb)
+	MongoHost       string `json:"mongo_host"`
+	MongoPort       string `json:"mongo_port" gorm:"default:'27017'"`
+	MongoUser       string `json:"mongo_user"`
+	MongoPassword   string `json:"mongo_password"`
+	MongoDatabase   string `json:"mongo_database"`
+	MongoCollection string `json:"mongo_collection"`
+	MongoAuthDB     string `json:"mongo_auth_db" gorm:"default:'admin'"` // Auth database
+
+	// Redis Configuration (for agent to use when SourceType=redis)
+	RedisHost     string `json:"redis_host"`
+	RedisPort     string `json:"redis_port" gorm:"default:'6379'"`
+	RedisPassword string `json:"redis_password"`
+	RedisDB       int    `json:"redis_db" gorm:"default:0"` // Database number (0-15)
+	RedisPattern  string `json:"redis_pattern"`             // Key pattern to scan (e.g., "user:*")
 }
 
 // Job represents a data synchronization job linking a Schema to a Network
@@ -167,4 +183,29 @@ type TargetDBConfig struct {
 	Password string `json:"password"`
 	DBName   string `json:"db_name"`
 	SSLMode  string `json:"sslmode"`
+}
+
+// AgentToken represents authentication token for agent registration
+type AgentToken struct {
+	ID          uint       `json:"id" gorm:"primaryKey"`
+	AgentName   string     `json:"agent_name" gorm:"not null;uniqueIndex"` // Agent this token is for
+	Token       string     `json:"token" gorm:"not null;uniqueIndex"`      // The actual token (hashed)
+	TokenPrefix string     `json:"token_prefix"`                           // First 8 chars for display
+	Description string     `json:"description"`                            // Optional description
+	CreatedAt   time.Time  `json:"created_at"`
+	ExpiresAt   *time.Time `json:"expires_at"`   // Optional expiry
+	LastUsedAt  *time.Time `json:"last_used_at"` // Last successful auth
+	Revoked     bool       `json:"revoked" gorm:"default:false"`
+	CreatedBy   string     `json:"created_by"` // Who created the token
+}
+
+// IsValid checks if token is valid (not expired, not revoked)
+func (t *AgentToken) IsValid() bool {
+	if t.Revoked {
+		return false
+	}
+	if t.ExpiresAt != nil && time.Now().After(*t.ExpiresAt) {
+		return false
+	}
+	return true
 }

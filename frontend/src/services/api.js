@@ -73,4 +73,10 @@ export const getAuditLogs = (params) => api.get('/audit-logs', { params });
 export const testTargetDBConnection = (data) => api.post('/settings/target-db/test', data);
 export const testNetworkConnection = (id) => api.post(`/networks/${id}/test`);
 
+// Agent Tokens
+export const getAgentTokens = () => api.get('/agent-tokens');
+export const createAgentToken = (data) => api.post('/agent-tokens', data);
+export const revokeAgentToken = (id) => api.patch(`/agent-tokens/${id}/revoke`);
+export const deleteAgentToken = (id) => api.delete(`/agent-tokens/${id}`);
+
 export default api;

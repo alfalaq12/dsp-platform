@@ -156,6 +156,8 @@ function Settings() {
                                     >
                                         <option value="postgres">PostgreSQL</option>
                                         <option value="mysql">MySQL</option>
+                                        <option value="sqlserver">SQL Server (MSSQL)</option>
+                                        <option value="oracle">Oracle</option>
                                     </select>
                                 </div>
                             </div>

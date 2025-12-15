@@ -40,6 +40,20 @@ function Network() {
         api_auth_key: '',
         api_auth_value: '',
         api_body: '',
+        // MongoDB fields
+        mongo_host: '',
+        mongo_port: '27017',
+        mongo_user: '',
+        mongo_password: '',
+        mongo_database: '',
+        mongo_collection: '',
+        mongo_auth_db: 'admin',
+        // Redis fields
+        redis_host: '',
+        redis_port: '6379',
+        redis_password: '',
+        redis_db: 0,
+        redis_pattern: '*',
     });
 
     // New states for enhanced UX
@@ -121,6 +135,20 @@ function Network() {
             api_auth_key: network.api_auth_key || '',
             api_auth_value: network.api_auth_value || '',
             api_body: network.api_body || '',
+            // MongoDB fields
+            mongo_host: network.mongo_host || '',
+            mongo_port: network.mongo_port || '27017',
+            mongo_user: network.mongo_user || '',
+            mongo_password: network.mongo_password || '',
+            mongo_database: network.mongo_database || '',
+            mongo_collection: network.mongo_collection || '',
+            mongo_auth_db: network.mongo_auth_db || 'admin',
+            // Redis fields
+            redis_host: network.redis_host || '',
+            redis_port: network.redis_port || '6379',
+            redis_password: network.redis_password || '',
+            redis_db: network.redis_db || 0,
+            redis_pattern: network.redis_pattern || '*',
         });
         setEditingId(network.id);
         setShowForm(true);
@@ -148,7 +176,9 @@ function Network() {
             db_driver: 'postgres', db_host: '', db_port: '5432',
             db_user: '', db_password: '', db_name: '', db_sslmode: 'disable',
             ftp_host: '', ftp_port: '21', ftp_user: '', ftp_password: '', ftp_private_key: '', ftp_path: '', ftp_passive: true,
-            api_url: '', api_method: 'GET', api_headers: '', api_auth_type: 'none', api_auth_key: '', api_auth_value: '', api_body: ''
+            api_url: '', api_method: 'GET', api_headers: '', api_auth_type: 'none', api_auth_key: '', api_auth_value: '', api_body: '',
+            mongo_host: '', mongo_port: '27017', mongo_user: '', mongo_password: '', mongo_database: '', mongo_collection: '', mongo_auth_db: 'admin',
+            redis_host: '', redis_port: '6379', redis_password: '', redis_db: 0, redis_pattern: '*'
         });
         setEditingId(null);
         setShowForm(false);
@@ -311,9 +341,11 @@ function Network() {
                         {/* Source Type Selection */}
                         <div className="space-y-3">
                             <label className={`block text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Connection Protocol</label>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
                                 {[
                                     { id: 'database', label: 'Database', icon: Database },
+                                    { id: 'mongodb', label: 'MongoDB', icon: Database },
+                                    { id: 'redis', label: 'Redis', icon: Database },
                                     { id: 'ftp', label: 'FTP', icon: Server },
                                     { id: 'sftp', label: 'SFTP (SSH)', icon: Shield },
                                     { id: 'api', label: 'REST API', icon: Globe }
@@ -353,6 +385,8 @@ function Network() {
                                         >
                                             <option value="postgres">PostgreSQL</option>
                                             <option value="mysql">MySQL</option>
+                                            <option value="sqlserver">SQL Server (MSSQL)</option>
+                                            <option value="oracle">Oracle</option>
                                         </select>
                                     </div>
                                     <div>
@@ -631,6 +665,159 @@ function Network() {
                                             />
                                         </div>
                                     )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* MongoDB Configuration */}
+                        {formData.source_type === 'mongodb' && (
+                            <div className={`border-t pt-6 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+                                <h3 className={`text-md font-semibold mb-4 flex items-center gap-2 ${isDark ? 'text-green-400' : 'text-green-700'}`}>
+                                    <div className="p-1.5 rounded-lg bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400">
+                                        <Database className="w-4 h-4" />
+                                    </div>
+                                    MongoDB Configuration
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Host</label>
+                                        <input
+                                            type="text"
+                                            value={formData.mongo_host}
+                                            onChange={(e) => setFormData({ ...formData, mongo_host: e.target.value })}
+                                            className={`w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                            placeholder="localhost"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Port</label>
+                                        <input
+                                            type="text"
+                                            value={formData.mongo_port}
+                                            onChange={(e) => setFormData({ ...formData, mongo_port: e.target.value })}
+                                            className={`w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                            placeholder="27017"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Username</label>
+                                        <input
+                                            type="text"
+                                            value={formData.mongo_user}
+                                            onChange={(e) => setFormData({ ...formData, mongo_user: e.target.value })}
+                                            className={`w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                            placeholder="admin"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Password</label>
+                                        <input
+                                            type="password"
+                                            value={formData.mongo_password}
+                                            onChange={(e) => setFormData({ ...formData, mongo_password: e.target.value })}
+                                            className={`w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                            placeholder="••••••••"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Database</label>
+                                        <input
+                                            type="text"
+                                            value={formData.mongo_database}
+                                            onChange={(e) => setFormData({ ...formData, mongo_database: e.target.value })}
+                                            className={`w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                            placeholder="mydb"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Collection</label>
+                                        <input
+                                            type="text"
+                                            value={formData.mongo_collection}
+                                            onChange={(e) => setFormData({ ...formData, mongo_collection: e.target.value })}
+                                            className={`w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                            placeholder="users"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Auth Database</label>
+                                        <input
+                                            type="text"
+                                            value={formData.mongo_auth_db}
+                                            onChange={(e) => setFormData({ ...formData, mongo_auth_db: e.target.value })}
+                                            className={`w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                            placeholder="admin"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Redis Configuration */}
+                        {formData.source_type === 'redis' && (
+                            <div className={`border-t pt-6 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+                                <h3 className={`text-md font-semibold mb-4 flex items-center gap-2 ${isDark ? 'text-red-400' : 'text-red-700'}`}>
+                                    <div className="p-1.5 rounded-lg bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400">
+                                        <Database className="w-4 h-4" />
+                                    </div>
+                                    Redis Configuration
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Host</label>
+                                        <input
+                                            type="text"
+                                            value={formData.redis_host}
+                                            onChange={(e) => setFormData({ ...formData, redis_host: e.target.value })}
+                                            className={`w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                            placeholder="localhost"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Port</label>
+                                        <input
+                                            type="text"
+                                            value={formData.redis_port}
+                                            onChange={(e) => setFormData({ ...formData, redis_port: e.target.value })}
+                                            className={`w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                            placeholder="6379"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Password</label>
+                                        <input
+                                            type="password"
+                                            value={formData.redis_password}
+                                            onChange={(e) => setFormData({ ...formData, redis_password: e.target.value })}
+                                            className={`w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                            placeholder="Optional"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Database Number (0-15)</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max="15"
+                                            value={formData.redis_db}
+                                            onChange={(e) => setFormData({ ...formData, redis_db: parseInt(e.target.value) || 0 })}
+                                            className={`w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                            placeholder="0"
+                                        />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Key Pattern</label>
+                                        <input
+                                            type="text"
+                                            value={formData.redis_pattern}
+                                            onChange={(e) => setFormData({ ...formData, redis_pattern: e.target.value })}
+                                            className={`w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                            placeholder="user:* (or * for all keys)"
+                                        />
+                                        <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                            Pattern to scan keys (e.g., "user:*", "session:*", or "*" for all)
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         )}

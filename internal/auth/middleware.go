@@ -1,6 +1,9 @@
 package auth
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"log"
 	"net/http"
 	"os"
@@ -119,4 +122,22 @@ func RequireRole(role string) gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+// ======== Agent Token Utilities ========
+
+// GenerateSecureToken generates a cryptographically secure random token
+func GenerateSecureToken(length int) string {
+	bytes := make([]byte, length)
+	if _, err := rand.Read(bytes); err != nil {
+		// Fallback to less secure but functional
+		return hex.EncodeToString([]byte(time.Now().String()))[:length*2]
+	}
+	return hex.EncodeToString(bytes)
+}
+
+// HashToken creates a SHA256 hash of the token for storage
+func HashToken(token string) string {
+	hash := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(hash[:])
 }

@@ -8,6 +8,7 @@ import Jobs from './pages/Jobs';
 import Users from './pages/Users';
 import Settings from './pages/Settings';
 import AuditLogs from './pages/AuditLogs';
+import TokenManagement from './pages/TokenManagement';
 import MainLayout from './components/Layout/MainLayout';
 import useSessionTimeout from './hooks/useSessionTimeout';
 
@@ -68,6 +69,7 @@ function App() {
                         <Route path="/jobs" element={<Jobs />} />
                         <Route path="/users" element={<Users />} />
                         <Route path="/audit-logs" element={<AuditLogs />} />
+                        <Route path="/tokens" element={<TokenManagement />} />
                         <Route path="/settings" element={<Settings />} />
                     </Route>
                 </Routes>

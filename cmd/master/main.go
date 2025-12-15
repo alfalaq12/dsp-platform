@@ -149,6 +149,7 @@ func initDatabase() (*gorm.DB, error) {
 		&core.JobLog{},
 		&core.AuditLog{},
 		&core.Settings{},
+		&core.AgentToken{},
 	); err != nil {
 		logger.Logger.Error().Err(err).Msg("Database migration failed")
 		return nil, err
@@ -260,6 +261,12 @@ func setupRouter(handler *server.Handler) *gin.Engine {
 		api.POST("/users", auth.RequireRole("admin"), handler.CreateUser)
 		api.PUT("/users/:id", auth.RequireRole("admin"), handler.UpdateUser)
 		api.DELETE("/users/:id", auth.RequireRole("admin"), handler.DeleteUser)
+
+		// Agent Token Management
+		api.GET("/agent-tokens", auth.RequireRole("admin"), handler.GetAgentTokens)
+		api.POST("/agent-tokens", auth.RequireRole("admin"), handler.CreateAgentToken)
+		api.PATCH("/agent-tokens/:id/revoke", auth.RequireRole("admin"), handler.RevokeAgentToken)
+		api.DELETE("/agent-tokens/:id", auth.RequireRole("admin"), handler.DeleteAgentToken)
 	}
 
 	// Health check

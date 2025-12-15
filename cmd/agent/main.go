@@ -26,6 +26,7 @@ var (
 	MasterHost   string
 	MasterPort   string
 	AgentName    string
+	AgentToken   string // Authentication token for registering with master
 	SyncEnabled  bool
 	SyncInterval time.Duration
 	SyncQuery    string
@@ -63,6 +64,7 @@ func init() {
 	MasterHost = getEnv("MASTER_HOST", "localhost")
 	MasterPort = getEnv("MASTER_PORT", "447")
 	AgentName = getEnv("AGENT_NAME", "tenant-1")
+	AgentToken = getEnv("AGENT_TOKEN", "") // Auth token from Master dashboard
 
 	// Sync configuration
 	SyncEnabled = getEnv("SYNC_ENABLED", "false") == "true"
@@ -346,6 +348,7 @@ func registerAgent(conn net.Conn) error {
 		Data: map[string]interface{}{
 			"version":      "1.0.0",
 			"sync_enabled": SyncEnabled,
+			"token":        AgentToken, // Auth token for validation
 		},
 	}
 
@@ -479,6 +482,10 @@ func executeRunJobCommand(conn net.Conn, msg AgentMessage) {
 		executeFileSyncJob(conn, msg, jobID, logID, jobName, sourceType)
 	case "api":
 		executeAPISyncJob(conn, msg, jobID, logID, jobName)
+	case "mongodb":
+		executeMongoDBSyncJob(conn, msg, jobID, logID, jobName)
+	case "redis":
+		executeRedisSyncJob(conn, msg, jobID, logID, jobName)
 	default:
 		executeDatabaseSyncJob(conn, msg, jobID, logID, jobName)
 	}
@@ -574,6 +581,222 @@ func executeDatabaseSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, 
 
 	// Send final completion response
 	sendDataResponse(conn, jobID, logID, nil, 0, "", false)
+}
+
+// executeMongoDBSyncJob handles MongoDB-based sync jobs
+func executeMongoDBSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, jobName string) {
+	logger.Logger.Info().
+		Uint("job_id", jobID).
+		Str("job", jobName).
+		Msg("Starting MongoDB sync job")
+
+	// Extract MongoDB config from message
+	mongoConfig := database.MongoConfig{}
+	if cfg, ok := msg.Data["mongo_config"].(map[string]interface{}); ok {
+		if host, ok := cfg["host"].(string); ok {
+			mongoConfig.Host = host
+		}
+		if port, ok := cfg["port"].(string); ok {
+			mongoConfig.Port = port
+		}
+		if user, ok := cfg["user"].(string); ok {
+			mongoConfig.User = user
+		}
+		if password, ok := cfg["password"].(string); ok {
+			mongoConfig.Password = password
+		}
+		if dbName, ok := cfg["database"].(string); ok {
+			mongoConfig.Database = dbName
+		}
+		if collection, ok := cfg["collection"].(string); ok {
+			mongoConfig.Collection = collection
+		}
+		if authDB, ok := cfg["auth_db"].(string); ok {
+			mongoConfig.AuthDB = authDB
+		}
+	}
+
+	// Get query filter (JSON format) from schema
+	queryFilter := "{}"
+	if q, ok := msg.Data["query"].(string); ok && q != "" {
+		queryFilter = q
+	}
+
+	// Default port if not specified
+	if mongoConfig.Port == "" {
+		mongoConfig.Port = "27017"
+	}
+	if mongoConfig.AuthDB == "" {
+		mongoConfig.AuthDB = "admin"
+	}
+
+	logger.Logger.Debug().
+		Str("host", mongoConfig.Host).
+		Str("port", mongoConfig.Port).
+		Str("database", mongoConfig.Database).
+		Str("collection", mongoConfig.Collection).
+		Str("filter", queryFilter).
+		Msg("MongoDB config received")
+
+	// Validate config
+	if mongoConfig.Host == "" || mongoConfig.Database == "" || mongoConfig.Collection == "" {
+		errMsg := "MongoDB config missing required fields (host, database, or collection)"
+		logger.Logger.Error().Msg(errMsg)
+		sendDataResponse(conn, jobID, logID, nil, 0, errMsg, false)
+		return
+	}
+
+	// Connect to MongoDB
+	mongoConn, err := database.MongoConnect(mongoConfig)
+	if err != nil {
+		logger.Logger.Error().Err(err).Msg("Failed to connect to MongoDB")
+		sendDataResponse(conn, jobID, logID, nil, 0, err.Error(), false)
+		return
+	}
+	defer mongoConn.Close()
+
+	// Parse the query filter as JSON
+	var filter map[string]interface{}
+	if err := json.Unmarshal([]byte(queryFilter), &filter); err != nil {
+		// If parsing fails, use empty filter (get all documents)
+		filter = make(map[string]interface{})
+	}
+
+	// Convert to bson.M
+	bsonFilter := make(map[string]interface{})
+	for k, v := range filter {
+		bsonFilter[k] = v
+	}
+
+	// Execute MongoDB find query
+	logger.Logger.Info().Str("job", jobName).Msg("Executing MongoDB find query")
+	records, err := mongoConn.ExecuteFind(mongoConfig.Collection, bsonFilter)
+	if err != nil {
+		logger.Logger.Error().Err(err).Msg("Failed to execute MongoDB find")
+		sendDataResponse(conn, jobID, logID, nil, 0, err.Error(), false)
+		return
+	}
+
+	logger.Logger.Info().
+		Str("job", jobName).
+		Int("total_records", len(records)).
+		Msg("MongoDB query completed")
+
+	// Send records in batches
+	batchSize := 5000
+	for i := 0; i < len(records); i += batchSize {
+		end := i + batchSize
+		if end > len(records) {
+			end = len(records)
+		}
+		batch := records[i:end]
+		isPartial := end < len(records)
+
+		sendDataResponse(conn, jobID, logID, batch, len(batch), "", isPartial)
+	}
+
+	// Send final completion if we sent data or if no records
+	if len(records) == 0 || len(records)%batchSize == 0 {
+		sendDataResponse(conn, jobID, logID, nil, 0, "", false)
+	}
+}
+
+// executeRedisSyncJob handles Redis-based sync jobs
+func executeRedisSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, jobName string) {
+	logger.Logger.Info().
+		Uint("job_id", jobID).
+		Str("job", jobName).
+		Msg("Starting Redis sync job")
+
+	// Extract Redis config from message
+	redisConfig := database.RedisConfig{}
+	if cfg, ok := msg.Data["redis_config"].(map[string]interface{}); ok {
+		if host, ok := cfg["host"].(string); ok {
+			redisConfig.Host = host
+		}
+		if port, ok := cfg["port"].(string); ok {
+			redisConfig.Port = port
+		}
+		if password, ok := cfg["password"].(string); ok {
+			redisConfig.Password = password
+		}
+		if db, ok := cfg["db"].(float64); ok {
+			redisConfig.DB = int(db)
+		}
+		if pattern, ok := cfg["pattern"].(string); ok {
+			redisConfig.Pattern = pattern
+		}
+	}
+
+	// Default port if not specified
+	if redisConfig.Port == "" {
+		redisConfig.Port = "6379"
+	}
+
+	// Use query as pattern if redis pattern is empty
+	if redisConfig.Pattern == "" {
+		if q, ok := msg.Data["query"].(string); ok && q != "" {
+			redisConfig.Pattern = q
+		} else {
+			redisConfig.Pattern = "*" // Default: get all keys
+		}
+	}
+
+	logger.Logger.Debug().
+		Str("host", redisConfig.Host).
+		Str("port", redisConfig.Port).
+		Int("db", redisConfig.DB).
+		Str("pattern", redisConfig.Pattern).
+		Msg("Redis config received")
+
+	// Validate config
+	if redisConfig.Host == "" {
+		errMsg := "Redis config missing required field: host"
+		logger.Logger.Error().Msg(errMsg)
+		sendDataResponse(conn, jobID, logID, nil, 0, errMsg, false)
+		return
+	}
+
+	// Connect to Redis
+	redisConn, err := database.RedisConnect(redisConfig)
+	if err != nil {
+		logger.Logger.Error().Err(err).Msg("Failed to connect to Redis")
+		sendDataResponse(conn, jobID, logID, nil, 0, err.Error(), false)
+		return
+	}
+	defer redisConn.Close()
+
+	// Scan keys matching pattern
+	logger.Logger.Info().Str("job", jobName).Str("pattern", redisConfig.Pattern).Msg("Scanning Redis keys")
+	records, err := redisConn.ScanKeys(redisConfig.Pattern)
+	if err != nil {
+		logger.Logger.Error().Err(err).Msg("Failed to scan Redis keys")
+		sendDataResponse(conn, jobID, logID, nil, 0, err.Error(), false)
+		return
+	}
+
+	logger.Logger.Info().
+		Str("job", jobName).
+		Int("total_records", len(records)).
+		Msg("Redis scan completed")
+
+	// Send records in batches
+	batchSize := 5000
+	for i := 0; i < len(records); i += batchSize {
+		end := i + batchSize
+		if end > len(records) {
+			end = len(records)
+		}
+		batch := records[i:end]
+		isPartial := end < len(records)
+
+		sendDataResponse(conn, jobID, logID, batch, len(batch), "", isPartial)
+	}
+
+	// Send final completion if needed
+	if len(records) == 0 || len(records)%batchSize == 0 {
+		sendDataResponse(conn, jobID, logID, nil, 0, "", false)
+	}
 }
 
 // executeAPISyncJob handles REST API based sync jobs

@@ -458,6 +458,24 @@ func (h *Handler) RunJob(c *gin.Context) {
 				"auth_value": job.Network.APIAuthValue,
 				"body":       job.Network.APIBody,
 			},
+			// MongoDB config (for source_type=mongodb)
+			"mongo_config": map[string]interface{}{
+				"host":       job.Network.MongoHost,
+				"port":       job.Network.MongoPort,
+				"user":       job.Network.MongoUser,
+				"password":   job.Network.MongoPassword,
+				"database":   job.Network.MongoDatabase,
+				"collection": job.Network.MongoCollection,
+				"auth_db":    job.Network.MongoAuthDB,
+			},
+			// Redis config (for source_type=redis)
+			"redis_config": map[string]interface{}{
+				"host":     job.Network.RedisHost,
+				"port":     job.Network.RedisPort,
+				"password": job.Network.RedisPassword,
+				"db":       job.Network.RedisDB,
+				"pattern":  job.Network.RedisPattern,
+			},
 		},
 	}
 
@@ -1113,4 +1131,170 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 	}()
 
 	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
+}
+
+// ======== Agent Token Management ========
+
+// GetAgentTokens returns all agent tokens
+func (h *Handler) GetAgentTokens(c *gin.Context) {
+	var tokens []core.AgentToken
+	h.db.Order("created_at DESC").Find(&tokens)
+
+	// Hide full token in response
+	for i := range tokens {
+		tokens[i].Token = "" // Don't expose full token
+	}
+
+	c.JSON(http.StatusOK, tokens)
+}
+
+// CreateAgentToken creates a new token for an agent
+func (h *Handler) CreateAgentToken(c *gin.Context) {
+	var input struct {
+		AgentName   string `json:"agent_name" binding:"required"`
+		Description string `json:"description"`
+		ExpiresIn   int    `json:"expires_in"` // Days until expiry, 0 = never
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Check if token already exists for this agent
+	var existing core.AgentToken
+	if err := h.db.Where("agent_name = ?", input.AgentName).First(&existing).Error; err == nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "Token already exists for this agent. Revoke or delete it first."})
+		return
+	}
+
+	// Generate secure random token
+	rawToken := auth.GenerateSecureToken(32) // 32 bytes = 64 hex chars
+	hashedToken := auth.HashToken(rawToken)
+
+	token := core.AgentToken{
+		AgentName:   input.AgentName,
+		Token:       hashedToken,
+		TokenPrefix: rawToken[:8], // First 8 chars for display
+		Description: input.Description,
+		CreatedAt:   time.Now(),
+		CreatedBy:   c.GetString("username"),
+	}
+
+	// Set expiry if specified
+	if input.ExpiresIn > 0 {
+		expiresAt := time.Now().AddDate(0, 0, input.ExpiresIn)
+		token.ExpiresAt = &expiresAt
+	}
+
+	if err := h.db.Create(&token).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create token"})
+		return
+	}
+
+	// Log audit
+	go func() {
+		h.db.Create(&core.AuditLog{
+			Username:  c.GetString("username"),
+			UserID:    c.GetUint("user_id"),
+			Action:    "CREATE",
+			Entity:    "AGENT_TOKEN",
+			EntityID:  fmt.Sprint(token.ID),
+			Details:   fmt.Sprintf("Created token for agent '%s'", input.AgentName),
+			IPAddress: c.ClientIP(),
+			UserAgent: c.Request.UserAgent(),
+			CreatedAt: time.Now(),
+		})
+	}()
+
+	// Return raw token ONLY on creation (this is the only time it's visible)
+	c.JSON(http.StatusCreated, gin.H{
+		"message":     "Token created successfully",
+		"token":       rawToken, // Raw token - show only once!
+		"agent_name":  input.AgentName,
+		"expires_at":  token.ExpiresAt,
+		"description": input.Description,
+	})
+}
+
+// RevokeAgentToken revokes a token (soft delete)
+func (h *Handler) RevokeAgentToken(c *gin.Context) {
+	id := c.Param("id")
+
+	var token core.AgentToken
+	if err := h.db.First(&token, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Token not found"})
+		return
+	}
+
+	token.Revoked = true
+	h.db.Save(&token)
+
+	// Log audit
+	go func() {
+		h.db.Create(&core.AuditLog{
+			Username:  c.GetString("username"),
+			UserID:    c.GetUint("user_id"),
+			Action:    "REVOKE",
+			Entity:    "AGENT_TOKEN",
+			EntityID:  id,
+			Details:   fmt.Sprintf("Revoked token for agent '%s'", token.AgentName),
+			IPAddress: c.ClientIP(),
+			UserAgent: c.Request.UserAgent(),
+			CreatedAt: time.Now(),
+		})
+	}()
+
+	c.JSON(http.StatusOK, gin.H{"message": "Token revoked successfully"})
+}
+
+// DeleteAgentToken permanently deletes a token
+func (h *Handler) DeleteAgentToken(c *gin.Context) {
+	id := c.Param("id")
+
+	var token core.AgentToken
+	if err := h.db.First(&token, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Token not found"})
+		return
+	}
+
+	h.db.Delete(&token)
+
+	// Log audit
+	go func() {
+		h.db.Create(&core.AuditLog{
+			Username:  c.GetString("username"),
+			UserID:    c.GetUint("user_id"),
+			Action:    "DELETE",
+			Entity:    "AGENT_TOKEN",
+			EntityID:  id,
+			Details:   fmt.Sprintf("Deleted token for agent '%s'", token.AgentName),
+			IPAddress: c.ClientIP(),
+			UserAgent: c.Request.UserAgent(),
+			CreatedAt: time.Now(),
+		})
+	}()
+
+	c.JSON(http.StatusOK, gin.H{"message": "Token deleted successfully"})
+}
+
+// ValidateAgentToken validates a token (used internally by agent listener)
+func (h *Handler) ValidateAgentToken(agentName, rawToken string) bool {
+	var token core.AgentToken
+	hashedToken := auth.HashToken(rawToken)
+
+	if err := h.db.Where("agent_name = ? AND token = ?", agentName, hashedToken).First(&token).Error; err != nil {
+		return false
+	}
+
+	if !token.IsValid() {
+		return false
+	}
+
+	// Update last used timestamp
+	now := time.Now()
+	token.LastUsedAt = &now
+	h.db.Save(&token)
+
+	return true
 }
