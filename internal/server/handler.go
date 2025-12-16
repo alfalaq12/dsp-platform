@@ -1523,27 +1523,27 @@ func (h *Handler) DiscoverTables(c *gin.Context) {
 		return
 	}
 
-	// Only allow database source types
-	if network.SourceType != "database" && network.SourceType != "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Table discovery only available for database connections"})
+	// Check if this network has database configuration
+	if network.DBHost == "" || network.DBDriver == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "This network does not have database configuration. Please configure DB Host and Driver."})
 		return
 	}
 
-	// Build connection string based on database type
+	// Build connection string based on database driver
 	var tables []map[string]interface{}
 	var dbErr error
 
-	switch network.Type {
-	case "postgresql":
+	switch network.DBDriver {
+	case "postgres", "postgresql":
 		tables, dbErr = h.discoverPostgresTables(&network)
 	case "mysql":
 		tables, dbErr = h.discoverMySQLTables(&network)
-	case "sqlserver":
+	case "sqlserver", "mssql":
 		tables, dbErr = h.discoverSQLServerTables(&network)
 	case "oracle":
 		tables, dbErr = h.discoverOracleTables(&network)
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Table discovery not supported for %s", network.Type)})
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Table discovery not supported for driver: %s", network.DBDriver)})
 		return
 	}
 
@@ -1664,14 +1664,14 @@ func (h *Handler) discoverMySQLTables(network *core.Network) ([]map[string]inter
 	return tables, nil
 }
 
-func (h *Handler) discoverSQLServerTables(network *core.Network) ([]map[string]interface{}, error) {
+func (h *Handler) discoverSQLServerTables(_ *core.Network) ([]map[string]interface{}, error) {
 	// SQL Server requires mssql driver - return placeholder for now
-	return nil, fmt.Errorf("SQL Server discovery requires mssql driver - coming soon")
+	return nil, fmt.Errorf("sql server discovery requires mssql driver - coming soon")
 }
 
-func (h *Handler) discoverOracleTables(network *core.Network) ([]map[string]interface{}, error) {
+func (h *Handler) discoverOracleTables(_ *core.Network) ([]map[string]interface{}, error) {
 	// Oracle requires Oracle client - return placeholder for now
-	return nil, fmt.Errorf("Oracle discovery requires Oracle client - coming soon")
+	return nil, fmt.Errorf("oracle discovery requires Oracle client - coming soon")
 }
 
 // BulkCreateSchemas creates multiple schemas at once from selected tables
