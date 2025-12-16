@@ -84,4 +84,8 @@ export const getLicenseMachineId = () => api.get('/license/machine-id');
 export const getLicenseStatus = () => api.get('/license/status');
 export const activateLicense = (activationCode) => api.post('/license/activate', { activation_code: activationCode });
 
+// Schema Discovery
+export const discoverTables = (networkId) => api.get(`/networks/${networkId}/tables`);
+export const bulkCreateSchemas = (data) => api.post('/schemas/bulk', data);
+
 export default api;

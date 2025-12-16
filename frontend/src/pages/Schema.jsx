@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Plus, Edit, Trash2, Database, Eye, Code, FileSpreadsheet } from 'lucide-react';
-import { getSchemas, createSchema, updateSchema, deleteSchema } from '../services/api';
+import { Plus, Edit, Trash2, Database, Eye, Code, FileSpreadsheet, Download, Search, CheckSquare, Square, Loader2 } from 'lucide-react';
+import { getSchemas, createSchema, updateSchema, deleteSchema, getNetworks, discoverTables, bulkCreateSchemas } from '../services/api';
 import { useToast, ToastContainer, ConfirmModal, ViewModal } from '../components/Toast';
 import Pagination from '../components/Pagination';
 import { useTheme } from '../contexts/ThemeContext';
@@ -37,8 +37,20 @@ function Schema() {
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(5);
 
+    // Import Tables Modal states
+    const [showImportModal, setShowImportModal] = useState(false);
+    const [networks, setNetworks] = useState([]);
+    const [selectedNetwork, setSelectedNetwork] = useState(null);
+    const [discoveredTables, setDiscoveredTables] = useState([]);
+    const [selectedTables, setSelectedTables] = useState([]);
+    const [isDiscovering, setIsDiscovering] = useState(false);
+    const [isImporting, setIsImporting] = useState(false);
+    const [importPrefix, setImportPrefix] = useState('');
+    const [tableSearchQuery, setTableSearchQuery] = useState('');
+
     useEffect(() => {
         loadSchemas();
+        loadNetworks();
     }, []);
 
     const loadSchemas = async () => {
@@ -47,6 +59,76 @@ function Schema() {
             setSchemas(response.data);
         } catch (error) {
             console.error('Failed to load schemas:', error);
+        }
+    };
+
+    const loadNetworks = async () => {
+        try {
+            const response = await getNetworks();
+            // Filter only database type networks
+            const dbNetworks = response.data.filter(n => n.source_type === 'database' || n.db_host);
+            setNetworks(dbNetworks);
+        } catch (error) {
+            console.error('Failed to load networks:', error);
+        }
+    };
+
+    const handleDiscoverTables = async () => {
+        if (!selectedNetwork) return;
+        setIsDiscovering(true);
+        setDiscoveredTables([]);
+        setSelectedTables([]);
+        try {
+            const response = await discoverTables(selectedNetwork);
+            setDiscoveredTables(response.data.tables || []);
+            addToast('success', `Found ${response.data.total} tables`);
+        } catch (error) {
+            addToast('error', getErrorMessage(error));
+        } finally {
+            setIsDiscovering(false);
+        }
+    };
+
+    const handleBulkImport = async () => {
+        if (selectedTables.length === 0) {
+            addToast('warning', 'Please select at least one table');
+            return;
+        }
+        setIsImporting(true);
+        try {
+            const response = await bulkCreateSchemas({
+                network_id: parseInt(selectedNetwork),
+                tables: selectedTables,
+                prefix: importPrefix || ''
+            });
+            addToast('success', response.data.message);
+            setShowImportModal(false);
+            setSelectedTables([]);
+            setDiscoveredTables([]);
+            loadSchemas();
+        } catch (error) {
+            addToast('error', getErrorMessage(error));
+        } finally {
+            setIsImporting(false);
+        }
+    };
+
+    const toggleTableSelection = (tableName) => {
+        setSelectedTables(prev =>
+            prev.includes(tableName)
+                ? prev.filter(t => t !== tableName)
+                : [...prev, tableName]
+        );
+    };
+
+    const toggleSelectAll = () => {
+        const filteredTables = discoveredTables.filter(t =>
+            t.table_name.toLowerCase().includes(tableSearchQuery.toLowerCase())
+        );
+        if (selectedTables.length === filteredTables.length) {
+            setSelectedTables([]);
+        } else {
+            setSelectedTables(filteredTables.map(t => t.table_name));
         }
     };
 
@@ -134,13 +216,25 @@ function Schema() {
                         <p className={isDark ? 'text-slate-400' : 'text-slate-600'}>Define and manage SQL queries for data synchronization</p>
                     </div>
                     {userRole === 'admin' && (
-                        <button
-                            onClick={() => setShowForm(!showForm)}
-                            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white rounded-xl transition-all duration-200 shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 hover:-translate-y-0.5"
-                        >
-                            <Plus className="w-5 h-5" />
-                            <span className="font-medium">New Schema</span>
-                        </button>
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={() => setShowImportModal(true)}
+                                className={`flex items-center gap-2 px-5 py-3 rounded-xl transition-all duration-200 hover:-translate-y-0.5 ${isDark
+                                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/25'
+                                    : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/30'
+                                    }`}
+                            >
+                                <Download className="w-5 h-5" />
+                                <span className="font-medium">Import Tables</span>
+                            </button>
+                            <button
+                                onClick={() => setShowForm(!showForm)}
+                                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white rounded-xl transition-all duration-200 shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 hover:-translate-y-0.5"
+                            >
+                                <Plus className="w-5 h-5" />
+                                <span className="font-medium">New Schema</span>
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>
@@ -513,6 +607,203 @@ function Schema() {
                     </div>
                 )}
             </ViewModal>
+
+            {/* Import Tables Modal */}
+            {showImportModal && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className={`w-full max-w-3xl rounded-2xl shadow-2xl max-h-[90vh] flex flex-col ${isDark ? 'bg-panda-dark-100' : 'bg-white'}`}>
+                        {/* Header */}
+                        <div className={`px-6 py-4 border-b ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+                            <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                Import Tables from Database
+                            </h2>
+                            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                                Select a network and discover tables to import as schemas
+                            </p>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-6 flex-1 overflow-y-auto">
+                            {/* Network Selection */}
+                            <div className="mb-6">
+                                <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                    Select Source Network
+                                </label>
+                                <div className="flex gap-3">
+                                    <select
+                                        value={selectedNetwork || ''}
+                                        onChange={(e) => setSelectedNetwork(e.target.value)}
+                                        className={`flex-1 px-4 py-2.5 rounded-xl border ${isDark
+                                            ? 'bg-slate-800 border-slate-600 text-white'
+                                            : 'bg-white border-slate-300 text-slate-900'
+                                            }`}
+                                    >
+                                        <option value="">Choose a database connection...</option>
+                                        {networks.map((network) => (
+                                            <option key={network.id} value={network.id}>
+                                                {network.name} ({network.db_driver || 'database'})
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <button
+                                        onClick={handleDiscoverTables}
+                                        disabled={!selectedNetwork || isDiscovering}
+                                        className={`px-5 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-all ${!selectedNetwork || isDiscovering
+                                            ? 'bg-slate-600 text-slate-400 cursor-not-allowed'
+                                            : 'bg-blue-600 hover:bg-blue-500 text-white'
+                                            }`}
+                                    >
+                                        {isDiscovering ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                Scanning...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Search className="w-4 h-4" />
+                                                Scan Tables
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Prefix Option */}
+                            {discoveredTables.length > 0 && (
+                                <div className="mb-4">
+                                    <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                        Schema Name Prefix (optional)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={importPrefix}
+                                        onChange={(e) => setImportPrefix(e.target.value)}
+                                        placeholder="e.g., sync_"
+                                        className={`w-full px-4 py-2.5 rounded-xl border ${isDark
+                                            ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-500'
+                                            : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
+                                            }`}
+                                    />
+                                </div>
+                            )}
+
+                            {/* Tables List */}
+                            {discoveredTables.length > 0 && (
+                                <div>
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center gap-3">
+                                            <span className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                                Tables ({discoveredTables.length})
+                                            </span>
+                                            <button
+                                                onClick={toggleSelectAll}
+                                                className={`text-xs px-2 py-1 rounded ${isDark
+                                                    ? 'bg-slate-700 text-blue-400 hover:bg-slate-600'
+                                                    : 'bg-slate-100 text-blue-600 hover:bg-slate-200'
+                                                    }`}
+                                            >
+                                                {selectedTables.length === discoveredTables.length ? 'Deselect All' : 'Select All'}
+                                            </button>
+                                        </div>
+                                        <input
+                                            type="text"
+                                            value={tableSearchQuery}
+                                            onChange={(e) => setTableSearchQuery(e.target.value)}
+                                            placeholder="Search tables..."
+                                            className={`px-3 py-1.5 text-sm rounded-lg border ${isDark
+                                                ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-500'
+                                                : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
+                                                }`}
+                                        />
+                                    </div>
+                                    <div className={`max-h-64 overflow-y-auto rounded-xl border ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+                                        {discoveredTables
+                                            .filter(t => t.table_name.toLowerCase().includes(tableSearchQuery.toLowerCase()))
+                                            .map((table) => (
+                                                <button
+                                                    key={table.table_name}
+                                                    onClick={() => toggleTableSelection(table.table_name)}
+                                                    className={`w-full flex items-center gap-3 px-4 py-3 text-left border-b transition-colors ${isDark
+                                                        ? 'border-slate-700 hover:bg-slate-800'
+                                                        : 'border-slate-100 hover:bg-slate-50'
+                                                        } ${selectedTables.includes(table.table_name)
+                                                            ? isDark ? 'bg-blue-500/10' : 'bg-blue-50'
+                                                            : ''
+                                                        }`}
+                                                >
+                                                    {selectedTables.includes(table.table_name) ? (
+                                                        <CheckSquare className="w-5 h-5 text-blue-500" />
+                                                    ) : (
+                                                        <Square className={`w-5 h-5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                                                    )}
+                                                    <div className="flex-1 min-w-0">
+                                                        <span className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                                            {table.table_name}
+                                                        </span>
+                                                    </div>
+                                                    <span className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-slate-700 text-slate-400' : 'bg-slate-100 text-slate-600'}`}>
+                                                        {Number(table.row_count).toLocaleString()} rows
+                                                    </span>
+                                                </button>
+                                            ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Empty State */}
+                            {selectedNetwork && !isDiscovering && discoveredTables.length === 0 && (
+                                <div className={`text-center py-12 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                    <Database className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                                    <p>Click "Scan Tables" to discover tables from the selected database</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className={`px-6 py-4 border-t flex items-center justify-between ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+                            <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                                {selectedTables.length > 0 ? `${selectedTables.length} tables selected` : 'No tables selected'}
+                            </span>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => {
+                                        setShowImportModal(false);
+                                        setDiscoveredTables([]);
+                                        setSelectedTables([]);
+                                        setSelectedNetwork(null);
+                                    }}
+                                    className={`px-5 py-2.5 rounded-xl font-medium ${isDark
+                                        ? 'bg-slate-700 hover:bg-slate-600 text-white'
+                                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                        }`}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleBulkImport}
+                                    disabled={selectedTables.length === 0 || isImporting}
+                                    className={`px-5 py-2.5 rounded-xl font-medium flex items-center gap-2 ${selectedTables.length === 0 || isImporting
+                                        ? 'bg-slate-600 text-slate-400 cursor-not-allowed'
+                                        : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                                        }`}
+                                >
+                                    {isImporting ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            Importing...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Download className="w-4 h-4" />
+                                            Import {selectedTables.length} Tables
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Delete Confirmation Modal */}
             <ConfirmModal

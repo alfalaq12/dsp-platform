@@ -1,6 +1,7 @@
 package server
 
 import (
+	"database/sql"
 	"dsp-platform/internal/auth"
 	"dsp-platform/internal/core"
 	"dsp-platform/internal/database"
@@ -13,6 +14,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -1503,5 +1506,243 @@ func (h *Handler) ActivateLicense(c *gin.Context) {
 		"message":        "License activated successfully!",
 		"expires_at":     expiryDate,
 		"days_remaining": license.DaysUntilExpiry(expiryDate),
+	})
+}
+
+// DiscoverTables lists all tables from a source database connection
+func (h *Handler) DiscoverTables(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid network ID"})
+		return
+	}
+
+	var network core.Network
+	if err := h.db.First(&network, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Network not found"})
+		return
+	}
+
+	// Only allow database source types
+	if network.SourceType != "database" && network.SourceType != "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Table discovery only available for database connections"})
+		return
+	}
+
+	// Build connection string based on database type
+	var tables []map[string]interface{}
+	var dbErr error
+
+	switch network.Type {
+	case "postgresql":
+		tables, dbErr = h.discoverPostgresTables(&network)
+	case "mysql":
+		tables, dbErr = h.discoverMySQLTables(&network)
+	case "sqlserver":
+		tables, dbErr = h.discoverSQLServerTables(&network)
+	case "oracle":
+		tables, dbErr = h.discoverOracleTables(&network)
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Table discovery not supported for %s", network.Type)})
+		return
+	}
+
+	if dbErr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to discover tables: %v", dbErr)})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"tables":       tables,
+		"total":        len(tables),
+		"network_id":   network.ID,
+		"network_name": network.Name,
+		"db_type":      network.Type,
+	})
+}
+
+func (h *Handler) discoverPostgresTables(network *core.Network) ([]map[string]interface{}, error) {
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		network.DBHost, network.DBPort, network.DBUser, network.DBPassword, network.DBName, network.DBSSLMode)
+
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("cannot connect to PostgreSQL: %v", err)
+	}
+
+	query := `
+		SELECT 
+			t.table_name,
+			t.table_schema,
+			COALESCE(pgc.reltuples::bigint, 0) as row_count,
+			array_to_string(array_agg(c.column_name ORDER BY c.ordinal_position), ', ') as columns
+		FROM information_schema.tables t
+		LEFT JOIN pg_class pgc ON pgc.relname = t.table_name
+		LEFT JOIN information_schema.columns c ON c.table_name = t.table_name AND c.table_schema = t.table_schema
+		WHERE t.table_schema = 'public' 
+		  AND t.table_type = 'BASE TABLE'
+		GROUP BY t.table_name, t.table_schema, pgc.reltuples
+		ORDER BY t.table_name
+	`
+
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tables []map[string]interface{}
+	for rows.Next() {
+		var tableName, tableSchema, columns string
+		var rowCount int64
+		if err := rows.Scan(&tableName, &tableSchema, &rowCount, &columns); err != nil {
+			continue
+		}
+		tables = append(tables, map[string]interface{}{
+			"table_name": tableName,
+			"schema":     tableSchema,
+			"row_count":  rowCount,
+			"columns":    columns,
+		})
+	}
+	return tables, nil
+}
+
+func (h *Handler) discoverMySQLTables(network *core.Network) ([]map[string]interface{}, error) {
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s",
+		network.DBUser, network.DBPassword, network.DBHost, network.DBPort, network.DBName)
+
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("cannot connect to MySQL: %v", err)
+	}
+
+	query := `
+		SELECT 
+			t.TABLE_NAME,
+			t.TABLE_SCHEMA,
+			COALESCE(t.TABLE_ROWS, 0) as row_count,
+			IFNULL(GROUP_CONCAT(c.COLUMN_NAME ORDER BY c.ORDINAL_POSITION SEPARATOR ', '), '') as columns
+		FROM information_schema.TABLES t
+		LEFT JOIN information_schema.COLUMNS c ON c.TABLE_NAME = t.TABLE_NAME AND c.TABLE_SCHEMA = t.TABLE_SCHEMA
+		WHERE t.TABLE_SCHEMA = ?
+		  AND t.TABLE_TYPE = 'BASE TABLE'
+		GROUP BY t.TABLE_NAME, t.TABLE_SCHEMA, t.TABLE_ROWS
+		ORDER BY t.TABLE_NAME
+	`
+
+	rows, err := db.Query(query, network.DBName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tables []map[string]interface{}
+	for rows.Next() {
+		var tableName, tableSchema, columns string
+		var rowCount int64
+		if err := rows.Scan(&tableName, &tableSchema, &rowCount, &columns); err != nil {
+			continue
+		}
+		tables = append(tables, map[string]interface{}{
+			"table_name": tableName,
+			"schema":     tableSchema,
+			"row_count":  rowCount,
+			"columns":    columns,
+		})
+	}
+	return tables, nil
+}
+
+func (h *Handler) discoverSQLServerTables(network *core.Network) ([]map[string]interface{}, error) {
+	// SQL Server requires mssql driver - return placeholder for now
+	return nil, fmt.Errorf("SQL Server discovery requires mssql driver - coming soon")
+}
+
+func (h *Handler) discoverOracleTables(network *core.Network) ([]map[string]interface{}, error) {
+	// Oracle requires Oracle client - return placeholder for now
+	return nil, fmt.Errorf("Oracle discovery requires Oracle client - coming soon")
+}
+
+// BulkCreateSchemas creates multiple schemas at once from selected tables
+func (h *Handler) BulkCreateSchemas(c *gin.Context) {
+	var req struct {
+		NetworkID int      `json:"network_id"`
+		Tables    []string `json:"tables"`
+		Prefix    string   `json:"prefix"` // Optional prefix for schema names
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if len(req.Tables) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No tables selected"})
+		return
+	}
+
+	// Verify network exists
+	var network core.Network
+	if err := h.db.First(&network, req.NetworkID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Network not found"})
+		return
+	}
+
+	userID := c.GetUint("user_id")
+	createdSchemas := []core.Schema{}
+	errors := []string{}
+
+	for _, tableName := range req.Tables {
+		schemaName := tableName
+		if req.Prefix != "" {
+			schemaName = req.Prefix + "_" + tableName
+		}
+
+		// Generate SQL based on database type
+		var sqlCommand string
+		switch network.Type {
+		case "postgresql":
+			sqlCommand = fmt.Sprintf(`SELECT * FROM "%s"`, tableName)
+		case "mysql":
+			sqlCommand = fmt.Sprintf("SELECT * FROM `%s`", tableName)
+		case "sqlserver":
+			sqlCommand = fmt.Sprintf("SELECT * FROM [%s]", tableName)
+		case "oracle":
+			sqlCommand = fmt.Sprintf(`SELECT * FROM "%s"`, tableName)
+		default:
+			sqlCommand = fmt.Sprintf("SELECT * FROM %s", tableName)
+		}
+
+		schema := core.Schema{
+			Name:       schemaName,
+			SourceType: "query",
+			SQLCommand: sqlCommand,
+			CreatedBy:  userID,
+			UpdatedBy:  userID,
+		}
+
+		if err := h.db.Create(&schema).Error; err != nil {
+			errors = append(errors, fmt.Sprintf("%s: %v", tableName, err))
+			continue
+		}
+		createdSchemas = append(createdSchemas, schema)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"created": len(createdSchemas),
+		"schemas": createdSchemas,
+		"errors":  errors,
+		"message": fmt.Sprintf("Created %d schemas from %d tables", len(createdSchemas), len(req.Tables)),
 	})
 }
