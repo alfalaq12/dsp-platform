@@ -24,12 +24,13 @@ type SFTPClient struct {
 
 // SFTPConfig holds SFTP connection configuration
 type SFTPConfig struct {
-	Host       string
-	Port       string
-	User       string
-	Password   string
-	PrivateKey string // PEM format private key for SSH key authentication
-	Path       string
+	Host              string
+	Port              string
+	User              string
+	Password          string
+	PrivateKey        string // PEM format private key for SSH key authentication
+	Path              string
+	SkipHostKeyVerify bool // WARNING: Set to true only for testing/development
 }
 
 // NewSFTPClient creates a new SFTP client and connects to the server
@@ -60,10 +61,25 @@ func NewSFTPClient(config SFTPConfig) (*SFTPClient, error) {
 		return nil, fmt.Errorf("no authentication method provided (password or private key required)")
 	}
 
+	// Host key callback configuration
+	var hostKeyCallback ssh.HostKeyCallback
+	if config.SkipHostKeyVerify {
+		// WARNING: Only use in development/testing environments
+		fmt.Println("⚠️  WARNING: SSH host key verification is DISABLED. This is insecure for production!")
+		hostKeyCallback = ssh.InsecureIgnoreHostKey()
+	} else {
+		// For production: Accept any host key but log it (a safer middle ground)
+		// Full host key verification would require known_hosts file management
+		hostKeyCallback = func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+			fmt.Printf("🔑 SSH Host Key for %s: %s %s\n", hostname, key.Type(), ssh.FingerprintSHA256(key))
+			return nil
+		}
+	}
+
 	sshConfig := &ssh.ClientConfig{
 		User:            config.User,
 		Auth:            authMethods,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // Note: In production, use proper host key verification
+		HostKeyCallback: hostKeyCallback,
 		Timeout:         30 * time.Second,
 	}
 

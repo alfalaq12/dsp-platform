@@ -11,6 +11,8 @@ type Schema struct {
 	Description string    `json:"description" gorm:"type:text"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+	CreatedBy   uint      `json:"created_by" gorm:"index"` // Owner user ID
+	UpdatedBy   uint      `json:"updated_by"`              // Last modifier user ID
 
 	// File Sync Configuration (for FTP/SFTP sources)
 	SourceType      string `json:"source_type" gorm:"default:'query'"` // query, file
@@ -32,6 +34,8 @@ type Network struct {
 	LastSeen  time.Time `json:"last_seen"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+	CreatedBy uint      `json:"created_by" gorm:"index"` // Owner user ID
+	UpdatedBy uint      `json:"updated_by"`              // Last modifier user ID
 
 	// Source Type: database, ftp, sftp, api
 	SourceType string `json:"source_type" gorm:"default:'database'"`
@@ -92,6 +96,8 @@ type Job struct {
 	LastRun   time.Time `json:"last_run"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+	CreatedBy uint      `json:"created_by" gorm:"index"` // Owner user ID
+	UpdatedBy uint      `json:"updated_by"`              // Last modifier user ID
 
 	// Relations
 	Schema  Schema  `json:"schema" gorm:"foreignKey:SchemaID"`
@@ -100,11 +106,12 @@ type Job struct {
 
 // User represents an authenticated user for the web console
 type User struct {
-	ID        uint      `json:"id" gorm:"primaryKey"`
-	Username  string    `json:"username" gorm:"not null;unique"`
-	Password  string    `json:"-" gorm:"not null"`           // Never expose in JSON
-	Role      string    `json:"role" gorm:"default:'admin'"` // admin OR viewer
-	CreatedAt time.Time `json:"created_at"`
+	ID                 uint      `json:"id" gorm:"primaryKey"`
+	Username           string    `json:"username" gorm:"not null;unique"`
+	Password           string    `json:"-" gorm:"not null"`           // Never expose in JSON
+	Role               string    `json:"role" gorm:"default:'admin'"` // admin OR viewer
+	MustChangePassword bool      `json:"must_change_password" gorm:"default:false"`
+	CreatedAt          time.Time `json:"created_at"`
 }
 
 // AuditLog represents a system activity log
@@ -138,9 +145,10 @@ type LoginRequest struct {
 
 // LoginResponse represents the login response with JWT token
 type LoginResponse struct {
-	Token    string `json:"token"`
-	Username string `json:"username"`
-	Role     string `json:"role"`
+	Token              string `json:"token"`
+	Username           string `json:"username"`
+	Role               string `json:"role"`
+	MustChangePassword bool   `json:"must_change_password"`
 }
 
 // JobRunRequest represents the payload to run a job
@@ -208,4 +216,46 @@ func (t *AgentToken) IsValid() bool {
 		return false
 	}
 	return true
+}
+
+// License represents the software license activation status
+type License struct {
+	ID             uint      `json:"id" gorm:"primaryKey"`
+	MachineID      string    `json:"machine_id" gorm:"uniqueIndex"`
+	ActivationCode string    `json:"activation_code"`
+	ActivatedAt    time.Time `json:"activated_at"`
+	ExpiresAt      time.Time `json:"expires_at"`
+	Status         string    `json:"status" gorm:"default:'inactive'"` // inactive, active, expired
+	ActivatedBy    string    `json:"activated_by"`                     // Username who activated
+}
+
+// IsActive checks if license is currently active
+func (l *License) IsActive() bool {
+	if l.Status != "active" {
+		return false
+	}
+	if time.Now().After(l.ExpiresAt) {
+		return false
+	}
+	return true
+}
+
+// DaysRemaining returns remaining days until license expiry
+func (l *License) DaysRemaining() int {
+	duration := time.Until(l.ExpiresAt)
+	days := int(duration.Hours() / 24)
+	if days < 0 {
+		return 0
+	}
+	return days
+}
+
+// LicenseResponse is the API response for license status
+type LicenseResponse struct {
+	IsActive      bool      `json:"is_active"`
+	MachineID     string    `json:"machine_id"`
+	ExpiresAt     time.Time `json:"expires_at,omitempty"`
+	DaysRemaining int       `json:"days_remaining"`
+	Status        string    `json:"status"`
+	Message       string    `json:"message,omitempty"`
 }

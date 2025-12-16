@@ -9,6 +9,7 @@ import Users from './pages/Users';
 import Settings from './pages/Settings';
 import AuditLogs from './pages/AuditLogs';
 import TokenManagement from './pages/TokenManagement';
+import Activation from './pages/Activation';
 import MainLayout from './components/Layout/MainLayout';
 import useSessionTimeout from './hooks/useSessionTimeout';
 
@@ -70,6 +71,7 @@ function App() {
                         <Route path="/users" element={<Users />} />
                         <Route path="/audit-logs" element={<AuditLogs />} />
                         <Route path="/tokens" element={<TokenManagement />} />
+                        <Route path="/activation" element={<Activation />} />
                         <Route path="/settings" element={<Settings />} />
                     </Route>
                 </Routes>

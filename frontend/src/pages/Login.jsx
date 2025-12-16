@@ -24,10 +24,19 @@ function Login() {
             const response = await login(formData);
             // Token is now handled by HttpOnly cookie
             localStorage.setItem('username', response.data.username);
-            localStorage.setItem('role', response.data.role || 'viewer'); // Default to viewer if missing
+            localStorage.setItem('role', response.data.role || 'viewer');
             localStorage.setItem('lastActivity', Date.now().toString());
-            addToast('Login successful!', 'success');
-            setTimeout(() => navigate('/'), 500);
+
+            // Check if password change is required
+            if (response.data.must_change_password) {
+                localStorage.setItem('mustChangePassword', 'true');
+                addToast('⚠️ Anda harus mengganti password sebelum melanjutkan!', 'warning');
+                setTimeout(() => navigate('/settings?changePassword=true'), 500);
+            } else {
+                localStorage.removeItem('mustChangePassword');
+                addToast('Login successful!', 'success');
+                setTimeout(() => navigate('/'), 500);
+            }
         } catch (err) {
             const errorMessage = err.response?.data?.error || 'Login failed';
             setError(errorMessage);

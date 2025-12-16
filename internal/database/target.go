@@ -105,10 +105,15 @@ func (tc *TargetConnection) EnsureTable(tableName string, sampleRecord map[strin
 		return fmt.Errorf("table name is empty")
 	}
 
-	// Check if table exists
+	// Validate table name to prevent SQL injection (allow only alphanumeric and underscore)
+	if !isValidTableName(tableName) {
+		return fmt.Errorf("invalid table name: %s (only alphanumeric and underscore allowed)", tableName)
+	}
+
+	// Check if table exists using parameterized query
 	var exists bool
-	query := fmt.Sprintf("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '%s')", tableName)
-	err := tc.DB.QueryRow(query).Scan(&exists)
+	query := "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = $1)"
+	err := tc.DB.QueryRow(query, tableName).Scan(&exists)
 	if err != nil {
 		return fmt.Errorf("failed to check table existence: %w", err)
 	}
@@ -121,6 +126,11 @@ func (tc *TargetConnection) EnsureTable(tableName string, sampleRecord map[strin
 	// Build CREATE TABLE statement from sample record
 	var columns []string
 	for colName, value := range sampleRecord {
+		// Validate column name as well
+		if !isValidTableName(colName) {
+			log.Printf("Skipping invalid column name: %s", colName)
+			continue
+		}
 		colType := inferPostgresType(value)
 		columns = append(columns, fmt.Sprintf("\"%s\" %s", colName, colType))
 	}
@@ -135,6 +145,16 @@ func (tc *TargetConnection) EnsureTable(tableName string, sampleRecord map[strin
 
 	log.Printf("Table %s created successfully", tableName)
 	return nil
+}
+
+// isValidTableName checks if table/column name contains only safe characters
+func isValidTableName(name string) bool {
+	for _, c := range name {
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_') {
+			return false
+		}
+	}
+	return len(name) > 0 && len(name) <= 63 // PostgreSQL max identifier length
 }
 
 // inferPostgresType infers PostgreSQL column type from Go value

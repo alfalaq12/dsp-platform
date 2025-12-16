@@ -14,9 +14,11 @@ function MainLayout() {
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [isNotifOpen, setIsNotifOpen] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
+    const [showAllNotifs, setShowAllNotifs] = useState(false);
     const { isDark, toggleTheme } = useTheme();
     const profileRef = useRef(null);
     const notifRef = useRef(null);
+    const initialLoadDone = useRef(false); // Track if initial load is done
 
     const username = localStorage.getItem('username') || 'User';
     const userRole = localStorage.getItem('userRole') || 'Administrator';
@@ -92,15 +94,24 @@ function MainLayout() {
                     title,
                     message,
                     time: formatTime(log.created_at),
-                    read: false, // Could be handled better in future
+                    read: false,
                     status: log.status
                 };
             });
 
             setNotifications(mapped);
-            // Only count notifications newer than the last seen one
-            const newNotifs = mapped.filter(n => n.id > lastSeenNotifIdRef.current);
-            setUnreadCount(newNotifs.length);
+
+            // Only count new notifications AFTER initial load
+            if (initialLoadDone.current) {
+                const newNotifs = mapped.filter(n => n.id > lastSeenNotifIdRef.current);
+                setUnreadCount(newNotifs.length);
+            } else {
+                // First load - mark current as "seen" baseline, no badge
+                if (mapped.length > 0) {
+                    lastSeenNotifIdRef.current = Math.max(...mapped.map(n => n.id));
+                }
+                initialLoadDone.current = true;
+            }
         } catch (error) {
             console.error("Failed to fetch notifications:", error);
         }
@@ -158,6 +169,9 @@ function MainLayout() {
         console.log('Notification clicked:', notif);
         setUnreadCount(Math.max(0, unreadCount - 1));
     };
+
+    // Get displayed notifications based on showAll state
+    const displayedNotifications = showAllNotifs ? notifications : notifications.slice(0, 5);
 
     return (
         <div className={`flex h-screen ${isDark ? 'bg-panda-dark' : 'bg-slate-100'}`}>
@@ -227,6 +241,10 @@ function MainLayout() {
                                             lastSeenNotifIdRef.current = Math.max(...notifications.map(n => n.id));
                                             setUnreadCount(0);
                                         }
+                                        // Reset showAll when closing
+                                        if (!willOpen) {
+                                            setShowAllNotifs(false);
+                                        }
                                     }}
                                     className={`relative p-2 rounded-xl transition-all duration-200 hover:scale-105 ${isDark
                                         ? 'bg-panda-dark-300 hover:bg-panda-dark-400 text-panda-text-muted'
@@ -249,42 +267,61 @@ function MainLayout() {
                                             <h3 className={`font-bold ${isDark ? 'text-panda-text' : 'text-slate-900'}`}>
                                                 Notifikasi
                                             </h3>
-                                            {unreadCount > 0 && (
-                                                <span className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-700'}`}>
-                                                    {unreadCount} baru
+                                            {notifications.length > 0 && (
+                                                <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+                                                    {notifications.length} total
                                                 </span>
                                             )}
                                         </div>
-                                        <AnimatedList className="max-h-96 overflow-y-auto custom-scrollbar scroll-smooth">
-                                            {notifications.map((notif) => (
-                                                <button
-                                                    key={notif.id}
-                                                    onClick={() => handleNotificationClick(notif)}
-                                                    className={`w-full px-4 py-3 text-left transition-colors border-b ${!notif.read ? (isDark ? 'bg-blue-500/5' : 'bg-blue-50/50') : ''
-                                                        } ${isDark ? 'border-panda-dark-300 hover:bg-panda-dark-300' : 'border-slate-100 hover:bg-slate-50'}`}
-                                                >
-                                                    <div className="flex items-start gap-3">
-                                                        <div className={`w-2 h-2 rounded-full mt-2 ${!notif.read ? 'bg-blue-500' : 'bg-transparent'}`} />
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className={`font-semibold text-sm ${isDark ? 'text-panda-text' : 'text-slate-900'}`}>
-                                                                {notif.title}
-                                                            </p>
-                                                            <p className={`text-xs mt-1 ${isDark ? 'text-panda-text-muted' : 'text-slate-600'}`}>
-                                                                {notif.message}
-                                                            </p>
-                                                            <p className={`text-xs mt-1 ${isDark ? 'text-slate-600' : 'text-slate-500'}`}>
-                                                                {notif.time}
-                                                            </p>
+                                        <div className="max-h-80 overflow-y-auto custom-scrollbar scroll-smooth">
+                                            {displayedNotifications.length === 0 ? (
+                                                <div className={`px-4 py-8 text-center ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                                    <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                                                    <p className="text-sm">Tidak ada notifikasi</p>
+                                                </div>
+                                            ) : (
+                                                displayedNotifications.map((notif, index) => (
+                                                    <button
+                                                        key={notif.id}
+                                                        onClick={() => handleNotificationClick(notif)}
+                                                        className={`w-full px-4 py-3 text-left transition-all border-b
+                                                            ${!notif.read ? (isDark ? 'bg-blue-500/5' : 'bg-blue-50/50') : ''}
+                                                            ${isDark ? 'border-panda-dark-300 hover:bg-panda-dark-300' : 'border-slate-100 hover:bg-slate-50'}
+                                                        `}
+                                                        style={{
+                                                            animation: `fadeSlideIn 0.3s ease-out ${index * 0.05}s forwards`,
+                                                            opacity: 0,
+                                                            transform: 'translateY(-10px)'
+                                                        }}
+                                                    >
+                                                        <div className="flex items-start gap-3">
+                                                            <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${notif.status === 'completed' ? 'bg-emerald-500' : notif.status === 'failed' ? 'bg-red-500' : 'bg-blue-500'}`} />
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className={`font-semibold text-sm ${isDark ? 'text-panda-text' : 'text-slate-900'}`}>
+                                                                    {notif.title}
+                                                                </p>
+                                                                <p className={`text-xs mt-1 truncate ${isDark ? 'text-panda-text-muted' : 'text-slate-600'}`}>
+                                                                    {notif.message}
+                                                                </p>
+                                                                <p className={`text-xs mt-1 ${isDark ? 'text-slate-600' : 'text-slate-500'}`}>
+                                                                    {notif.time}
+                                                                </p>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                </button>
-                                            ))}
-                                        </AnimatedList>
-                                        <div className={`px-4 py-3 border-t ${isDark ? 'border-panda-dark-300 bg-panda-dark-200' : 'border-slate-200 bg-slate-50'}`}>
-                                            <button className={`text-sm font-medium w-full text-center ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'}`}>
-                                                Lihat Semua Notifikasi
-                                            </button>
+                                                    </button>
+                                                ))
+                                            )}
                                         </div>
+                                        {notifications.length > 5 && (
+                                            <div className={`px-4 py-3 border-t ${isDark ? 'border-panda-dark-300 bg-panda-dark-200' : 'border-slate-200 bg-slate-50'}`}>
+                                                <button
+                                                    onClick={() => setShowAllNotifs(!showAllNotifs)}
+                                                    className={`text-sm font-medium w-full text-center ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'}`}
+                                                >
+                                                    {showAllNotifs ? 'Tampilkan Lebih Sedikit' : `Lihat Semua (${notifications.length})`}
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>

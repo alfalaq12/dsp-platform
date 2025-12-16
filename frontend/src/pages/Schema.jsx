@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Plus, Edit, Trash2, Database, Eye, Code } from 'lucide-react';
+import { Plus, Edit, Trash2, Database, Eye, Code, FileSpreadsheet } from 'lucide-react';
 import { getSchemas, createSchema, updateSchema, deleteSchema } from '../services/api';
 import { useToast, ToastContainer, ConfirmModal, ViewModal } from '../components/Toast';
 import Pagination from '../components/Pagination';
 import { useTheme } from '../contexts/ThemeContext';
+import { getErrorMessage } from '../utils/errorHelper';
 
 function Schema() {
     const { isDark } = useTheme();
@@ -64,7 +65,7 @@ function Schema() {
             resetForm();
         } catch (error) {
             console.error('Failed to save schema:', error);
-            addToast('Failed to save schema. Please try again.', 'error');
+            addToast(getErrorMessage(error, 'Failed to save schema. Please try again.'), 'error');
         } finally {
             setIsSubmitting(false);
         }
@@ -96,7 +97,7 @@ function Schema() {
             loadSchemas();
         } catch (error) {
             console.error('Failed to delete schema:', error);
-            addToast('Failed to delete schema. Please try again.', 'error');
+            addToast(getErrorMessage(error, 'Failed to delete schema. Please try again.'), 'error');
         } finally {
             setIsLoading(false);
             setDeleteTarget(null);
@@ -171,7 +172,7 @@ function Schema() {
                                 <div className="grid grid-cols-3 gap-3">
                                     {[
                                         { id: 'query', label: 'SQL Query', icon: Database },
-                                        { id: 'file', label: 'File (CSV/Excel)', icon: ViewModal }, // Using ViewModal icon as placeholder for Folder/File
+                                        { id: 'file', label: 'File (CSV/Excel)', icon: FileSpreadsheet },
                                         { id: 'api', label: 'REST API', icon: Code }
                                     ].map((type) => (
                                         <button

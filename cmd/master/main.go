@@ -150,6 +150,7 @@ func initDatabase() (*gorm.DB, error) {
 		&core.AuditLog{},
 		&core.Settings{},
 		&core.AgentToken{},
+		&core.License{},
 	); err != nil {
 		logger.Logger.Error().Err(err).Msg("Database migration failed")
 		return nil, err
@@ -194,11 +195,17 @@ func migratePresetSchedulesToCron(db *gorm.DB) {
 func setupRouter(handler *server.Handler) *gin.Engine {
 	router := gin.Default()
 
-	// CORS middleware for development
+	// CORS middleware - configurable via environment
 	router.Use(func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		// Get allowed origins from env, default to * for development
+		allowedOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
+		if allowedOrigins == "" {
+			allowedOrigins = "*" // Development only - set specific origins in production
+		}
+		c.Writer.Header().Set("Access-Control-Allow-Origin", allowedOrigins)
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
@@ -208,9 +215,13 @@ func setupRouter(handler *server.Handler) *gin.Engine {
 		c.Next()
 	})
 
-	// Public routes
-	router.POST("/api/login", handler.Login)
+	// Public routes with rate limiting on login
+	router.POST("/api/login", auth.RateLimitMiddleware(), handler.Login)
 	router.POST("/api/logout", handler.Logout)
+
+	// License routes (machine ID is public for activation flow)
+	router.GET("/api/license/machine-id", handler.GetMachineID)
+	router.GET("/api/license/status", handler.GetLicenseStatus)
 
 	// Protected routes (require authentication)
 	api := router.Group("/api")
@@ -267,6 +278,9 @@ func setupRouter(handler *server.Handler) *gin.Engine {
 		api.POST("/agent-tokens", auth.RequireRole("admin"), handler.CreateAgentToken)
 		api.PATCH("/agent-tokens/:id/revoke", auth.RequireRole("admin"), handler.RevokeAgentToken)
 		api.DELETE("/agent-tokens/:id", auth.RequireRole("admin"), handler.DeleteAgentToken)
+
+		// License Activation (protected - requires login)
+		api.POST("/license/activate", auth.RequireRole("admin"), handler.ActivateLicense)
 	}
 
 	// Health check

@@ -82,6 +82,31 @@ package-all: ## Package binaries with frontend, certs, and config
 	@cp .env.tls.example bin/windows/agent/.env.example
 	@echo "✅ All packages ready"
 
+zip-all: package-all ## 📦 Create ZIP files for portable deployment (flashdisk)
+	@echo "📦 Creating deployment ZIP files..."
+	@mkdir -p dist
+	@# Linux Master ZIP
+	@cd bin/linux && zip -r ../../dist/dsp-master-linux-amd64.zip master/
+	@echo "  ✅ dist/dsp-master-linux-amd64.zip"
+	@# Linux Agent ZIP
+	@cd bin/linux && zip -r ../../dist/dsp-agent-linux-amd64.zip agent/
+	@echo "  ✅ dist/dsp-agent-linux-amd64.zip"
+	@# Windows Master ZIP
+	@cd bin/windows && zip -r ../../dist/dsp-master-windows-amd64.zip master/
+	@echo "  ✅ dist/dsp-master-windows-amd64.zip"
+	@# Windows Agent ZIP
+	@cd bin/windows && zip -r ../../dist/dsp-agent-windows-amd64.zip agent/
+	@echo "  ✅ dist/dsp-agent-windows-amd64.zip"
+	@echo ""
+	@echo "✅ ========================================"
+	@echo "✅  ZIP PACKAGES READY FOR DEPLOYMENT!"
+	@echo "✅ ========================================"
+	@echo ""
+	@echo "📦 Files in dist/:"
+	@ls -lh dist/*.zip
+	@echo ""
+	@echo "💾 Copy these to flashdisk for tenant deployment"
+
 build-linux: gen-certs build-frontend ## Build only Linux binaries (Master + Agent)
 	@echo "📦 Building for Linux..."
 	@mkdir -p bin/linux/frontend

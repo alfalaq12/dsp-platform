@@ -79,4 +79,9 @@ export const createAgentToken = (data) => api.post('/agent-tokens', data);
 export const revokeAgentToken = (id) => api.patch(`/agent-tokens/${id}/revoke`);
 export const deleteAgentToken = (id) => api.delete(`/agent-tokens/${id}`);
 
+// License
+export const getLicenseMachineId = () => api.get('/license/machine-id');
+export const getLicenseStatus = () => api.get('/license/status');
+export const activateLicense = (activationCode) => api.post('/license/activate', { activation_code: activationCode });
+
 export default api;

@@ -4,9 +4,11 @@ import (
 	"dsp-platform/internal/auth"
 	"dsp-platform/internal/core"
 	"dsp-platform/internal/database"
+	"dsp-platform/internal/license"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -38,17 +40,25 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	// Mock authentication - in production, check against database with hashed password
 	var user core.User
 	if err := h.db.Where("username = ?", req.Username).First(&user).Error; err != nil {
-		// If user doesn't exist, create a default admin for demo purposes
-		if err == gorm.ErrRecordNotFound && req.Username == "admin" && req.Password == "admin" {
+		// Check if auto-create admin is enabled (default: true for backwards compatibility)
+		autoCreateAdmin := os.Getenv("AUTO_CREATE_ADMIN") != "false"
+
+		// If user doesn't exist, create a default admin for demo/initial setup
+		if err == gorm.ErrRecordNotFound && req.Username == "admin" && req.Password == "admin" && autoCreateAdmin {
 			hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("admin"), bcrypt.DefaultCost)
-			user = core.User{Username: "admin", Password: string(hashedPassword), Role: "admin"}
+			user = core.User{
+				Username:           "admin",
+				Password:           string(hashedPassword),
+				Role:               "admin",
+				MustChangePassword: true, // Force password change on first login
+			}
 			if err := h.db.Create(&user).Error; err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create default admin"})
 				return
 			}
+			log.Println("⚠️  Default admin created with password 'admin'. CHANGE IT IMMEDIATELY!")
 			// Fall through to login logic
 		} else {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
@@ -70,8 +80,9 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	// Set HttpOnly Cookie for security
-	c.SetCookie("auth_token", token, 3600*24, "/", "", false, true)
+	// Set HttpOnly Cookie with Secure flag based on environment
+	isSecure := os.Getenv("COOKIE_SECURE") == "true" || os.Getenv("TLS_ENABLED") == "true"
+	c.SetCookie("auth_token", token, 3600*24, "/", "", isSecure, true)
 
 	// Log successful login
 	go func() {
@@ -87,9 +98,10 @@ func (h *Handler) Login(c *gin.Context) {
 	}()
 
 	c.JSON(200, core.LoginResponse{
-		Token:    token, // Keep returning token for API clients if needed, though cookie is primary
-		Username: user.Username,
-		Role:     user.Role,
+		Token:              token,
+		Username:           user.Username,
+		Role:               user.Role,
+		MustChangePassword: user.MustChangePassword,
 	})
 }
 
@@ -118,6 +130,10 @@ func (h *Handler) CreateSchema(c *gin.Context) {
 		return
 	}
 
+	// Set ownership
+	schema.CreatedBy = c.GetUint("user_id")
+	schema.UpdatedBy = c.GetUint("user_id")
+
 	if err := h.db.Create(&schema).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -136,10 +152,19 @@ func (h *Handler) UpdateSchema(c *gin.Context) {
 		return
 	}
 
+	// Check ownership (admin or creator)
+	if !auth.CanModifyResource(c.GetString("role"), c.GetUint("user_id"), schema.CreatedBy) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You do not have permission to modify this schema"})
+		return
+	}
+
+	originalCreatedBy := schema.CreatedBy // Preserve original creator
 	if err := c.ShouldBindJSON(&schema); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	schema.CreatedBy = originalCreatedBy // Restore
+	schema.UpdatedBy = c.GetUint("user_id")
 
 	if err := h.db.Save(&schema).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -152,6 +177,19 @@ func (h *Handler) UpdateSchema(c *gin.Context) {
 // DeleteSchema deletes a schema
 func (h *Handler) DeleteSchema(c *gin.Context) {
 	id := c.Param("id")
+
+	var schema core.Schema
+	if err := h.db.First(&schema, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Schema not found"})
+		return
+	}
+
+	// Check ownership (admin or creator)
+	if !auth.CanModifyResource(c.GetString("role"), c.GetUint("user_id"), schema.CreatedBy) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You do not have permission to delete this schema"})
+		return
+	}
+
 	if err := h.db.Delete(&core.Schema{}, id).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -177,6 +215,10 @@ func (h *Handler) CreateNetwork(c *gin.Context) {
 		return
 	}
 
+	// Set ownership
+	network.CreatedBy = c.GetUint("user_id")
+	network.UpdatedBy = c.GetUint("user_id")
+
 	if err := h.db.Create(&network).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -195,10 +237,19 @@ func (h *Handler) UpdateNetwork(c *gin.Context) {
 		return
 	}
 
+	// Check ownership (admin or creator)
+	if !auth.CanModifyResource(c.GetString("role"), c.GetUint("user_id"), network.CreatedBy) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You do not have permission to modify this network"})
+		return
+	}
+
+	originalCreatedBy := network.CreatedBy
 	if err := c.ShouldBindJSON(&network); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	network.CreatedBy = originalCreatedBy
+	network.UpdatedBy = c.GetUint("user_id")
 
 	if err := h.db.Save(&network).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -211,6 +262,19 @@ func (h *Handler) UpdateNetwork(c *gin.Context) {
 // DeleteNetwork deletes a network
 func (h *Handler) DeleteNetwork(c *gin.Context) {
 	id := c.Param("id")
+
+	var network core.Network
+	if err := h.db.First(&network, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Network not found"})
+		return
+	}
+
+	// Check ownership (admin or creator)
+	if !auth.CanModifyResource(c.GetString("role"), c.GetUint("user_id"), network.CreatedBy) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You do not have permission to delete this network"})
+		return
+	}
+
 	if err := h.db.Delete(&core.Network{}, id).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -315,6 +379,10 @@ func (h *Handler) CreateJob(c *gin.Context) {
 		return
 	}
 
+	// Set ownership
+	job.CreatedBy = c.GetUint("user_id")
+	job.UpdatedBy = c.GetUint("user_id")
+
 	if err := h.db.Create(&job).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -333,10 +401,19 @@ func (h *Handler) UpdateJob(c *gin.Context) {
 		return
 	}
 
+	// Check ownership (admin or creator)
+	if !auth.CanModifyResource(c.GetString("role"), c.GetUint("user_id"), job.CreatedBy) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You do not have permission to modify this job"})
+		return
+	}
+
+	originalCreatedBy := job.CreatedBy
 	if err := c.ShouldBindJSON(&job); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	job.CreatedBy = originalCreatedBy
+	job.UpdatedBy = c.GetUint("user_id")
 
 	if err := h.db.Save(&job).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -349,6 +426,19 @@ func (h *Handler) UpdateJob(c *gin.Context) {
 // DeleteJob deletes a job
 func (h *Handler) DeleteJob(c *gin.Context) {
 	id := c.Param("id")
+
+	var job core.Job
+	if err := h.db.First(&job, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Job not found"})
+		return
+	}
+
+	// Check ownership (admin or creator)
+	if !auth.CanModifyResource(c.GetString("role"), c.GetUint("user_id"), job.CreatedBy) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You do not have permission to delete this job"})
+		return
+	}
+
 	if err := h.db.Delete(&core.Job{}, id).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -1297,4 +1387,121 @@ func (h *Handler) ValidateAgentToken(agentName, rawToken string) bool {
 	h.db.Save(&token)
 
 	return true
+}
+
+// ==================== LICENSE HANDLERS ====================
+
+// GetMachineID returns the unique machine identifier for this server
+func (h *Handler) GetMachineID(c *gin.Context) {
+	machineID, err := license.GenerateMachineID()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate machine ID"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"machine_id": machineID})
+}
+
+// GetLicenseStatus returns the current license status
+func (h *Handler) GetLicenseStatus(c *gin.Context) {
+	machineID, err := license.GenerateMachineID()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate machine ID"})
+		return
+	}
+
+	var lic core.License
+	if err := h.db.First(&lic).Error; err != nil {
+		// No license found
+		c.JSON(http.StatusOK, core.LicenseResponse{
+			IsActive:      false,
+			MachineID:     machineID,
+			Status:        "inactive",
+			DaysRemaining: 0,
+			Message:       "No license activated. Please activate to unlock all features.",
+		})
+		return
+	}
+
+	// Check if license is expired
+	if time.Now().After(lic.ExpiresAt) {
+		lic.Status = "expired"
+		h.db.Save(&lic)
+	}
+
+	c.JSON(http.StatusOK, core.LicenseResponse{
+		IsActive:      lic.IsActive(),
+		MachineID:     machineID,
+		ExpiresAt:     lic.ExpiresAt,
+		DaysRemaining: lic.DaysRemaining(),
+		Status:        lic.Status,
+		Message:       getLicenseMessage(lic),
+	})
+}
+
+func getLicenseMessage(lic core.License) string {
+	if lic.Status == "expired" {
+		return "License has expired. Please renew to continue using all features."
+	}
+	if lic.DaysRemaining() <= 30 {
+		return fmt.Sprintf("License expires in %d days. Please renew soon.", lic.DaysRemaining())
+	}
+	return "License is active."
+}
+
+// ActivateLicense activates the license with provided activation code
+func (h *Handler) ActivateLicense(c *gin.Context) {
+	var req struct {
+		ActivationCode string `json:"activation_code" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Activation code is required"})
+		return
+	}
+
+	machineID, err := license.GenerateMachineID()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate machine ID"})
+		return
+	}
+
+	// Validate activation code
+	isValid, expiryDate, err := license.ValidateActivationCode(machineID, req.ActivationCode)
+	if !isValid {
+		errMsg := "Invalid activation code"
+		if err != nil {
+			errMsg = err.Error()
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": errMsg})
+		return
+	}
+
+	// Get username from context
+	username := c.GetString("username")
+	if username == "" {
+		username = "admin"
+	}
+
+	// Save or update license
+	var lic core.License
+	h.db.First(&lic)
+
+	lic.MachineID = machineID
+	lic.ActivationCode = req.ActivationCode
+	lic.ActivatedAt = time.Now()
+	lic.ExpiresAt = expiryDate
+	lic.Status = "active"
+	lic.ActivatedBy = username
+
+	if lic.ID == 0 {
+		h.db.Create(&lic)
+	} else {
+		h.db.Save(&lic)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":        true,
+		"message":        "License activated successfully!",
+		"expires_at":     expiryDate,
+		"days_remaining": license.DaysUntilExpiry(expiryDate),
+	})
 }

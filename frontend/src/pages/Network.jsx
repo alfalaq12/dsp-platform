@@ -4,6 +4,7 @@ import { getNetworks, createNetwork, updateNetwork, deleteNetwork, testNetworkCo
 import { useToast, ToastContainer, ConfirmModal, ViewModal } from '../components/Toast';
 import Pagination from '../components/Pagination';
 import { useTheme } from '../contexts/ThemeContext';
+import { getErrorMessage } from '../utils/errorHelper';
 
 function Network() {
     const { isDark } = useTheme();
@@ -100,7 +101,7 @@ function Network() {
             resetForm();
         } catch (error) {
             console.error('Failed to save network:', error);
-            addToast('Failed to save network. Please try again.', 'error');
+            addToast(getErrorMessage(error, 'Failed to save network. Please try again.'), 'error');
         } finally {
             setIsSubmitting(false);
         }
@@ -163,7 +164,7 @@ function Network() {
             loadNetworks();
         } catch (error) {
             console.error('Failed to delete network:', error);
-            addToast('Failed to delete network. Please try again.', 'error');
+            addToast(getErrorMessage(error, 'Failed to delete network. Please try again.'), 'error');
         } finally {
             setIsLoading(false);
             setDeleteTarget(null);
@@ -234,7 +235,7 @@ function Network() {
             setCurrentPage(1);
         } catch (error) {
             console.error('Failed to clone network:', error);
-            addToast('Failed to clone network. Please try again.', 'error');
+            addToast(getErrorMessage(error, 'Failed to clone network. Please try again.'), 'error');
         } finally {
             setCloningNetwork(null);
         }

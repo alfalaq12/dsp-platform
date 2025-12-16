@@ -1,21 +1,50 @@
 import { NavLink } from 'react-router-dom';
-import { Database, Network as NetworkIcon, Play, LayoutDashboard, X, Settings, Shield, Users, Key } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Database, Network as NetworkIcon, Play, LayoutDashboard, X, Settings, Shield, Users, Key, Lock, AlertTriangle } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
+import { getLicenseStatus } from '../../services/api';
 
 function Sidebar({ isOpen, onClose }) {
     const { isDark } = useTheme();
+    const [licenseActive, setLicenseActive] = useState(true); // Default true for initial load
+    const [daysRemaining, setDaysRemaining] = useState(null);
 
-    const menuItems = [
+    // Check license status
+    useEffect(() => {
+        const checkLicense = async () => {
+            try {
+                const response = await getLicenseStatus();
+                setLicenseActive(response.data.is_active);
+                setDaysRemaining(response.data.days_remaining);
+                // Store in localStorage for quick access
+                localStorage.setItem('license_active', response.data.is_active ? 'true' : 'false');
+            } catch (error) {
+                console.error('Failed to check license:', error);
+                // On error, check localStorage fallback
+                const cached = localStorage.getItem('license_active');
+                setLicenseActive(cached === 'true');
+            }
+        };
+        checkLicense();
+    }, []);
+
+    const fullMenuItems = [
         { path: '/', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/schema', label: 'Schema', icon: Database },
         { path: '/network', label: 'Network', icon: NetworkIcon },
         { path: '/jobs', label: 'Jobs', icon: Play },
-        { path: '/tokens', label: 'Agent Tokens', icon: Key }, // Token management
-        { path: '/users', label: 'Users', icon: Users, role: 'admin' }, // Only admin
-        { path: '/audit-logs', label: 'Audit Logs', icon: Shield, role: 'admin' }, // Only admin
+        { path: '/tokens', label: 'Agent Tokens', icon: Key },
+        { path: '/users', label: 'Users', icon: Users, role: 'admin' },
+        { path: '/audit-logs', label: 'Audit Logs', icon: Shield, role: 'admin' },
         { path: '/settings', label: 'Settings', icon: Settings },
     ];
 
+    const limitedMenuItems = [
+        { path: '/', label: 'Dashboard', icon: LayoutDashboard },
+        { path: '/activation', label: 'Aktivasi License', icon: Lock, highlight: true },
+    ];
+
+    const menuItems = licenseActive ? fullMenuItems : limitedMenuItems;
     const userRole = localStorage.getItem('role') || 'viewer';
 
     return (
@@ -36,7 +65,7 @@ function Sidebar({ isOpen, onClose }) {
                 ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
                 ${isDark
                     ? 'bg-panda-dark-100 border-r border-panda-dark-300'
-                    : 'bg-gov-blue-900 border-r border-gov-blue-800 shadow-xl' // Government Blue Sidebar
+                    : 'bg-gov-blue-900 border-r border-gov-blue-800 shadow-xl'
                 }
             `}>
                 <div className={`p-6 flex items-start justify-between ${isDark ? 'border-b border-panda-dark-300' : 'border-b border-gov-blue-800'}`}>
@@ -53,6 +82,22 @@ function Sidebar({ isOpen, onClose }) {
                     </button>
                 </div>
 
+                {/* License Warning Banner */}
+                {!licenseActive && (
+                    <div className={`mx-4 mt-4 px-3 py-2 rounded-lg flex items-center gap-2 text-xs ${isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-800'}`}>
+                        <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                        <span>License tidak aktif</span>
+                    </div>
+                )}
+
+                {/* License Expiry Warning */}
+                {licenseActive && daysRemaining !== null && daysRemaining <= 30 && (
+                    <div className={`mx-4 mt-4 px-3 py-2 rounded-lg flex items-center gap-2 text-xs ${isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-800'}`}>
+                        <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                        <span>License expires in {daysRemaining} days</span>
+                    </div>
+                )}
+
                 <nav className="flex-1 p-4">
                     <ul className="space-y-2">
                         {menuItems.filter(item => !item.role || item.role === userRole).map((item) => {
@@ -65,10 +110,16 @@ function Sidebar({ isOpen, onClose }) {
                                         onClick={onClose}
                                         className={({ isActive }) =>
                                             `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${isActive
-                                                ? 'bg-blue-500 text-white font-semibold shadow-lg shadow-blue-500/30'
-                                                : isDark
-                                                    ? 'text-panda-text-muted hover:bg-panda-dark-300 hover:text-blue-500'
-                                                    : 'text-blue-100 hover:bg-gov-blue-800 hover:text-white'
+                                                ? item.highlight
+                                                    ? 'bg-amber-500 text-white font-semibold shadow-lg shadow-amber-500/30'
+                                                    : 'bg-blue-500 text-white font-semibold shadow-lg shadow-blue-500/30'
+                                                : item.highlight
+                                                    ? isDark
+                                                        ? 'text-amber-400 hover:bg-amber-500/20 hover:text-amber-300 animate-pulse'
+                                                        : 'text-amber-200 hover:bg-amber-500/20 hover:text-white animate-pulse'
+                                                    : isDark
+                                                        ? 'text-panda-text-muted hover:bg-panda-dark-300 hover:text-blue-500'
+                                                        : 'text-blue-100 hover:bg-gov-blue-800 hover:text-white'
                                             }`
                                         }
                                     >
@@ -86,4 +137,3 @@ function Sidebar({ isOpen, onClose }) {
 }
 
 export default Sidebar;
-

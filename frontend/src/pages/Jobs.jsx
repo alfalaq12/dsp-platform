@@ -4,6 +4,7 @@ import { getJobs, getSchemas, getNetworks, createJob, runJob, getJob, deleteJob,
 import { useToast, ToastContainer, ConfirmModal } from '../components/Toast';
 import Pagination from '../components/Pagination';
 import { useTheme } from '../contexts/ThemeContext';
+import { getErrorMessage } from '../utils/errorHelper';
 
 function Jobs() {
     const { isDark } = useTheme();
@@ -139,7 +140,7 @@ function Jobs() {
             }
         } catch (error) {
             console.error('Failed to delete job:', error);
-            addToast('Failed to delete job. Please try again.', 'error');
+            addToast(getErrorMessage(error, 'Failed to delete job. Please try again.'), 'error');
         } finally {
             setIsDeleting(false);
             setDeleteTarget(null);
@@ -155,7 +156,7 @@ function Jobs() {
             loadData();
         } catch (error) {
             console.error('Failed to toggle job:', error);
-            addToast('Failed to toggle job. Please try again.', 'error');
+            addToast(getErrorMessage(error, 'Failed to toggle job. Please try again.'), 'error');
         }
     };
 

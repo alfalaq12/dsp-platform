@@ -19,10 +19,21 @@ var jwtSecret []byte
 func init() {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
-		log.Println("WARNING: JWT_SECRET environment variable not set. Using insecure default secret.")
-		secret = "your-secret-key-change-in-production"
+		// In development mode, use default with warning
+		if IsDevelopment() {
+			log.Println("⚠️  WARNING: JWT_SECRET not set. Using insecure default for DEVELOPMENT ONLY.")
+			secret = "dev-only-insecure-secret-change-in-production"
+		} else {
+			log.Fatal("🚨 FATAL: JWT_SECRET environment variable MUST be set in production!")
+		}
 	}
 	jwtSecret = []byte(secret)
+}
+
+// IsDevelopment checks if app is running in development mode
+func IsDevelopment() bool {
+	env := os.Getenv("DSP_ENV")
+	return env == "" || env == "development" || env == "dev"
 }
 
 // Claims represents the JWT claims structure
