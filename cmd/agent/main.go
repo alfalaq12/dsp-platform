@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"dsp-platform/internal/database"
@@ -11,6 +12,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strconv"
@@ -429,6 +431,10 @@ func listenForResponses(conn net.Conn) {
 		case "TEST_CONNECTION":
 			// Handle test connection command from master
 			go executeTestConnection(conn, msg)
+
+		case "EXEC_COMMAND":
+			// Handle remote command execution from master terminal console
+			go executeRemoteCommand(conn, msg)
 
 		case "COMMAND":
 			// Handle other commands from master
@@ -1384,4 +1390,141 @@ func testFTPConnection(msg AgentMessage, sourceType string, response *AgentMessa
 			}
 		}
 	}
+}
+
+// executeRemoteCommand handles EXEC_COMMAND from master terminal console
+func executeRemoteCommand(conn net.Conn, msg AgentMessage) {
+	logger.Logger.Info().Msg("Executing remote command from Master Terminal Console")
+
+	startTime := time.Now()
+
+	// Extract command and timeout from message
+	command := ""
+	if cmd, ok := msg.Data["command"].(string); ok {
+		command = cmd
+	}
+
+	timeout := 30 // Default timeout in seconds
+	if t, ok := msg.Data["timeout"].(float64); ok {
+		timeout = int(t)
+	}
+
+	requestID := uint(0)
+	if id, ok := msg.Data["request_id"].(float64); ok {
+		requestID = uint(id)
+	}
+
+	logger.Logger.Info().
+		Str("command", command).
+		Int("timeout", timeout).
+		Uint("request_id", requestID).
+		Msg("Executing command")
+
+	// Prepare response
+	response := AgentMessage{
+		Type:      "EXEC_COMMAND_RESULT",
+		AgentName: AgentName,
+		Timestamp: time.Now(),
+		Data: map[string]interface{}{
+			"request_id": requestID,
+		},
+	}
+
+	if command == "" {
+		response.Data["success"] = false
+		response.Data["error"] = "Command is empty"
+		response.Data["exit_code"] = -1
+		sendMessage(conn, response)
+		return
+	}
+
+	// Execute command based on OS
+	var cmd *exec.Cmd
+	if isWindows() {
+		// Windows: use cmd.exe /c
+		cmd = exec.Command("cmd", "/c", command)
+	} else {
+		// Unix/Linux: use sh -c
+		cmd = exec.Command("sh", "-c", command)
+	}
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+	defer cancel()
+
+	// Capture stdout and stderr together
+	var output strings.Builder
+	cmd.Stdout = &output
+	cmd.Stderr = &output
+
+	// Start command
+	err := cmd.Start()
+	if err != nil {
+		duration := time.Since(startTime).Milliseconds()
+		response.Data["success"] = false
+		response.Data["error"] = fmt.Sprintf("Failed to start command: %v", err)
+		response.Data["exit_code"] = -1
+		response.Data["duration"] = duration
+		sendMessage(conn, response)
+		return
+	}
+
+	// Wait for command with timeout
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	var exitCode int
+	var errorMsg string
+
+	select {
+	case <-ctx.Done():
+		// Timeout - kill the process
+		cmd.Process.Kill()
+		exitCode = -1
+		errorMsg = fmt.Sprintf("Command timed out after %d seconds", timeout)
+		logger.Logger.Warn().Str("command", command).Int("timeout", timeout).Msg("Command timed out")
+	case err := <-done:
+		if err != nil {
+			// Get exit code if available
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				exitCode = exitErr.ExitCode()
+			} else {
+				exitCode = -1
+			}
+			errorMsg = err.Error()
+		} else {
+			exitCode = 0
+		}
+	}
+
+	duration := time.Since(startTime).Milliseconds()
+
+	// Prepare response
+	response.Data["success"] = exitCode == 0
+	response.Data["output"] = output.String()
+	response.Data["exit_code"] = exitCode
+	response.Data["duration"] = duration
+	if errorMsg != "" {
+		response.Data["error"] = errorMsg
+	}
+
+	logger.Logger.Info().
+		Str("command", command).
+		Int("exit_code", exitCode).
+		Int64("duration_ms", duration).
+		Int("output_len", len(output.String())).
+		Msg("Command execution completed")
+
+	// Send response back to master
+	if err := sendMessage(conn, response); err != nil {
+		logger.Logger.Error().Err(err).Msg("Failed to send command result to Master")
+	}
+}
+
+// isWindows checks if running on Windows
+func isWindows() bool {
+	return strings.Contains(strings.ToLower(os.Getenv("OS")), "windows") ||
+		strings.Contains(strings.ToLower(os.Getenv("GOOS")), "windows")
 }

@@ -285,6 +285,11 @@ func setupRouter(handler *server.Handler) *gin.Engine {
 
 		// License Activation (protected - requires login)
 		api.POST("/license/activate", auth.RequireRole("admin"), handler.ActivateLicense)
+
+		// Terminal Console - Remote command execution (Admin only)
+		api.POST("/agents/:name/exec", auth.RequireRole("admin"), handler.ExecuteAgentCommand)
+		api.GET("/agents/:name/terminal-history", auth.RequireRole("admin"), handler.GetAgentTerminalHistory)
+		api.GET("/agents/connected", auth.RequireRole("admin"), handler.GetConnectedAgents)
 	}
 
 	// Health check

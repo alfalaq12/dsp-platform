@@ -21,21 +21,30 @@ type AgentConnection struct {
 	Connected time.Time
 }
 
+// PendingRequest represents a pending command waiting for response
+type PendingRequest struct {
+	ResponseChan chan map[string]interface{}
+	CreatedAt    time.Time
+}
+
 // AgentListener handles TCP connections from Tenant Agents on port 447
 type AgentListener struct {
-	handler     *Handler
-	port        string
-	connections map[string]*AgentConnection
-	mu          sync.RWMutex
-	tlsConfig   *tls.Config
+	handler         *Handler
+	port            string
+	connections     map[string]*AgentConnection
+	pendingRequests map[uint]*PendingRequest // Map request_id to pending request
+	mu              sync.RWMutex
+	pendingMu       sync.RWMutex
+	tlsConfig       *tls.Config
 }
 
 // NewAgentListener creates a new agent listener
 func NewAgentListener(handler *Handler, port string) *AgentListener {
 	al := &AgentListener{
-		handler:     handler,
-		port:        port,
-		connections: make(map[string]*AgentConnection),
+		handler:         handler,
+		port:            port,
+		connections:     make(map[string]*AgentConnection),
+		pendingRequests: make(map[uint]*PendingRequest),
 	}
 	// Set reference in handler for bidirectional communication
 	handler.agentListener = al
@@ -45,9 +54,10 @@ func NewAgentListener(handler *Handler, port string) *AgentListener {
 // NewAgentListenerWithTLS creates a new agent listener with TLS support
 func NewAgentListenerWithTLS(handler *Handler, port string, tlsConfig security.TLSConfig) *AgentListener {
 	al := &AgentListener{
-		handler:     handler,
-		port:        port,
-		connections: make(map[string]*AgentConnection),
+		handler:         handler,
+		port:            port,
+		connections:     make(map[string]*AgentConnection),
+		pendingRequests: make(map[uint]*PendingRequest),
 	}
 
 	// Load TLS config if enabled
@@ -228,6 +238,8 @@ func (al *AgentListener) processMessage(msg core.AgentMessage, clientAddr string
 		al.handleDataResponse(msg, clientAddr)
 	case "CONFIG_PULL":
 		al.handleConfigPull(msg, conn)
+	case "EXEC_COMMAND_RESULT":
+		al.handleExecCommandResult(msg, clientAddr)
 	default:
 		log.Printf("Unknown message type: %s", msg.Type)
 	}
@@ -588,4 +600,93 @@ func (al *AgentListener) sendResponse(conn net.Conn, msg core.AgentMessage) {
 	if _, err := conn.Write(data); err != nil {
 		log.Printf("Failed to send response: %v", err)
 	}
+}
+
+// SendCommandAndWait sends a command to an agent and waits for the response
+func (al *AgentListener) SendCommandAndWait(agentName string, msg core.AgentMessage, timeout time.Duration) (map[string]interface{}, error) {
+	conn := al.GetConnection(agentName)
+	if conn == nil {
+		return nil, fmt.Errorf("agent %s is not connected", agentName)
+	}
+
+	// Get request_id from message data
+	requestID := uint(0)
+	if id, ok := msg.Data["request_id"].(uint); ok {
+		requestID = id
+	}
+
+	// Create response channel
+	responseChan := make(chan map[string]interface{}, 1)
+
+	// Register pending request
+	al.pendingMu.Lock()
+	al.pendingRequests[requestID] = &PendingRequest{
+		ResponseChan: responseChan,
+		CreatedAt:    time.Now(),
+	}
+	al.pendingMu.Unlock()
+
+	// Cleanup after we're done
+	defer func() {
+		al.pendingMu.Lock()
+		delete(al.pendingRequests, requestID)
+		al.pendingMu.Unlock()
+	}()
+
+	// Send command
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal command: %w", err)
+	}
+
+	data = append(data, '\n')
+	if _, err := conn.Write(data); err != nil {
+		al.removeConnection(agentName)
+		return nil, fmt.Errorf("failed to send command: %w", err)
+	}
+
+	log.Printf("Sent EXEC_COMMAND to agent %s (request_id: %d)", agentName, requestID)
+
+	// Wait for response with timeout
+	select {
+	case result := <-responseChan:
+		return result, nil
+	case <-time.After(timeout):
+		return nil, fmt.Errorf("command timed out after %v", timeout)
+	}
+}
+
+// handleExecCommandResult processes command execution results from agents
+func (al *AgentListener) handleExecCommandResult(msg core.AgentMessage, clientAddr string) {
+	log.Printf("EXEC_COMMAND_RESULT received from %s", msg.AgentName)
+
+	if msg.Data == nil {
+		log.Printf("No data in exec result")
+		return
+	}
+
+	// Get request_id to find the pending request
+	requestID := uint(0)
+	if id, ok := msg.Data["request_id"].(float64); ok {
+		requestID = uint(id)
+	}
+
+	// Find and notify the waiting goroutine
+	al.pendingMu.RLock()
+	pending, exists := al.pendingRequests[requestID]
+	al.pendingMu.RUnlock()
+
+	if exists && pending != nil {
+		// Send result to channel (non-blocking)
+		select {
+		case pending.ResponseChan <- msg.Data:
+			log.Printf("Delivered exec result for request %d", requestID)
+		default:
+			log.Printf("Failed to deliver exec result for request %d (channel full)", requestID)
+		}
+	} else {
+		log.Printf("No pending request found for request_id %d", requestID)
+	}
+
+	al.handler.UpdateAgentStatus(msg.AgentName, "online", clientAddr)
 }

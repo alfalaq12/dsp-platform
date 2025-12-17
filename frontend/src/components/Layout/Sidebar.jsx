@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { useState, useEffect, memo } from 'react';
-import { Database, Network as NetworkIcon, Play, LayoutDashboard, X, Settings, Shield, Users, Key, Lock, AlertTriangle } from 'lucide-react';
+import { Database, Network as NetworkIcon, Play, LayoutDashboard, X, Settings, Shield, Users, Key, Lock, AlertTriangle, Terminal } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { getLicenseStatus } from '../../services/api';
 
@@ -34,6 +34,7 @@ function Sidebar({ isOpen, onClose }) {
         { path: '/network', label: 'Network', icon: NetworkIcon },
         { path: '/jobs', label: 'Jobs', icon: Play },
         { path: '/tokens', label: 'Agent Tokens', icon: Key },
+        { path: '/terminal', label: 'Terminal', icon: Terminal, role: 'admin' },
         { path: '/users', label: 'Users', icon: Users, role: 'admin' },
         { path: '/audit-logs', label: 'Audit Logs', icon: Shield, role: 'admin' },
         { path: '/settings', label: 'Settings', icon: Settings },

@@ -1746,3 +1746,103 @@ func (h *Handler) BulkCreateSchemas(c *gin.Context) {
 		"message": fmt.Sprintf("Created %d schemas from %d tables", len(createdSchemas), len(req.Tables)),
 	})
 }
+
+// ExecuteAgentCommand sends a command to an agent for remote execution
+// Admin only - for remote terminal console feature
+func (h *Handler) ExecuteAgentCommand(c *gin.Context) {
+	agentName := c.Param("name")
+
+	var req struct {
+		Command string `json:"command" binding:"required"`
+		Timeout int    `json:"timeout"` // Timeout in seconds, default 30
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Command is required"})
+		return
+	}
+
+	// Validate command is not empty
+	if req.Command == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Command cannot be empty"})
+		return
+	}
+
+	// Set default timeout
+	if req.Timeout <= 0 {
+		req.Timeout = 30
+	}
+	if req.Timeout > 300 {
+		req.Timeout = 300 // Max 5 minutes
+	}
+
+	// Get user info for audit
+	userID := c.GetUint("user_id")
+	username := c.GetString("username")
+
+	// Check if agent is connected
+	if h.agentListener == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Agent listener not available"})
+		return
+	}
+
+	// Create audit log entry
+	auditLog := core.AuditLog{
+		UserID:    userID,
+		Username:  username,
+		Action:    "EXEC_COMMAND",
+		Entity:    "AGENT",
+		EntityID:  "",
+		Details:   fmt.Sprintf("Agent: %s, Command: %s", agentName, req.Command),
+		IPAddress: c.ClientIP(),
+		UserAgent: c.Request.UserAgent(),
+		CreatedAt: time.Now(),
+	}
+	h.db.Create(&auditLog)
+
+	// Send command to agent
+	command := core.AgentMessage{
+		Type:      "EXEC_COMMAND",
+		Timestamp: time.Now(),
+		Data: map[string]interface{}{
+			"command":    req.Command,
+			"timeout":    req.Timeout,
+			"request_id": auditLog.ID, // Link response to audit log
+		},
+	}
+
+	// Send and wait for response
+	result, err := h.agentListener.SendCommandAndWait(agentName, command, time.Duration(req.Timeout)*time.Second)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   err.Error(),
+			"agent":   agentName,
+			"command": req.Command,
+		})
+		return
+	}
+
+	// Return result
+	c.JSON(http.StatusOK, gin.H{
+		"success":   true,
+		"agent":     agentName,
+		"command":   req.Command,
+		"output":    result["output"],
+		"exit_code": result["exit_code"],
+		"error":     result["error"],
+		"duration":  result["duration"],
+	})
+}
+
+// GetAgentTerminalHistory returns command execution history for an agent
+func (h *Handler) GetAgentTerminalHistory(c *gin.Context) {
+	agentName := c.Param("name")
+
+	var logs []core.AuditLog
+	h.db.Where("action = ? AND details LIKE ?", "EXEC_COMMAND", fmt.Sprintf("Agent: %s%%", agentName)).
+		Order("created_at DESC").
+		Limit(100).
+		Find(&logs)
+
+	c.JSON(http.StatusOK, logs)
+}
