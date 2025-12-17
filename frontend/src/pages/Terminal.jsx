@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function Terminal() {
+    const { isDark } = useTheme();
     const [agents, setAgents] = useState([]);
     const [selectedAgent, setSelectedAgent] = useState('');
     const [command, setCommand] = useState('');
@@ -119,17 +121,20 @@ export default function Terminal() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-white">Terminal Console</h1>
-                    <p className="text-gray-400 text-sm mt-1">Execute commands on remote agents</p>
+                    <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Terminal Console</h1>
+                    <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Execute commands on remote agents</p>
                 </div>
 
                 {/* Agent Selector */}
                 <div className="flex items-center gap-3">
-                    <span className="text-gray-400 text-sm">Agent:</span>
+                    <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Agent:</span>
                     <select
                         value={selectedAgent}
                         onChange={(e) => setSelectedAgent(e.target.value)}
-                        className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className={`px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
+                                ? 'bg-gray-800 border border-gray-700 text-white'
+                                : 'bg-white border border-gray-300 text-gray-900'
+                            }`}
                     >
                         {agents.length === 0 ? (
                             <option value="">No agents connected</option>
@@ -143,7 +148,7 @@ export default function Terminal() {
                 </div>
             </div>
 
-            {/* Terminal Container */}
+            {/* Terminal Container - Always dark for authentic terminal look */}
             <div className="bg-gray-950 rounded-xl border border-gray-800 overflow-hidden shadow-2xl">
                 {/* Terminal Header */}
                 <div className="flex items-center gap-2 px-4 py-3 bg-gray-900 border-b border-gray-800">
@@ -167,16 +172,16 @@ export default function Terminal() {
                 {/* Terminal Output */}
                 <div
                     ref={outputRef}
-                    className="h-[500px] overflow-y-auto p-4 font-mono text-sm"
+                    className="h-[500px] overflow-y-auto p-4 font-mono text-sm bg-gray-950"
                 >
                     {history.length === 0 ? (
-                        <div className="text-gray-600 italic">
+                        <div className="text-gray-500 italic">
                             <p>Welcome to DSP Terminal Console</p>
                             <p className="mt-2">• Select an agent from the dropdown above</p>
                             <p>• Type commands and press Enter to execute</p>
                             <p>• Use ↑/↓ arrows to navigate command history</p>
                             <p>• Press Ctrl+L to clear the screen</p>
-                            <p className="mt-4 text-yellow-600">⚠️ Commands are executed on the remote agent's system. Use with caution.</p>
+                            <p className="mt-4 text-yellow-500">⚠️ Commands are executed on the remote agent's system. Use with caution.</p>
                         </div>
                     ) : (
                         history.map((item, index) => (
@@ -238,8 +243,11 @@ export default function Terminal() {
             </div>
 
             {/* Quick Commands */}
-            <div className="bg-gray-900/50 rounded-xl border border-gray-800 p-4">
-                <h3 className="text-sm font-medium text-gray-400 mb-3">Quick Commands</h3>
+            <div className={`rounded-xl border p-4 ${isDark
+                    ? 'bg-gray-900/50 border-gray-800'
+                    : 'bg-white border-gray-200 shadow-sm'
+                }`}>
+                <h3 className={`text-sm font-medium mb-3 ${isDark ? 'text-gray-400' : 'text-gray-700'}`}>Quick Commands</h3>
                 <div className="flex flex-wrap gap-2">
                     {[
                         { label: 'pwd', cmd: 'pwd', os: 'unix' },
@@ -261,10 +269,13 @@ export default function Terminal() {
                                 inputRef.current?.focus();
                             }}
                             disabled={!selectedAgent}
-                            className="px-3 py-1.5 text-xs font-mono bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800/50 disabled:text-gray-600 text-gray-300 rounded-lg border border-gray-700 transition-colors"
+                            className={`px-3 py-1.5 text-xs font-mono rounded-lg border transition-colors ${isDark
+                                    ? 'bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800/50 disabled:text-gray-600 text-gray-300 border-gray-700'
+                                    : 'bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 text-gray-700 border-gray-300'
+                                }`}
                         >
                             {item.label}
-                            <span className="ml-1 text-gray-500 text-[10px]">
+                            <span className="ml-1 text-[10px]">
                                 {item.os === 'unix' ? '🐧' : item.os === 'windows' ? '🪟' : ''}
                             </span>
                         </button>
@@ -273,14 +284,17 @@ export default function Terminal() {
             </div>
 
             {/* Security Notice */}
-            <div className="bg-yellow-900/20 border border-yellow-800/50 rounded-xl p-4">
+            <div className={`rounded-xl border p-4 ${isDark
+                    ? 'bg-yellow-900/20 border-yellow-800/50'
+                    : 'bg-yellow-50 border-yellow-200'
+                }`}>
                 <div className="flex items-start gap-3">
                     <svg className="w-5 h-5 text-yellow-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                     </svg>
                     <div>
-                        <h4 className="text-yellow-500 font-medium">Security Notice</h4>
-                        <p className="text-gray-400 text-sm mt-1">
+                        <h4 className={`font-medium ${isDark ? 'text-yellow-500' : 'text-yellow-700'}`}>Security Notice</h4>
+                        <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-yellow-800'}`}>
                             Commands are executed with the same privileges as the DSP Agent service. All commands are logged for audit purposes.
                             Only administrators have access to this feature.
                         </p>

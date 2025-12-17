@@ -133,8 +133,10 @@ function MainLayout() {
             'network': { name: 'Network Management', icon: null },
             'jobs': { name: 'Job Management', icon: null },
             'tokens': { name: 'Agent Tokens', icon: null },
+            'terminal': { name: 'Terminal Console', icon: null },
             'users': { name: 'User Management', icon: null },
             'audit-logs': { name: 'Audit Logs', icon: null },
+            'activation': { name: 'License Activation', icon: null },
             'settings': { name: 'Settings', icon: Settings },
         };
 
