@@ -119,7 +119,7 @@ function MainLayout() {
 
     useEffect(() => {
         fetchNotifications();
-        const interval = setInterval(fetchNotifications, 10000); // Poll every 10s
+        const interval = setInterval(fetchNotifications, 30000); // Poll every 30s for better INP
         return () => clearInterval(interval);
     }, []);
 
@@ -186,17 +186,21 @@ function MainLayout() {
             <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
             <div className="flex-1 flex flex-col overflow-hidden">
-                {/* Header */}
-                <header className={`relative ${isDark ? 'bg-panda-dark-100 border-panda-dark-300' : 'bg-white border-slate-200 shadow-sm'} border-b px-4 sm:px-8 py-4 z-30`}>
+                {/* Header - z-index removed to allow modals to cover it properly */}
+                <header className={`relative ${isDark ? 'bg-panda-dark-100 border-panda-dark-300' : 'bg-white border-slate-200 shadow-sm'} border-b px-4 sm:px-8 py-4`}>
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4 flex-1 min-w-0">
-                            {/* Hamburger Menu - Animated */}
+                            {/* Hamburger Menu - Animated to X */}
                             <button
-                                onClick={() => setIsSidebarOpen(true)}
+                                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                                 className={`lg:hidden p-2 rounded-lg transition-all duration-200 ${isDark ? 'text-panda-text-muted hover:text-blue-500 hover:bg-panda-dark-300' : 'text-gov-blue-600 hover:text-gov-blue-800 hover:bg-slate-100'}`}
-                                aria-label="Open menu"
+                                aria-label={isSidebarOpen ? "Close menu" : "Open menu"}
                             >
-                                <Menu className="w-6 h-6" />
+                                <div className="w-6 h-6 flex flex-col justify-center items-center relative">
+                                    <span className={`block absolute h-0.5 w-5 transform transition-all duration-300 ease-in-out ${isDark ? 'bg-current' : 'bg-current'} ${isSidebarOpen ? 'rotate-45' : '-translate-y-1.5'}`}></span>
+                                    <span className={`block absolute h-0.5 w-5 transform transition-all duration-300 ease-in-out ${isDark ? 'bg-current' : 'bg-current'} ${isSidebarOpen ? 'opacity-0 scale-0' : 'opacity-100'}`}></span>
+                                    <span className={`block absolute h-0.5 w-5 transform transition-all duration-300 ease-in-out ${isDark ? 'bg-current' : 'bg-current'} ${isSidebarOpen ? '-rotate-45' : 'translate-y-1.5'}`}></span>
+                                </div>
                             </button>
 
                             {/* Title - Hidden on small screens */}

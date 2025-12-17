@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { Database, Network as NetworkIcon, Play, LayoutDashboard, X, Settings, Shield, Users, Key, Lock, AlertTriangle } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { getLicenseStatus } from '../../services/api';
@@ -136,4 +136,4 @@ function Sidebar({ isOpen, onClose }) {
     );
 }
 
-export default Sidebar;
+export default memo(Sidebar);

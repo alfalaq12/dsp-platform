@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, Trash2, Search, User, Shield, Key, Edit, X } from 'lucide-react';
 import { getUsers, createUser, deleteUser, updateUser } from '../services/api';
 import { ConfirmModal, useToast, ToastContainer } from '../components/Toast';
@@ -263,7 +264,7 @@ function Users() {
                 )}
             </div>
             {/* Add/Edit User Modal */}
-            {isModalOpen && (
+            {isModalOpen && createPortal(
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md p-4 transition-all" onClick={() => setIsModalOpen(false)}>
                     <div className={`w-full max-w-md rounded-2xl border shadow-2xl overflow-hidden modal-scale-in ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`} onClick={(e) => e.stopPropagation()}>
                         <div className={`px-8 py-6 border-b flex justify-between items-center ${isDark ? 'border-slate-700 bg-slate-900/50' : 'border-slate-50 bg-slate-50/80'}`}>
@@ -379,7 +380,7 @@ function Users() {
                         </form>
                     </div>
                 </div>
-            )}
+                , document.body)}
 
             {/* Confirm Delete Modal */}
             <ConfirmModal

@@ -73,7 +73,7 @@ function Network() {
 
     useEffect(() => {
         loadNetworks();
-        const interval = setInterval(loadNetworks, 5000);
+        const interval = setInterval(loadNetworks, 15000); // Poll every 15s instead of 5s for better INP
         return () => clearInterval(interval);
     }, []);
 

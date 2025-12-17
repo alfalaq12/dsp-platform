@@ -1,10 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, Play, RefreshCw, X, Clock, Database, CheckCircle, XCircle, Loader2, Trash2, Eye, Pause, Network as NetworkIcon } from 'lucide-react';
 import { getJobs, getSchemas, getNetworks, createJob, runJob, getJob, deleteJob, toggleJob } from '../services/api';
 import { useToast, ToastContainer, ConfirmModal } from '../components/Toast';
 import Pagination from '../components/Pagination';
 import { useTheme } from '../contexts/ThemeContext';
 import { getErrorMessage } from '../utils/errorHelper';
+import SearchableSelect from '../components/SearchableSelect';
 
 function Jobs() {
     const { isDark } = useTheme();
@@ -55,7 +57,7 @@ function Jobs() {
     // Initial load and auto-refresh every 5 seconds
     useEffect(() => {
         loadData();
-        const interval = setInterval(loadData, 5000);
+        const interval = setInterval(loadData, 15000); // Poll every 15s instead of 5s for better INP
         return () => clearInterval(interval);
     }, [loadData]);
 
@@ -329,7 +331,7 @@ function Jobs() {
 
             {/* Create Form */}
             {showForm && (
-                <div className={`backdrop-blur-sm border rounded-2xl p-8 modal-scale-in mb-8 ${isDark ? 'bg-slate-800/80 border-slate-700' : 'bg-white border-slate-200 shadow-xl'}`}>
+                <div className={`backdrop-blur-sm border rounded-2xl p-10 modal-scale-in mb-10${isDark ? 'bg-slate-800/80 border-slate-700' : 'bg-white border-slate-200 shadow-xl'}`}>
                     <h2 className={`text-xl font-bold mb-6 flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
                         <Plus className="w-5 h-5 text-blue-500" />
                         Create New Job
@@ -349,31 +351,24 @@ function Jobs() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Schema</label>
-                                <select
+                                <SearchableSelect
+                                    options={schemas}
                                     value={formData.schema_id}
                                     onChange={(e) => setFormData({ ...formData, schema_id: e.target.value })}
-                                    className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${isDark ? 'bg-slate-900/50 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                    placeholder="Search schema..."
                                     required
-                                >
-                                    <option value="">Select Schema</option>
-                                    {schemas.map((s) => (
-                                        <option key={s.id} value={s.id}>{s.name}</option>
-                                    ))}
-                                </select>
+                                />
                             </div>
                             <div>
                                 <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Network</label>
-                                <select
+                                <SearchableSelect
+                                    options={networks}
                                     value={formData.network_id}
                                     onChange={(e) => setFormData({ ...formData, network_id: e.target.value })}
-                                    className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${isDark ? 'bg-slate-900/50 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                    placeholder="Search network..."
+                                    subField="db_driver"
                                     required
-                                >
-                                    <option value="">Select Network</option>
-                                    {networks.map((n) => (
-                                        <option key={n.id} value={n.id}>{n.name}</option>
-                                    ))}
-                                </select>
+                                />
                             </div>
                         </div>
                         <div>
@@ -591,116 +586,114 @@ function Jobs() {
                 )
             }
 
-            {
-                selectedJob && (
-                    <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[100] flex items-center justify-center p-4 transition-all" onClick={() => setSelectedJob(null)}>
-                        <div className={`rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden modal-scale-in shadow-2xl ${isDark ? 'bg-slate-900' : 'bg-white'}`} onClick={(e) => e.stopPropagation()}>
-                            <div className={`sticky top-0 z-10 flex items-center justify-between p-6 border-b ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>
-                                <div>
-                                    <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{selectedJob.name}</h2>
-                                    <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Job Details & Execution History</p>
+            {selectedJob && createPortal(
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[100] flex items-center justify-center p-4 transition-all" onClick={() => setSelectedJob(null)}>
+                    <div className={`rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden modal-scale-in shadow-2xl ${isDark ? 'bg-slate-900' : 'bg-white'}`} onClick={(e) => e.stopPropagation()}>
+                        <div className={`sticky top-0 z-10 flex items-center justify-between p-6 border-b ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>
+                            <div>
+                                <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{selectedJob.name}</h2>
+                                <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Job Details & Execution History</p>
+                            </div>
+                            <button onClick={() => setSelectedJob(null)} className={`p-2 rounded-xl transition ${isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-200 text-slate-500'}`}>
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-6 overflow-y-auto max-h-[calc(80vh-100px)] custom-scrollbar">
+                            {/* Job Info */}
+                            <div className="grid grid-cols-2 gap-4 mb-8">
+                                <div className={`rounded-xl p-4 border ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200 shadow-sm'}`}>
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <Database className={`w-4 h-4 ${isDark ? 'text-blue-400' : 'text-blue-500'}`} />
+                                        <p className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Schema</p>
+                                    </div>
+                                    <p className={`font-semibold text-lg ${isDark ? 'text-white' : 'text-slate-900'}`}>{selectedJob.schema?.name}</p>
                                 </div>
-                                <button onClick={() => setSelectedJob(null)} className={`p-2 rounded-xl transition ${isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-200 text-slate-500'}`}>
-                                    <X className="w-5 h-5" />
-                                </button>
+                                <div className={`rounded-xl p-4 border ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200 shadow-sm'}`}>
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <NetworkIcon className={`w-4 h-4 ${isDark ? 'text-purple-400' : 'text-purple-500'}`} />
+                                        <p className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Network</p>
+                                    </div>
+                                    <p className={`font-semibold text-lg ${isDark ? 'text-white' : 'text-slate-900'}`}>{selectedJob.network?.name}</p>
+                                </div>
                             </div>
 
-                            <div className="p-6 overflow-y-auto max-h-[calc(80vh-100px)] custom-scrollbar">
-                                {/* Job Info */}
-                                <div className="grid grid-cols-2 gap-4 mb-8">
-                                    <div className={`rounded-xl p-4 border ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200 shadow-sm'}`}>
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <Database className={`w-4 h-4 ${isDark ? 'text-blue-400' : 'text-blue-500'}`} />
-                                            <p className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Schema</p>
-                                        </div>
-                                        <p className={`font-semibold text-lg ${isDark ? 'text-white' : 'text-slate-900'}`}>{selectedJob.schema?.name}</p>
-                                    </div>
-                                    <div className={`rounded-xl p-4 border ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200 shadow-sm'}`}>
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <NetworkIcon className={`w-4 h-4 ${isDark ? 'text-purple-400' : 'text-purple-500'}`} />
-                                            <p className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Network</p>
-                                        </div>
-                                        <p className={`font-semibold text-lg ${isDark ? 'text-white' : 'text-slate-900'}`}>{selectedJob.network?.name}</p>
-                                    </div>
-                                </div>
+                            {/* Execution Logs */}
+                            <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                <Clock className="w-5 h-5 text-slate-400" />
+                                Execution History
+                            </h3>
 
-                                {/* Execution Logs */}
-                                <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                    <Clock className="w-5 h-5 text-slate-400" />
-                                    Execution History
-                                </h3>
-
-                                {jobDetails?.logs?.length > 0 ? (
-                                    <div className="space-y-4">
-                                        {jobDetails.logs.map((log, idx) => (
-                                            <div key={log.id || idx} className={`rounded-xl p-5 border transition-all ${isDark ? 'bg-slate-800/30 border-slate-700 hover:border-slate-600' : 'bg-white border-slate-200 shadow-sm hover:shadow-md'}`}>
-                                                <div className="flex items-center justify-between mb-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`p-2 rounded-full ${log.status === 'completed' ? (isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-50 text-emerald-600') :
-                                                            log.status === 'running' ? (isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600') :
-                                                                log.status === 'failed' ? (isDark ? 'bg-red-500/20 text-red-400' : 'bg-red-50 text-red-600') :
-                                                                    (isDark ? 'bg-slate-700 text-slate-400' : 'bg-slate-100 text-slate-500')
-                                                            }`}>
-                                                            {getStatusIcon(log.status)}
-                                                        </div>
-                                                        <div>
-                                                            <span className={`block text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                                                {log.status?.charAt(0).toUpperCase() + log.status?.slice(1)}
-                                                            </span>
-                                                            <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                                                                {new Date(log.started_at).toLocaleString('id-ID')}
-                                                            </span>
-                                                        </div>
+                            {jobDetails?.logs?.length > 0 ? (
+                                <div className="space-y-4">
+                                    {jobDetails.logs.map((log, idx) => (
+                                        <div key={log.id || idx} className={`rounded-xl p-5 border transition-all ${isDark ? 'bg-slate-800/30 border-slate-700 hover:border-slate-600' : 'bg-white border-slate-200 shadow-sm hover:shadow-md'}`}>
+                                            <div className="flex items-center justify-between mb-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`p-2 rounded-full ${log.status === 'completed' ? (isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-50 text-emerald-600') :
+                                                        log.status === 'running' ? (isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600') :
+                                                            log.status === 'failed' ? (isDark ? 'bg-red-500/20 text-red-400' : 'bg-red-50 text-red-600') :
+                                                                (isDark ? 'bg-slate-700 text-slate-400' : 'bg-slate-100 text-slate-500')
+                                                        }`}>
+                                                        {getStatusIcon(log.status)}
                                                     </div>
-                                                    <span className={`text-xs px-2 py-1 rounded border ${isDark ? 'bg-slate-800 border-slate-700 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
-                                                        ID: {log.id || '-'}
-                                                    </span>
-                                                </div>
-
-                                                <div className="grid grid-cols-2 gap-4 text-sm mb-4">
-                                                    <div className={`p-3 rounded-lg ${isDark ? 'bg-slate-900/50' : 'bg-slate-50'}`}>
-                                                        <p className={`text-xs mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Duration</p>
-                                                        <p className={`font-mono font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{formatDuration(log.duration)}</p>
-                                                    </div>
-                                                    <div className={`p-3 rounded-lg ${isDark ? 'bg-slate-900/50' : 'bg-slate-50'}`}>
-                                                        <p className={`text-xs mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Records</p>
-                                                        <p className={`font-mono font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{log.record_count || '0'}</p>
+                                                    <div>
+                                                        <span className={`block text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                                            {log.status?.charAt(0).toUpperCase() + log.status?.slice(1)}
+                                                        </span>
+                                                        <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                                            {new Date(log.started_at).toLocaleString('id-ID')}
+                                                        </span>
                                                     </div>
                                                 </div>
-
-                                                {/* Error Message Display */}
-                                                {log.status === 'failed' && log.error_message && (
-                                                    <div className={`mt-4 p-4 rounded-xl border ${isDark ? 'bg-red-500/10 border-red-500/20' : 'bg-red-50 border-red-100'}`}>
-                                                        <p className={`text-xs font-bold mb-1 uppercase tracking-wider ${isDark ? 'text-red-400' : 'text-red-700'}`}>Error Details</p>
-                                                        <p className={`text-sm font-mono break-all ${isDark ? 'text-red-300' : 'text-red-600'}`}>{log.error_message}</p>
-                                                    </div>
-                                                )}
-
-                                                {/* Sample Data Preview */}
-                                                {log.sample_data && (
-                                                    <div className="mt-4">
-                                                        <div className="flex items-center justify-between mb-2">
-                                                            <p className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>Sample Data</p>
-                                                        </div>
-                                                        <pre className={`rounded-xl p-4 text-xs overflow-x-auto font-mono custom-scrollbar ${isDark ? 'bg-slate-950 text-slate-300 border border-slate-800' : 'bg-slate-50 border border-slate-200 text-slate-700'}`}>
-                                                            {JSON.stringify(JSON.parse(log.sample_data), null, 2)}
-                                                        </pre>
-                                                    </div>
-                                                )}
+                                                <span className={`text-xs px-2 py-1 rounded border ${isDark ? 'bg-slate-800 border-slate-700 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
+                                                    ID: {log.id || '-'}
+                                                </span>
                                             </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className={`text-center py-12 border-2 border-dashed rounded-2xl ${isDark ? 'border-slate-800 text-slate-500' : 'border-slate-200 text-slate-400'}`}>
-                                        <Clock className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                                        <p>No execution history available.</p>
-                                    </div>
-                                )}
-                            </div>
+
+                                            <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+                                                <div className={`p-3 rounded-lg ${isDark ? 'bg-slate-900/50' : 'bg-slate-50'}`}>
+                                                    <p className={`text-xs mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Duration</p>
+                                                    <p className={`font-mono font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{formatDuration(log.duration)}</p>
+                                                </div>
+                                                <div className={`p-3 rounded-lg ${isDark ? 'bg-slate-900/50' : 'bg-slate-50'}`}>
+                                                    <p className={`text-xs mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Records</p>
+                                                    <p className={`font-mono font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{log.record_count || '0'}</p>
+                                                </div>
+                                            </div>
+
+                                            {/* Error Message Display */}
+                                            {log.status === 'failed' && log.error_message && (
+                                                <div className={`mt-4 p-4 rounded-xl border ${isDark ? 'bg-red-500/10 border-red-500/20' : 'bg-red-50 border-red-100'}`}>
+                                                    <p className={`text-xs font-bold mb-1 uppercase tracking-wider ${isDark ? 'text-red-400' : 'text-red-700'}`}>Error Details</p>
+                                                    <p className={`text-sm font-mono break-all ${isDark ? 'text-red-300' : 'text-red-600'}`}>{log.error_message}</p>
+                                                </div>
+                                            )}
+
+                                            {/* Sample Data Preview */}
+                                            {log.sample_data && (
+                                                <div className="mt-4">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <p className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>Sample Data</p>
+                                                    </div>
+                                                    <pre className={`rounded-xl p-4 text-xs overflow-x-auto font-mono custom-scrollbar ${isDark ? 'bg-slate-950 text-slate-300 border border-slate-800' : 'bg-slate-50 border border-slate-200 text-slate-700'}`}>
+                                                        {JSON.stringify(JSON.parse(log.sample_data), null, 2)}
+                                                    </pre>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className={`text-center py-12 border-2 border-dashed rounded-2xl ${isDark ? 'border-slate-800 text-slate-500' : 'border-slate-200 text-slate-400'}`}>
+                                    <Clock className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                                    <p>No execution history available.</p>
+                                </div>
+                            )}
                         </div>
                     </div>
-                )
-            }
+                </div>
+                , document.body)}
 
             {/* Delete Confirmation Modal */}
             <ConfirmModal

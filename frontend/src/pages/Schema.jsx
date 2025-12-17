@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, Edit, Trash2, Database, Eye, Code, FileSpreadsheet, Download, Search, CheckSquare, Square, Loader2 } from 'lucide-react';
 import { getSchemas, createSchema, updateSchema, deleteSchema, getNetworks, discoverTables, bulkCreateSchemas } from '../services/api';
 import { useToast, ToastContainer, ConfirmModal, ViewModal } from '../components/Toast';
@@ -609,8 +610,8 @@ function Schema() {
             </ViewModal>
 
             {/* Import Tables Modal */}
-            {showImportModal && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            {showImportModal && createPortal(
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[100] p-4">
                     <div className={`w-full max-w-3xl rounded-2xl shadow-2xl max-h-[90vh] flex flex-col ${isDark ? 'bg-panda-dark-100' : 'bg-white'}`}>
                         {/* Header */}
                         <div className={`px-6 py-4 border-b ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
@@ -803,7 +804,7 @@ function Schema() {
                         </div>
                     </div>
                 </div>
-            )}
+                , document.body)}
 
             {/* Delete Confirmation Modal */}
             <ConfirmModal

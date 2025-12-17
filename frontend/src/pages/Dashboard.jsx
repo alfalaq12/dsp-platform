@@ -28,7 +28,7 @@ function Dashboard() {
 
     useEffect(() => {
         loadStats();
-        const interval = setInterval(loadStats, 10000);
+        const interval = setInterval(loadStats, 30000); // Poll every 30s instead of 10s for better INP
         return () => clearInterval(interval);
     }, []);
 

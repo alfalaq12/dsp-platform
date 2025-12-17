@@ -112,7 +112,7 @@ export function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confi
 
     const styles = getStyles();
 
-    return (
+    return createPortal(
         <div
             className="fixed inset-0 bg-black/70 backdrop-blur-md z-[100] flex items-center justify-center p-4"
             onClick={onClose}
@@ -151,7 +151,8 @@ export function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confi
                     </button>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }
 
@@ -160,7 +161,7 @@ export function ViewModal({ isOpen, onClose, title, children }) {
     const { isDark } = useTheme();
     if (!isOpen) return null;
 
-    return (
+    return createPortal(
         <div
             className="fixed inset-0 bg-black/70 backdrop-blur-md z-[100] flex items-center justify-center p-4"
             onClick={onClose}
@@ -182,7 +183,8 @@ export function ViewModal({ isOpen, onClose, title, children }) {
                     {children}
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }
 

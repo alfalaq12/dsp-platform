@@ -178,3 +178,54 @@ func TestMongoConnection(config MongoConfig) error {
 	defer conn.Close()
 	return nil
 }
+
+// UpsertMany inserts or updates multiple documents based on unique key field
+// If document with matching uniqueKeyField exists, it updates; otherwise inserts
+func (c *MongoConnection) UpsertMany(collectionName string, documents []map[string]interface{}, uniqueKeyField string) (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	collection := c.Database.Collection(collectionName)
+
+	// If no unique key specified, fall back to regular insert
+	if uniqueKeyField == "" {
+		if err := c.InsertMany(collectionName, documents); err != nil {
+			return 0, err
+		}
+		return len(documents), nil
+	}
+
+	upsertedCount := 0
+	opts := options.Update().SetUpsert(true)
+
+	for _, doc := range documents {
+		// Get the unique key value from document
+		keyValue, exists := doc[uniqueKeyField]
+		if !exists {
+			// Skip documents without the unique key
+			continue
+		}
+
+		// Build filter based on unique key
+		filter := bson.M{uniqueKeyField: keyValue}
+
+		// Build update document (using $set to update all fields)
+		update := bson.M{"$set": doc}
+
+		result, err := collection.UpdateOne(ctx, filter, update, opts)
+		if err != nil {
+			// Log error but continue with other documents
+			continue
+		}
+
+		// Count both inserted and modified as successful
+		if result.UpsertedCount > 0 || result.ModifiedCount > 0 {
+			upsertedCount++
+		} else if result.MatchedCount > 0 {
+			// Document matched but no changes needed (same data)
+			upsertedCount++
+		}
+	}
+
+	return upsertedCount, nil
+}

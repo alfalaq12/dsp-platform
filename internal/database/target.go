@@ -179,7 +179,8 @@ func inferPostgresType(value interface{}) string {
 	}
 }
 
-// InsertBatch inserts records into target table with conflict handling (skip on conflict)
+// InsertBatch inserts records into target table with conflict handling
+// Supports: PostgreSQL, MySQL, Oracle
 func (tc *TargetConnection) InsertBatch(tableName string, records []map[string]interface{}) (int, error) {
 	if len(records) == 0 {
 		return 0, nil
@@ -191,28 +192,55 @@ func (tc *TargetConnection) InsertBatch(tableName string, records []map[string]i
 		columns = append(columns, col)
 	}
 
-	// Build insert statement
 	insertedCount := 0
 	for _, record := range records {
 		var values []interface{}
 		var placeholders []string
+		var insertSQL string
 
 		for i, col := range columns {
 			values = append(values, record[col])
-			placeholders = append(placeholders, fmt.Sprintf("$%d", i+1))
+
+			switch tc.Config.Driver {
+			case "mysql":
+				placeholders = append(placeholders, "?")
+			case "oracle":
+				placeholders = append(placeholders, fmt.Sprintf(":%d", i+1))
+			default: // postgres
+				placeholders = append(placeholders, fmt.Sprintf("$%d", i+1))
+			}
 		}
 
-		// PostgreSQL: INSERT ... ON CONFLICT DO NOTHING (skip duplicates)
-		insertSQL := fmt.Sprintf(
-			"INSERT INTO \"%s\" (\"%s\") VALUES (%s) ON CONFLICT DO NOTHING",
-			tableName,
-			strings.Join(columns, "\", \""),
-			strings.Join(placeholders, ", "),
-		)
+		switch tc.Config.Driver {
+		case "mysql":
+			// MySQL: INSERT IGNORE to skip duplicates
+			insertSQL = fmt.Sprintf(
+				"INSERT IGNORE INTO `%s` (`%s`) VALUES (%s)",
+				tableName,
+				strings.Join(columns, "`, `"),
+				strings.Join(placeholders, ", "),
+			)
+		case "oracle":
+			// Oracle: Use MERGE for insert-ignore behavior
+			insertSQL = fmt.Sprintf(
+				"INSERT INTO \"%s\" (\"%s\") VALUES (%s)",
+				tableName,
+				strings.Join(columns, "\", \""),
+				strings.Join(placeholders, ", "),
+			)
+		default: // postgres
+			// PostgreSQL: INSERT ... ON CONFLICT DO NOTHING
+			insertSQL = fmt.Sprintf(
+				"INSERT INTO \"%s\" (\"%s\") VALUES (%s) ON CONFLICT DO NOTHING",
+				tableName,
+				strings.Join(columns, "\", \""),
+				strings.Join(placeholders, ", "),
+			)
+		}
 
 		result, err := tc.DB.Exec(insertSQL, values...)
 		if err != nil {
-			log.Printf("Insert error (skipping): %v", err)
+			log.Printf("Insert error (driver: %s, skipping): %v", tc.Config.Driver, err)
 			continue
 		}
 
@@ -220,10 +248,12 @@ func (tc *TargetConnection) InsertBatch(tableName string, records []map[string]i
 		insertedCount += int(affected)
 	}
 
+	log.Printf("Inserted %d records to %s (driver: %s)", insertedCount, tableName, tc.Config.Driver)
 	return insertedCount, nil
 }
 
 // UpsertBatch inserts or updates records based on unique key column
+// Supports: PostgreSQL, MySQL, Oracle
 func (tc *TargetConnection) UpsertBatch(tableName string, records []map[string]interface{}, uniqueKeyColumn string) (int, error) {
 	if len(records) == 0 {
 		return 0, nil
@@ -240,6 +270,26 @@ func (tc *TargetConnection) UpsertBatch(tableName string, records []map[string]i
 		columns = append(columns, col)
 	}
 
+	upsertedCount := 0
+
+	switch tc.Config.Driver {
+	case "postgres":
+		upsertedCount = tc.upsertPostgres(tableName, records, columns, uniqueKeyColumn)
+	case "mysql":
+		upsertedCount = tc.upsertMySQL(tableName, records, columns, uniqueKeyColumn)
+	case "oracle":
+		upsertedCount = tc.upsertOracle(tableName, records, columns, uniqueKeyColumn)
+	default:
+		// Fall back to PostgreSQL syntax for unknown drivers
+		upsertedCount = tc.upsertPostgres(tableName, records, columns, uniqueKeyColumn)
+	}
+
+	log.Printf("Upserted %d records to %s (driver: %s, unique key: %s)", upsertedCount, tableName, tc.Config.Driver, uniqueKeyColumn)
+	return upsertedCount, nil
+}
+
+// upsertPostgres handles PostgreSQL upsert using ON CONFLICT DO UPDATE
+func (tc *TargetConnection) upsertPostgres(tableName string, records []map[string]interface{}, columns []string, uniqueKeyColumn string) int {
 	// Build update set clause (exclude the unique key)
 	var updateClauses []string
 	for _, col := range columns {
@@ -258,7 +308,6 @@ func (tc *TargetConnection) UpsertBatch(tableName string, records []map[string]i
 			placeholders = append(placeholders, fmt.Sprintf("$%d", i+1))
 		}
 
-		// PostgreSQL: INSERT ... ON CONFLICT DO UPDATE
 		upsertSQL := fmt.Sprintf(
 			"INSERT INTO \"%s\" (\"%s\") VALUES (%s) ON CONFLICT (\"%s\") DO UPDATE SET %s",
 			tableName,
@@ -270,7 +319,7 @@ func (tc *TargetConnection) UpsertBatch(tableName string, records []map[string]i
 
 		result, err := tc.DB.Exec(upsertSQL, values...)
 		if err != nil {
-			log.Printf("Upsert error (skipping): %v - SQL: %s", err, upsertSQL)
+			log.Printf("PostgreSQL upsert error (skipping): %v", err)
 			continue
 		}
 
@@ -278,6 +327,97 @@ func (tc *TargetConnection) UpsertBatch(tableName string, records []map[string]i
 		upsertedCount += int(affected)
 	}
 
-	log.Printf("Upserted %d records to %s (unique key: %s)", upsertedCount, tableName, uniqueKeyColumn)
-	return upsertedCount, nil
+	return upsertedCount
+}
+
+// upsertMySQL handles MySQL upsert using ON DUPLICATE KEY UPDATE
+func (tc *TargetConnection) upsertMySQL(tableName string, records []map[string]interface{}, columns []string, uniqueKeyColumn string) int {
+	// Build update set clause for MySQL (exclude the unique key)
+	var updateClauses []string
+	for _, col := range columns {
+		if col != uniqueKeyColumn {
+			updateClauses = append(updateClauses, fmt.Sprintf("`%s` = VALUES(`%s`)", col, col))
+		}
+	}
+
+	upsertedCount := 0
+	for _, record := range records {
+		var values []interface{}
+		var placeholders []string
+
+		for _, col := range columns {
+			values = append(values, record[col])
+			placeholders = append(placeholders, "?")
+		}
+
+		// MySQL uses backticks for identifiers and ? for placeholders
+		upsertSQL := fmt.Sprintf(
+			"INSERT INTO `%s` (`%s`) VALUES (%s) ON DUPLICATE KEY UPDATE %s",
+			tableName,
+			strings.Join(columns, "`, `"),
+			strings.Join(placeholders, ", "),
+			strings.Join(updateClauses, ", "),
+		)
+
+		result, err := tc.DB.Exec(upsertSQL, values...)
+		if err != nil {
+			log.Printf("MySQL upsert error (skipping): %v", err)
+			continue
+		}
+
+		affected, _ := result.RowsAffected()
+		upsertedCount += int(affected)
+	}
+
+	return upsertedCount
+}
+
+// upsertOracle handles Oracle upsert using MERGE INTO
+func (tc *TargetConnection) upsertOracle(tableName string, records []map[string]interface{}, columns []string, uniqueKeyColumn string) int {
+	upsertedCount := 0
+
+	for _, record := range records {
+		var values []interface{}
+		var selectClauses []string
+		var insertCols []string
+		var insertVals []string
+		var updateClauses []string
+
+		for i, col := range columns {
+			values = append(values, record[col])
+			selectClauses = append(selectClauses, fmt.Sprintf(":%d AS \"%s\"", i+1, col))
+			insertCols = append(insertCols, fmt.Sprintf("\"%s\"", col))
+			insertVals = append(insertVals, fmt.Sprintf("src.\"%s\"", col))
+
+			if col != uniqueKeyColumn {
+				updateClauses = append(updateClauses, fmt.Sprintf("tgt.\"%s\" = src.\"%s\"", col, col))
+			}
+		}
+
+		// Oracle MERGE syntax
+		mergeSQL := fmt.Sprintf(`
+			MERGE INTO "%s" tgt
+			USING (SELECT %s FROM DUAL) src
+			ON (tgt."%s" = src."%s")
+			WHEN MATCHED THEN UPDATE SET %s
+			WHEN NOT MATCHED THEN INSERT (%s) VALUES (%s)`,
+			tableName,
+			strings.Join(selectClauses, ", "),
+			uniqueKeyColumn, uniqueKeyColumn,
+			strings.Join(updateClauses, ", "),
+			strings.Join(insertCols, ", "),
+			strings.Join(insertVals, ", "),
+		)
+
+		result, err := tc.DB.Exec(mergeSQL, values...)
+		if err != nil {
+			log.Printf("Oracle upsert error (skipping): %v", err)
+			continue
+		}
+
+		affected, _ := result.RowsAffected()
+		upsertedCount += int(affected)
+	}
+
+	return upsertedCount
 }
