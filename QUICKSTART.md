@@ -1,93 +1,137 @@
-# Quick Start Guide - DSP Platform
+# DSP Platform - Quick Start Guide
 
-Panduan cepat untuk mencoba DSP Platform (Master + Agent) dalam 5 menit.
+Panduan cepat untuk menjalankan DSP Platform.
 
-## 🎯 Setup Sederhana
+## 🎯 Prerequisites
 
-Karena Master Server sudah **embedded database (SQLite)**, kamu **TIDAK PERLU** install Postgres/MySQL untuk server Master. Tinggal download & run!
+- **Go 1.21+** (untuk build dari source)
+- **Node.js 18+** (untuk build frontend)
+- **Target Database** (PostgreSQL/MySQL/Oracle untuk menyimpan hasil sync)
 
-```
-┌─────────────────────────────────┐
-│     Server / Laptop Master      │
-│   ┌─────────────────────────┐   │
-│   │    DSP Master Binary    │   │
-│   │   (Termasuk Web GUI)    │◄──┼─── Buka Browser: http://localhost:441
-│   └────────────┬────────────┘   │
-└────────────────┼────────────────┘
-                 │ TCP :447
-┌────────────────▼────────────────┐
-│      Laptop / Cabang Agent      │
-│   ┌─────────────────────────┐   │
-│   │    DSP Agent Binary     │   │
-│   └─────────────────────────┘   │
-└─────────────────────────────────┘
-```
+## ⚡ 5-Minute Setup
 
----
+### 1. Build atau Download Binary
 
-## 🚀 Langkah 1: Build Aplikasi
-
-### Windows
-```powershell
+```bash
 # Clone repo
-git clone https://github.com/alfalaq12/dsp-platform.git
+git clone https://github.com/YOUR-REPO/dsp-platform.git
 cd dsp-platform
 
-# Build (Master & Agent)
-.\build.ps1
+# Build (Windows)
+.\scripts\build-release.ps1 -Version "1.0.0"
+
+# Build (Linux/Mac)
+chmod +x scripts/build-release.sh
+./scripts/build-release.sh 1.0.0
 ```
 
-### Linux
+Hasil build ada di `releases/v1.0.0/`
+
+### 2. Setup Master Server
+
 ```bash
-./build.sh
+cd releases/v1.0.0
+unzip dsp-master-v1.0.0.zip -d master
+cd master
+
+# Jalankan installer
+./install.sh      # Linux
+install.bat       # Windows
+
+# Edit .env
+nano .env
+# Ubah JWT_SECRET ke random string yang aman!
+
+# Jalankan
+./dsp-master      # Linux
+dsp-master.exe    # Windows
 ```
 
----
+Akses: **http://localhost:8080**
 
-## 🖥️ Langkah 2: Jalankan Master Server
+### 3. Login & Setup Target Database
 
-Jalankan file hasil build:
+1. Login dengan `admin` / `admin`
+2. **Ubah password** (wajib pada login pertama)
+3. Ke **Settings** → Configure Target Database
+4. Test koneksi
 
-### Windows
-```powershell
-.\bin\windows\dsp-master.exe
-```
+### 4. Generate Agent Token
 
-### Linux
+1. Ke menu **Agent Tokens**
+2. Klik **Generate Token**
+3. Isi nama agent (contoh: `kantor-cabang-a`)
+4. Copy token yang muncul
+
+### 5. Setup Agent di Server Tenant
+
 ```bash
-./bin/linux/dsp-master
+# Di server tenant
+unzip dsp-agent-v1.0.0.zip -d agent
+cd agent
+./install.sh
+
+# Edit .env
+nano .env
 ```
 
-Tunggu sampai muncul log:
-`Starting HTTP server port=441`
+Isi `.env`:
+```bash
+MASTER_HOST=192.168.1.100    # IP Master Server
+MASTER_PORT=8447
+AGENT_NAME=kantor-cabang-a
+AGENT_TOKEN=eyJhbGciOiJIUzI1NiIs...  # Token dari dashboard
+```
 
-Buka browser: **http://localhost:441**
-Login: `admin` / `admin`
+Jalankan:
+```bash
+./dsp-agent
+```
+
+### 6. Create Sync Job
+
+1. Kembali ke Master Dashboard
+2. **Network** → Add source database/FTP/API
+3. **Schema** → Define SQL query dan target table
+4. **Jobs** → Create job dengan schedule
+
+## ✅ Verification Checklist
+
+- [ ] Master server running di port 8080
+- [ ] Agent connected (cek Dashboard)
+- [ ] Target database connected (Settings → Test)
+- [ ] Network source configured
+- [ ] Schema created
+- [ ] Job created dan bisa di-run manual
+
+## 🔧 Common Commands
+
+```bash
+# Check agent connection status
+curl http://localhost:8080/api/agents/connected
+
+# Run job manually (dari Terminal Console)
+# Login → Terminal → pilih agent → ketik command
+
+# View logs
+tail -f logs/dsp-master.log
+```
+
+## 🆘 Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| Agent tidak connect | Cek firewall port 8447, cek MASTER_HOST |
+| Login gagal | Pastikan cookies enabled, cek JWT_SECRET |
+| Sync failed | Cek Network source credentials |
+| Target DB error | Pastikan target table otomatis dibuat |
+
+## 📚 Next Steps
+
+- [README.md](README.md) - Dokumentasi lengkap
+- Konfigurasi TLS untuk production
+- Setup sebagai Systemd/Windows Service
 
 ---
 
-## 🤖 Langkah 3: Jalankan Agent (Optional)
-
-Kalau mau coba simulasi Agent connect ke Master di komputer yang sama.
-
-1. Buka terminal baru.
-2. Edit config agent (jika perlu) di `cmd/agent/main.go`, tapi defaultnya `localhost:447` jadi harusnya langsung jalan.
-3. Jalankan Agent:
-
-### Windows
-```powershell
-.\bin\windows\dsp-agent.exe
-```
-
-Di Dashboard Master, masuk menu **Networks**, kamu bakal lihat agent baru muncul dengan status **Online**.
-
----
-
-## 🎉 Selesai!
-
-Sekarang kamu bisa:
-1. Bikin **Schema** (Query SQL).
-2. Bikin **Job** sync data.
-3. Assign Job ke Agent.
-
-Untuk panduan production deployment (Service, Background Process, Backup), baca [DEPLOYMENT.md](deployment/DEPLOYMENT.md).
+**Butuh bantuan?** bintangal.falag@gmail.com

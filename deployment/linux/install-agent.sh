@@ -55,17 +55,29 @@ if [ ! -f "/opt/dsp-agent/.env" ]; then
     AGENT_NAME=${AGENT_NAME:-agent-$(hostname)}
     
     cat > /opt/dsp-agent/.env << EOF
+# DSP Agent Configuration
+# Database/Network configuration is managed from Web Console (Network menu)
+
 MASTER_HOST=${MASTER_IP}
 MASTER_PORT=447
 AGENT_NAME=${AGENT_NAME}
-SYNC_ENABLED=false
-DB_DRIVER=postgres
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=
-DB_PASSWORD=
-DB_NAME=
+AGENT_TOKEN=
+
+# TLS Configuration (must match Master server)
+TLS_ENABLED=true
+TLS_CERT_PATH=/opt/dsp-agent/certs/server.crt
+TLS_KEY_PATH=/opt/dsp-agent/certs/server.key
+TLS_SKIP_VERIFY=true
 EOF
+    echo ""
+    echo "⚠️  IMPORTANT: You need to set AGENT_TOKEN!"
+    echo "   1. Login to Master Dashboard"
+    echo "   2. Go to Agent Tokens → Generate Token"
+    echo "   3. Copy the token and paste it in /opt/dsp-agent/.env"
+    echo ""
+    echo "🔐 TLS: Copy certificate files to /opt/dsp-agent/certs/"
+    echo "   - server.crt"
+    echo "   - server.key"
     chown dsp:dsp /opt/dsp-agent/.env
     chmod 600 /opt/dsp-agent/.env
     echo "✅ .env file created"
