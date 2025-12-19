@@ -1509,7 +1509,106 @@ func (h *Handler) ActivateLicense(c *gin.Context) {
 	})
 }
 
+// ListDatabaseSchemas lists all available schemas from a database connection
+func (h *Handler) ListDatabaseSchemas(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid network ID"})
+		return
+	}
+
+	var network core.Network
+	if err := h.db.First(&network, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Network not found"})
+		return
+	}
+
+	// Check if this network has database configuration
+	if network.DBHost == "" || network.DBDriver == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "This network does not have database configuration."})
+		return
+	}
+
+	var schemas []string
+	var dbErr error
+
+	switch network.DBDriver {
+	case "postgres", "postgresql":
+		schemas, dbErr = h.listPostgresSchemas(&network)
+	case "mysql":
+		// MySQL uses database as schema, just return the current database
+		schemas = []string{network.DBName}
+	case "sqlserver", "mssql":
+		schemas, dbErr = h.listSQLServerSchemas(&network)
+	case "oracle":
+		schemas, dbErr = h.listOracleSchemas(&network)
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Schema listing not supported for driver: %s", network.DBDriver)})
+		return
+	}
+
+	if dbErr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to list schemas: %v", dbErr)})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"schemas":      schemas,
+		"total":        len(schemas),
+		"network_id":   network.ID,
+		"network_name": network.Name,
+	})
+}
+
+func (h *Handler) listPostgresSchemas(network *core.Network) ([]string, error) {
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		network.DBHost, network.DBPort, network.DBUser, network.DBPassword, network.DBName, network.DBSSLMode)
+
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("cannot connect to PostgreSQL: %v", err)
+	}
+
+	// Query non-system schemas
+	query := `
+		SELECT schema_name 
+		FROM information_schema.schemata 
+		WHERE schema_name NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+		ORDER BY schema_name
+	`
+
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var schemas []string
+	for rows.Next() {
+		var schemaName string
+		if err := rows.Scan(&schemaName); err != nil {
+			continue
+		}
+		schemas = append(schemas, schemaName)
+	}
+	return schemas, nil
+}
+
+func (h *Handler) listSQLServerSchemas(_ *core.Network) ([]string, error) {
+	return nil, fmt.Errorf("sql server schema listing requires mssql driver - coming soon")
+}
+
+func (h *Handler) listOracleSchemas(_ *core.Network) ([]string, error) {
+	return nil, fmt.Errorf("oracle schema listing requires Oracle client - coming soon")
+}
+
 // DiscoverTables lists all tables from a source database connection
+// Accepts optional query param: ?schema=public (defaults to all non-system schemas for postgres)
 func (h *Handler) DiscoverTables(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -1529,13 +1628,16 @@ func (h *Handler) DiscoverTables(c *gin.Context) {
 		return
 	}
 
+	// Get schema filter from query parameter
+	schemaFilter := c.Query("schema")
+
 	// Build connection string based on database driver
 	var tables []map[string]interface{}
 	var dbErr error
 
 	switch network.DBDriver {
 	case "postgres", "postgresql":
-		tables, dbErr = h.discoverPostgresTables(&network)
+		tables, dbErr = h.discoverPostgresTables(&network, schemaFilter)
 	case "mysql":
 		tables, dbErr = h.discoverMySQLTables(&network)
 	case "sqlserver", "mssql":
@@ -1558,10 +1660,11 @@ func (h *Handler) DiscoverTables(c *gin.Context) {
 		"network_id":   network.ID,
 		"network_name": network.Name,
 		"db_type":      network.Type,
+		"schema":       schemaFilter,
 	})
 }
 
-func (h *Handler) discoverPostgresTables(network *core.Network) ([]map[string]interface{}, error) {
+func (h *Handler) discoverPostgresTables(network *core.Network, schemaFilter string) ([]map[string]interface{}, error) {
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		network.DBHost, network.DBPort, network.DBUser, network.DBPassword, network.DBName, network.DBSSLMode)
 
@@ -1575,22 +1678,38 @@ func (h *Handler) discoverPostgresTables(network *core.Network) ([]map[string]in
 		return nil, fmt.Errorf("cannot connect to PostgreSQL: %v", err)
 	}
 
-	query := `
+	// Build WHERE clause based on schema filter
+	var whereClause string
+	var args []interface{}
+	if schemaFilter != "" {
+		// Filter by specific schema
+		whereClause = "WHERE t.table_schema = $1 AND t.table_type = 'BASE TABLE'"
+		args = append(args, schemaFilter)
+	} else {
+		// Show all non-system schemas
+		whereClause = "WHERE t.table_schema NOT IN ('pg_catalog', 'information_schema', 'pg_toast') AND t.table_type = 'BASE TABLE'"
+	}
+
+	query := fmt.Sprintf(`
 		SELECT 
 			t.table_name,
 			t.table_schema,
 			COALESCE(pgc.reltuples::bigint, 0) as row_count,
 			array_to_string(array_agg(c.column_name ORDER BY c.ordinal_position), ', ') as columns
 		FROM information_schema.tables t
-		LEFT JOIN pg_class pgc ON pgc.relname = t.table_name
+		LEFT JOIN pg_class pgc ON pgc.relname = t.table_name AND pgc.relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = t.table_schema)
 		LEFT JOIN information_schema.columns c ON c.table_name = t.table_name AND c.table_schema = t.table_schema
-		WHERE t.table_schema = 'public' 
-		  AND t.table_type = 'BASE TABLE'
+		%s
 		GROUP BY t.table_name, t.table_schema, pgc.reltuples
-		ORDER BY t.table_name
-	`
+		ORDER BY t.table_schema, t.table_name
+	`, whereClause)
 
-	rows, err := db.Query(query)
+	var rows *sql.Rows
+	if len(args) > 0 {
+		rows, err = db.Query(query, args...)
+	} else {
+		rows, err = db.Query(query)
+	}
 	if err != nil {
 		return nil, err
 	}

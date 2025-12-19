@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { getAgentTokens, createAgentToken, revokeAgentToken, deleteAgentToken } from '../services/api';
+import { useState } from 'react';
+import { useAgentTokens, useCreateAgentToken, useRevokeAgentToken, useDeleteAgentToken } from '../hooks/useQueries';
 import { useToast, ToastContainer, ConfirmModal } from '../components/Toast';
 import { useTheme } from '../contexts/ThemeContext';
 import {
@@ -10,8 +10,6 @@ import {
 function TokenManagement() {
     const { isDark } = useTheme();
     const { toasts, addToast, removeToast } = useToast();
-    const [tokens, setTokens] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [newToken, setNewToken] = useState(null); // Stores newly created token
     const [formData, setFormData] = useState({
@@ -19,6 +17,12 @@ function TokenManagement() {
         description: '',
         retention: '365' // Default 1 year
     });
+
+    // React Query hooks
+    const { data: tokens = [], isLoading, refetch } = useAgentTokens();
+    const createTokenMutation = useCreateAgentToken();
+    const revokeTokenMutation = useRevokeAgentToken();
+    const deleteTokenMutation = useDeleteAgentToken();
 
     // Confirm modal states
     const [confirmModal, setConfirmModal] = useState({
@@ -41,23 +45,6 @@ function TokenManagement() {
         { value: '0', label: 'Tidak Expire' },
     ];
 
-    useEffect(() => {
-        loadTokens();
-    }, []);
-
-    const loadTokens = async () => {
-        try {
-            setIsLoading(true);
-            const response = await getAgentTokens();
-            setTokens(response.data || []);
-        } catch (error) {
-            console.error('Failed to load tokens:', error);
-            addToast('Failed to load tokens', 'error');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
     const handleCreateToken = async (e) => {
         e.preventDefault();
         if (!formData.agent_name.trim()) {
@@ -66,7 +53,7 @@ function TokenManagement() {
         }
 
         try {
-            const response = await createAgentToken({
+            const response = await createTokenMutation.mutateAsync({
                 agent_name: formData.agent_name,
                 description: formData.description,
                 expires_in: parseInt(formData.retention)
@@ -79,7 +66,6 @@ function TokenManagement() {
             });
 
             addToast('Token created successfully!', 'success');
-            loadTokens();
             setFormData({ agent_name: '', description: '', retention: '365' });
             setShowForm(false);
         } catch (error) {
@@ -97,9 +83,8 @@ function TokenManagement() {
             confirmText: 'Revoke',
             onConfirm: async () => {
                 try {
-                    await revokeAgentToken(token.id);
+                    await revokeTokenMutation.mutateAsync(token.id);
                     addToast('Token revoked successfully', 'success');
-                    loadTokens();
                 } catch (error) {
                     addToast('Failed to revoke token', 'error');
                 }
@@ -117,9 +102,8 @@ function TokenManagement() {
             confirmText: 'Hapus',
             onConfirm: async () => {
                 try {
-                    await deleteAgentToken(token.id);
+                    await deleteTokenMutation.mutateAsync(token.id);
                     addToast('Token deleted successfully', 'success');
-                    loadTokens();
                 } catch (error) {
                     addToast('Failed to delete token', 'error');
                 }
@@ -307,7 +291,7 @@ function TokenManagement() {
                     <h3 className={`font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
                         Token List ({tokens.length})
                     </h3>
-                    <button onClick={loadTokens} className={`p-2 rounded-lg ${isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-100'}`}>
+                    <button onClick={() => refetch()} className={`p-2 rounded-lg ${isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-100'}`}>
                         <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
                     </button>
                 </div>

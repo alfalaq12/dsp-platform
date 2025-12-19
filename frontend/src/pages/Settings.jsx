@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { getTargetDBConfig, updateTargetDBConfig, testTargetDBConnection } from '../services/api';
+import { useState, useEffect } from 'react';
+import { useTargetDBConfig, useUpdateTargetDBConfig, useTestTargetDBConnection } from '../hooks/useQueries';
 import { useToast, ToastContainer } from '../components/Toast';
 import { useTheme } from '../contexts/ThemeContext';
 import { Shield, Database, Save, RefreshCw, CheckCircle, Server, AlertCircle, Info, Play, Settings as SettingsIcon } from 'lucide-react';
@@ -7,7 +7,6 @@ import { Shield, Database, Save, RefreshCw, CheckCircle, Server, AlertCircle, In
 function Settings() {
     const { isDark } = useTheme();
     const { toasts, addToast, removeToast } = useToast();
-    const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [isTesting, setIsTesting] = useState(false);
     const [testResult, setTestResult] = useState(null);
@@ -21,36 +20,31 @@ function Settings() {
         sslmode: 'disable'
     });
 
-    useEffect(() => {
-        loadConfig();
-    }, []);
+    // React Query hooks
+    const { data: configData, isLoading } = useTargetDBConfig();
+    const updateConfigMutation = useUpdateTargetDBConfig();
+    const testConnectionMutation = useTestTargetDBConnection();
 
-    const loadConfig = async () => {
-        try {
-            setIsLoading(true);
-            const response = await getTargetDBConfig();
+    // Sync query data to local state when loaded
+    useEffect(() => {
+        if (configData) {
             setConfig({
-                driver: response.data.target_db_driver || 'postgres',
-                host: response.data.target_db_host || '',
-                port: response.data.target_db_port || '5432',
-                user: response.data.target_db_user || '',
-                password: response.data.target_db_password || '',
-                db_name: response.data.target_db_name || '',
-                sslmode: response.data.target_db_sslmode || 'disable'
+                driver: configData.target_db_driver || 'postgres',
+                host: configData.target_db_host || '',
+                port: configData.target_db_port || '5432',
+                user: configData.target_db_user || '',
+                password: configData.target_db_password || '',
+                db_name: configData.target_db_name || '',
+                sslmode: configData.target_db_sslmode || 'disable'
             });
-        } catch (error) {
-            console.error('Failed to load config:', error);
-            addToast('Failed to load settings', 'error');
-        } finally {
-            setIsLoading(false);
         }
-    };
+    }, [configData]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
             setIsSaving(true);
-            await updateTargetDBConfig(config);
+            await updateConfigMutation.mutateAsync(config);
             addToast('Target database configuration saved!', 'success');
         } catch (error) {
             console.error('Failed to save config:', error);
@@ -73,7 +67,7 @@ function Settings() {
         try {
             setIsTesting(true);
             setTestResult(null);
-            const response = await testTargetDBConnection(config);
+            const response = await testConnectionMutation.mutateAsync(config);
             setTestResult(response.data);
             if (response.data.success) {
                 addToast('Connection successful!', 'success');

@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Plus, Edit, Trash2, Network as NetworkIcon, Circle, Eye, Loader2, Zap, Database, Server, Shield, Globe, Folder, Copy } from 'lucide-react';
-import { getNetworks, createNetwork, updateNetwork, deleteNetwork, testNetworkConnection, cloneNetwork } from '../services/api';
+import { useNetworks, useCreateNetwork, useUpdateNetwork, useDeleteNetwork, useTestNetworkConnection, useCloneNetwork } from '../hooks/useQueries';
 import { useToast, ToastContainer, ConfirmModal, ViewModal } from '../components/Toast';
 import Pagination from '../components/Pagination';
 import { useTheme } from '../contexts/ThemeContext';
@@ -8,7 +8,6 @@ import { getErrorMessage } from '../utils/errorHelper';
 
 function Network() {
     const { isDark } = useTheme();
-    const [networks, setNetworks] = useState([]);
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState(null);
     const [formData, setFormData] = useState({
@@ -71,33 +70,25 @@ function Network() {
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(5);
 
-    useEffect(() => {
-        loadNetworks();
-        const interval = setInterval(loadNetworks, 15000); // Poll every 15s instead of 5s for better INP
-        return () => clearInterval(interval);
-    }, []);
-
-    const loadNetworks = async () => {
-        try {
-            const response = await getNetworks();
-            setNetworks(response.data);
-        } catch (error) {
-            console.error('Failed to load networks:', error);
-        }
-    };
+    // React Query hooks
+    const { data: networks = [] } = useNetworks();
+    const createNetworkMutation = useCreateNetwork();
+    const updateNetworkMutation = useUpdateNetwork();
+    const deleteNetworkMutation = useDeleteNetwork();
+    const testConnectionMutation = useTestNetworkConnection();
+    const cloneNetworkMutation = useCloneNetwork();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsSubmitting(true);
         try {
             if (editingId) {
-                await updateNetwork(editingId, formData);
+                await updateNetworkMutation.mutateAsync({ id: editingId, data: formData });
                 addToast('Network updated successfully!', 'success');
             } else {
-                await createNetwork(formData);
+                await createNetworkMutation.mutateAsync(formData);
                 addToast('Network created successfully!', 'success');
             }
-            loadNetworks();
             resetForm();
         } catch (error) {
             console.error('Failed to save network:', error);
@@ -159,9 +150,8 @@ function Network() {
         if (!deleteTarget) return;
         setIsLoading(true);
         try {
-            await deleteNetwork(deleteTarget.id);
+            await deleteNetworkMutation.mutateAsync(deleteTarget.id);
             addToast(`Network "${deleteTarget.name}" deleted successfully!`, 'success');
-            loadNetworks();
         } catch (error) {
             console.error('Failed to delete network:', error);
             addToast(getErrorMessage(error, 'Failed to delete network. Please try again.'), 'error');
@@ -211,7 +201,7 @@ function Network() {
         }
         try {
             setTestingNetwork(network.id);
-            const response = await testNetworkConnection(network.id);
+            const response = await testConnectionMutation.mutateAsync(network.id);
             if (response.data.success) {
                 addToast(`Test command sent to agent "${network.name}"`, 'success');
             } else {
@@ -228,9 +218,8 @@ function Network() {
     const handleClone = async (network) => {
         try {
             setCloningNetwork(network.id);
-            const response = await cloneNetwork(network.id);
+            await cloneNetworkMutation.mutateAsync(network.id);
             addToast(`Network "${network.name}" cloned successfully!`, 'success');
-            loadNetworks();
             // Scroll to top to see the new item
             setCurrentPage(1);
         } catch (error) {

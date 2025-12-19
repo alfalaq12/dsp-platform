@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Edit, Trash2, Database, Eye, Code, FileSpreadsheet, Download, Search, CheckSquare, Square, Loader2 } from 'lucide-react';
-import { getSchemas, createSchema, updateSchema, deleteSchema, getNetworks, discoverTables, bulkCreateSchemas } from '../services/api';
+import { useSchemas, useNetworks, useCreateSchema, useUpdateSchema, useDeleteSchema, useDiscoverTables, useBulkCreateSchemas, useNetworkSchemas } from '../hooks/useQueries';
 import { useToast, ToastContainer, ConfirmModal, ViewModal } from '../components/Toast';
 import Pagination from '../components/Pagination';
 import { useTheme } from '../contexts/ThemeContext';
@@ -9,7 +9,6 @@ import { getErrorMessage } from '../utils/errorHelper';
 
 function Schema() {
     const { isDark } = useTheme();
-    const [schemas, setSchemas] = useState([]);
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState(null);
     const [formData, setFormData] = useState({
@@ -40,7 +39,6 @@ function Schema() {
 
     // Import Tables Modal states
     const [showImportModal, setShowImportModal] = useState(false);
-    const [networks, setNetworks] = useState([]);
     const [selectedNetwork, setSelectedNetwork] = useState(null);
     const [discoveredTables, setDiscoveredTables] = useState([]);
     const [selectedTables, setSelectedTables] = useState([]);
@@ -48,31 +46,23 @@ function Schema() {
     const [isImporting, setIsImporting] = useState(false);
     const [importPrefix, setImportPrefix] = useState('');
     const [tableSearchQuery, setTableSearchQuery] = useState('');
+    const [selectedDbSchema, setSelectedDbSchema] = useState(''); // Database schema filter (e.g., 'public', 'mrz')
 
-    useEffect(() => {
-        loadSchemas();
-        loadNetworks();
-    }, []);
+    // React Query hooks
+    const { data: schemas = [] } = useSchemas();
+    const { data: allNetworks = [] } = useNetworks();
+    const createSchemaMutation = useCreateSchema();
+    const updateSchemaMutation = useUpdateSchema();
+    const deleteSchemaMutation = useDeleteSchema();
+    const discoverTablesMutation = useDiscoverTables();
+    const bulkCreateSchemasMutation = useBulkCreateSchemas();
 
-    const loadSchemas = async () => {
-        try {
-            const response = await getSchemas();
-            setSchemas(response.data);
-        } catch (error) {
-            console.error('Failed to load schemas:', error);
-        }
-    };
+    // Filter only database type networks
+    const networks = allNetworks.filter(n => n.source_type === 'database' || n.db_host);
 
-    const loadNetworks = async () => {
-        try {
-            const response = await getNetworks();
-            // Filter only database type networks
-            const dbNetworks = response.data.filter(n => n.source_type === 'database' || n.db_host);
-            setNetworks(dbNetworks);
-        } catch (error) {
-            console.error('Failed to load networks:', error);
-        }
-    };
+    // Fetch available schemas when network is selected
+    const { data: schemasData, isFetching: isFetchingSchemas } = useNetworkSchemas(selectedNetwork);
+    const availableDbSchemas = schemasData?.schemas || [];
 
     const handleDiscoverTables = async () => {
         if (!selectedNetwork) return;
@@ -80,11 +70,15 @@ function Schema() {
         setDiscoveredTables([]);
         setSelectedTables([]);
         try {
-            const response = await discoverTables(selectedNetwork);
+            const response = await discoverTablesMutation.mutateAsync({
+                networkId: selectedNetwork,
+                schema: selectedDbSchema || ''
+            });
             setDiscoveredTables(response.data.tables || []);
-            addToast('success', `Found ${response.data.total} tables`);
+            const schemaInfo = selectedDbSchema ? ` from schema '${selectedDbSchema}'` : '';
+            addToast(`Found ${response.data.total} tables${schemaInfo}`, 'success');
         } catch (error) {
-            addToast('error', getErrorMessage(error));
+            addToast(getErrorMessage(error), 'error');
         } finally {
             setIsDiscovering(false);
         }
@@ -92,23 +86,22 @@ function Schema() {
 
     const handleBulkImport = async () => {
         if (selectedTables.length === 0) {
-            addToast('warning', 'Please select at least one table');
+            addToast('Please select at least one table', 'warning');
             return;
         }
         setIsImporting(true);
         try {
-            const response = await bulkCreateSchemas({
+            const response = await bulkCreateSchemasMutation.mutateAsync({
                 network_id: parseInt(selectedNetwork),
                 tables: selectedTables,
                 prefix: importPrefix || ''
             });
-            addToast('success', response.data.message);
+            addToast(response.data.message, 'success');
             setShowImportModal(false);
             setSelectedTables([]);
             setDiscoveredTables([]);
-            loadSchemas();
         } catch (error) {
-            addToast('error', getErrorMessage(error));
+            addToast(getErrorMessage(error), 'error');
         } finally {
             setIsImporting(false);
         }
@@ -138,13 +131,12 @@ function Schema() {
         setIsSubmitting(true);
         try {
             if (editingId) {
-                await updateSchema(editingId, formData);
+                await updateSchemaMutation.mutateAsync({ id: editingId, data: formData });
                 addToast('Schema updated successfully!', 'success');
             } else {
-                await createSchema(formData);
+                await createSchemaMutation.mutateAsync(formData);
                 addToast('Schema created successfully!', 'success');
             }
-            loadSchemas();
             resetForm();
         } catch (error) {
             console.error('Failed to save schema:', error);
@@ -175,9 +167,8 @@ function Schema() {
         if (!deleteTarget) return;
         setIsLoading(true);
         try {
-            await deleteSchema(deleteTarget.id);
+            await deleteSchemaMutation.mutateAsync(deleteTarget.id);
             addToast(`Schema "${deleteTarget.name}" deleted successfully!`, 'success');
-            loadSchemas();
         } catch (error) {
             console.error('Failed to delete schema:', error);
             addToast(getErrorMessage(error, 'Failed to delete schema. Please try again.'), 'error');
@@ -626,48 +617,83 @@ function Schema() {
                         {/* Content */}
                         <div className="p-6 flex-1 overflow-y-auto">
                             {/* Network Selection */}
-                            <div className="mb-6">
+                            <div className="mb-4">
                                 <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                                     Select Source Network
                                 </label>
-                                <div className="flex gap-3">
-                                    <select
-                                        value={selectedNetwork || ''}
-                                        onChange={(e) => setSelectedNetwork(e.target.value)}
-                                        className={`flex-1 px-4 py-2.5 rounded-xl border ${isDark
-                                            ? 'bg-slate-800 border-slate-600 text-white'
-                                            : 'bg-white border-slate-300 text-slate-900'
-                                            }`}
-                                    >
-                                        <option value="">Choose a database connection...</option>
-                                        {networks.map((network) => (
-                                            <option key={network.id} value={network.id}>
-                                                {network.name} ({network.db_driver || 'database'})
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <button
-                                        onClick={handleDiscoverTables}
-                                        disabled={!selectedNetwork || isDiscovering}
-                                        className={`px-5 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-all ${!selectedNetwork || isDiscovering
-                                            ? 'bg-slate-600 text-slate-400 cursor-not-allowed'
-                                            : 'bg-blue-600 hover:bg-blue-500 text-white'
-                                            }`}
-                                    >
-                                        {isDiscovering ? (
-                                            <>
-                                                <Loader2 className="w-4 h-4 animate-spin" />
-                                                Scanning...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Search className="w-4 h-4" />
-                                                Scan Tables
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
+                                <select
+                                    value={selectedNetwork || ''}
+                                    onChange={(e) => {
+                                        setSelectedNetwork(e.target.value);
+                                        setSelectedDbSchema(''); // Reset schema when network changes
+                                        setDiscoveredTables([]);
+                                        setSelectedTables([]);
+                                    }}
+                                    className={`w-full px-4 py-2.5 rounded-xl border ${isDark
+                                        ? 'bg-slate-800 border-slate-600 text-white'
+                                        : 'bg-white border-slate-300 text-slate-900'
+                                        }`}
+                                >
+                                    <option value="">Choose a database connection...</option>
+                                    {networks.map((network) => (
+                                        <option key={network.id} value={network.id}>
+                                            {network.name} ({network.db_driver || 'database'})
+                                        </option>
+                                    ))}
+                                </select>
                             </div>
+
+                            {/* Database Schema Selection - Shows when network selected and schemas available */}
+                            {selectedNetwork && (
+                                <div className="mb-4">
+                                    <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                        Database Schema (optional)
+                                    </label>
+                                    <div className="flex gap-3">
+                                        <select
+                                            value={selectedDbSchema}
+                                            onChange={(e) => setSelectedDbSchema(e.target.value)}
+                                            disabled={isFetchingSchemas}
+                                            className={`flex-1 px-4 py-2.5 rounded-xl border ${isDark
+                                                ? 'bg-slate-800 border-slate-600 text-white'
+                                                : 'bg-white border-slate-300 text-slate-900'
+                                                } ${isFetchingSchemas ? 'opacity-50 cursor-wait' : ''}`}
+                                        >
+                                            <option value="">All schemas</option>
+                                            {availableDbSchemas.map((schema) => (
+                                                <option key={schema} value={schema}>
+                                                    {schema}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <button
+                                            onClick={handleDiscoverTables}
+                                            disabled={!selectedNetwork || isDiscovering}
+                                            className={`px-5 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-all ${!selectedNetwork || isDiscovering
+                                                ? 'bg-slate-600 text-slate-400 cursor-not-allowed'
+                                                : 'bg-blue-600 hover:bg-blue-500 text-white'
+                                                }`}
+                                        >
+                                            {isDiscovering ? (
+                                                <>
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                    Scanning...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Search className="w-4 h-4" />
+                                                    Scan Tables
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                    {isFetchingSchemas && (
+                                        <p className={`text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                            Loading available schemas...
+                                        </p>
+                                    )}
+                                </div>
+                            )}
 
                             {/* Prefix Option */}
                             {discoveredTables.length > 0 && (

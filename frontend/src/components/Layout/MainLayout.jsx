@@ -1,10 +1,57 @@
-import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, Menu, Sun, Moon, Bell, User, ChevronDown, Settings, X, Home, ChevronRight } from 'lucide-react';
+import { Outlet, useNavigate, useLocation, NavLink } from 'react-router-dom';
+import { LogOut, Menu, Sun, Moon, Bell, User, ChevronDown, Settings, X, Home, ChevronRight, Database, Network as NetworkIcon, Play, Key, Terminal, Users, Shield, LayoutDashboard } from 'lucide-react';
 import { logout, getNotifications } from '../../services/api';
 import Sidebar from './Sidebar';
 import { useState, useEffect, useRef } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { AnimatedList } from '../ui/AnimatedList';
+
+// Mobile Menu Component for dropdown
+function MobileMenu({ isDark, onClose }) {
+    const userRole = localStorage.getItem('role') || 'viewer';
+    const menuItems = [
+        { path: '/', label: 'Dashboard', icon: LayoutDashboard },
+        { path: '/schema', label: 'Schema', icon: Database },
+        { path: '/network', label: 'Network', icon: NetworkIcon },
+        { path: '/jobs', label: 'Jobs', icon: Play },
+        { path: '/tokens', label: 'Agent Tokens', icon: Key },
+        { path: '/terminal', label: 'Terminal', icon: Terminal, role: 'admin' },
+        { path: '/users', label: 'Users', icon: Users, role: 'admin' },
+        { path: '/audit-logs', label: 'Audit Logs', icon: Shield, role: 'admin' },
+        { path: '/settings', label: 'Settings', icon: Settings },
+    ];
+
+    return (
+        <nav className="p-2">
+            <ul className="space-y-1">
+                {menuItems.filter(item => !item.role || item.role === userRole).map((item) => {
+                    const Icon = item.icon;
+                    return (
+                        <li key={item.path}>
+                            <NavLink
+                                to={item.path}
+                                end
+                                onClick={onClose}
+                                className={({ isActive }) =>
+                                    `flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${isActive
+                                        ? 'bg-blue-500 text-white font-semibold'
+                                        : isDark
+                                            ? 'text-panda-text-muted hover:bg-panda-dark-300 hover:text-blue-400'
+                                            : 'text-blue-100 hover:bg-gov-blue-800 hover:text-white'
+                                    }`
+                                }
+                            >
+                                <Icon className="w-5 h-5" />
+                                <span className="font-medium">{item.label}</span>
+                            </NavLink>
+                        </li>
+                    );
+                })}
+            </ul>
+        </nav>
+    );
+}
+
 
 
 function MainLayout() {
@@ -177,10 +224,10 @@ function MainLayout() {
 
     return (
         <div className={`flex h-screen ${isDark ? 'bg-panda-dark' : 'bg-slate-100'}`}>
-            {/* Backdrop for mobile sidebar */}
+            {/* Backdrop for mobile dropdown - transparent, just for click-outside */}
             {isSidebarOpen && (
                 <div
-                    className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300"
+                    className="fixed inset-0 z-40 lg:hidden"
                     onClick={() => setIsSidebarOpen(false)}
                 />
             )}
@@ -188,22 +235,40 @@ function MainLayout() {
             <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
             <div className="flex-1 flex flex-col overflow-hidden">
-                {/* Header - z-index removed to allow modals to cover it properly */}
-                <header className={`relative ${isDark ? 'bg-panda-dark-100 border-panda-dark-300' : 'bg-white border-slate-200 shadow-sm'} border-b px-4 sm:px-8 py-4`}>
+                {/* Header - z-50 to ensure dropdown stays above content */}
+                <header className={`relative z-50 ${isDark ? 'bg-panda-dark-100 border-panda-dark-300' : 'bg-white border-slate-200 shadow-sm'} border-b px-4 sm:px-8 py-4`}>
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4 flex-1 min-w-0">
-                            {/* Hamburger Menu - Animated to X */}
-                            <button
-                                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                                className={`lg:hidden p-2 rounded-lg transition-all duration-200 ${isDark ? 'text-panda-text-muted hover:text-blue-500 hover:bg-panda-dark-300' : 'text-gov-blue-600 hover:text-gov-blue-800 hover:bg-slate-100'}`}
-                                aria-label={isSidebarOpen ? "Close menu" : "Open menu"}
-                            >
-                                <div className="w-6 h-6 flex flex-col justify-center items-center relative">
-                                    <span className={`block absolute h-0.5 w-5 transform transition-all duration-300 ease-in-out ${isDark ? 'bg-current' : 'bg-current'} ${isSidebarOpen ? 'rotate-45' : '-translate-y-1.5'}`}></span>
-                                    <span className={`block absolute h-0.5 w-5 transform transition-all duration-300 ease-in-out ${isDark ? 'bg-current' : 'bg-current'} ${isSidebarOpen ? 'opacity-0 scale-0' : 'opacity-100'}`}></span>
-                                    <span className={`block absolute h-0.5 w-5 transform transition-all duration-300 ease-in-out ${isDark ? 'bg-current' : 'bg-current'} ${isSidebarOpen ? '-rotate-45' : 'translate-y-1.5'}`}></span>
+                            {/* Mobile: Hamburger Menu with Dropdown */}
+                            <div className="lg:hidden relative">
+                                <button
+                                    onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                                    className={`p-2 rounded-lg transition-all duration-200 ${isDark ? 'text-panda-text-muted hover:text-blue-500 hover:bg-panda-dark-300' : 'text-gov-blue-600 hover:text-gov-blue-800 hover:bg-slate-100'}`}
+                                    aria-label={isSidebarOpen ? "Close menu" : "Open menu"}
+                                >
+                                    <div className="w-6 h-6 flex flex-col justify-center items-center relative">
+                                        <span className={`block absolute h-0.5 w-5 transform transition-all duration-300 ease-in-out bg-current ${isSidebarOpen ? 'rotate-45' : '-translate-y-1.5'}`}></span>
+                                        <span className={`block absolute h-0.5 w-5 transform transition-all duration-300 ease-in-out bg-current ${isSidebarOpen ? 'opacity-0 scale-0' : 'opacity-100'}`}></span>
+                                        <span className={`block absolute h-0.5 w-5 transform transition-all duration-300 ease-in-out bg-current ${isSidebarOpen ? '-rotate-45' : 'translate-y-1.5'}`}></span>
+                                    </div>
+                                </button>
+
+                                {/* Dropdown Menu - expands below hamburger */}
+                                <div className={`
+                                    absolute left-0 top-full mt-2 w-64 rounded-xl shadow-2xl border overflow-hidden
+                                    transform transition-all duration-300 ease-out origin-top-left
+                                    ${isSidebarOpen
+                                        ? 'scale-100 opacity-100 translate-y-0'
+                                        : 'scale-95 opacity-0 -translate-y-2 pointer-events-none'
+                                    }
+                                    ${isDark
+                                        ? 'bg-panda-dark-100 border-panda-dark-300'
+                                        : 'bg-gov-blue-900 border-gov-blue-800'
+                                    }
+                                `}>
+                                    <MobileMenu isDark={isDark} onClose={() => setIsSidebarOpen(false)} />
                                 </div>
-                            </button>
+                            </div>
 
                             {/* Title - Hidden on small screens */}
                             <div className="hidden md:block">

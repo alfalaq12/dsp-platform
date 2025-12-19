@@ -86,7 +86,11 @@ export const getLicenseStatus = () => api.get('/license/status');
 export const activateLicense = (activationCode) => api.post('/license/activate', { activation_code: activationCode });
 
 // Schema Discovery
-export const discoverTables = (networkId) => api.get(`/networks/${networkId}/tables`);
+export const listNetworkSchemas = (networkId) => api.get(`/networks/${networkId}/schemas`);
+export const discoverTables = (networkId, schema) => {
+    const params = schema ? `?schema=${encodeURIComponent(schema)}` : '';
+    return api.get(`/networks/${networkId}/tables${params}`);
+};
 export const bulkCreateSchemas = (data) => api.post('/schemas/bulk', data);
 
 export default api;

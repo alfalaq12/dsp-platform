@@ -1,18 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Trash2, Search, User, Shield, Key, Edit, X } from 'lucide-react';
-import { getUsers, createUser, deleteUser, updateUser } from '../services/api';
+import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from '../hooks/useQueries';
 import { ConfirmModal, useToast, ToastContainer } from '../components/Toast';
 import Pagination from '../components/Pagination';
 import { useTheme } from '../contexts/ThemeContext';
 
 function Users() {
     const { isDark } = useTheme();
-    const [users, setUsers] = useState([]);
-    const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const { toasts, addToast, removeToast } = useToast();
+
+    // React Query hooks - auto caching & invalidation
+    const { data: users = [], isLoading: loading } = useUsers();
+    const createUserMutation = useCreateUser();
+    const updateUserMutation = useUpdateUser();
+    const deleteUserMutation = useDeleteUser();
 
     // Form state
     const [isEditing, setIsEditing] = useState(false);
@@ -28,22 +32,6 @@ function Users() {
     // Pagination states
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(5);
-
-    useEffect(() => {
-        fetchUsers();
-    }, []);
-
-    const fetchUsers = async () => {
-        try {
-            const response = await getUsers();
-            setUsers(response.data);
-        } catch (error) {
-            console.error('Failed to fetch users:', error);
-            addToast('Failed to fetch users', 'error');
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const handleOpenAdd = () => {
         setIsEditing(false);
@@ -79,16 +67,15 @@ function Users() {
                     return;
                 }
 
-                await updateUser(selectedUser.id, updateData);
+                await updateUserMutation.mutateAsync({ id: selectedUser.id, data: updateData });
                 addToast('User updated successfully', 'success');
             } else {
                 // Create
-                await createUser(formData);
+                await createUserMutation.mutateAsync(formData);
                 addToast('User created successfully', 'success');
             }
 
             setIsModalOpen(false);
-            fetchUsers();
         } catch (err) {
             setError(err.response?.data?.error || `Failed to ${isEditing ? 'update' : 'create'} user`);
         } finally {
@@ -104,9 +91,8 @@ function Users() {
         if (!deleteTarget) return;
         setIsDeleting(true);
         try {
-            await deleteUser(deleteTarget.id);
+            await deleteUserMutation.mutateAsync(deleteTarget.id);
             addToast(`User "${deleteTarget.username}" deleted successfully`, 'success');
-            fetchUsers();
         } catch (error) {
             addToast(error.response?.data?.error || 'Failed to delete user', 'error');
         } finally {

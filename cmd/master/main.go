@@ -239,7 +239,8 @@ func setupRouter(handler *server.Handler) *gin.Engine {
 		api.PUT("/networks/:id", auth.RequireRole("admin"), handler.UpdateNetwork)
 		api.DELETE("/networks/:id", auth.RequireRole("admin"), handler.DeleteNetwork)
 		api.POST("/networks/:id/clone", auth.RequireRole("admin"), handler.CloneNetwork)
-		api.GET("/networks/:id/tables", auth.RequireRole("admin"), handler.DiscoverTables) // Table discovery
+		api.GET("/networks/:id/tables", auth.RequireRole("admin"), handler.DiscoverTables)       // Table discovery
+		api.GET("/networks/:id/schemas", auth.RequireRole("admin"), handler.ListDatabaseSchemas) // List database schemas
 
 		// Bulk schema operations
 		api.POST("/schemas/bulk", auth.RequireRole("admin"), handler.BulkCreateSchemas)

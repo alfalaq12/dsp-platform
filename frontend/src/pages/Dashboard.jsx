@@ -1,125 +1,107 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
     Activity, Database, Network as NetworkIcon, TrendingUp, Clock, Calendar,
     CheckCircle, AlertTriangle, Play, FileText, Zap, Shield, Server,
     ArrowUpRight, ArrowDownRight, RefreshCw, Sparkles
 } from 'lucide-react';
-import { getSchemas, getNetworks, getJobs, getAuditLogs } from '../services/api';
+import { useSchemas, useNetworks, useJobs, useAuditLogs } from '../hooks/useQueries';
 import { AnimatedList } from '../components/ui/AnimatedList';
 import { useTheme } from '../contexts/ThemeContext';
 
 function Dashboard() {
     const { isDark } = useTheme();
-    const [stats, setStats] = useState({
-        schemas: 0,
-        networks: 0,
-        jobs: 0,
-        activeAgents: 0,
-    });
-    const [loading, setLoading] = useState(true);
     const [currentTime, setCurrentTime] = useState(new Date());
-    const [recentActivity, setRecentActivity] = useState([]);
     const username = localStorage.getItem('username') || 'User';
+    const userRole = localStorage.getItem('role') || 'viewer';
+
+    // React Query hooks - auto caching & refetch
+    const { data: schemasData, isLoading: schemasLoading } = useSchemas();
+    const { data: networksData, isLoading: networksLoading } = useNetworks();
+    const { data: jobsData, isLoading: jobsLoading } = useJobs();
+    const { data: auditLogsData, isLoading: auditLogsLoading } = useAuditLogs(
+        userRole === 'admin' ? { limit: 10 } : undefined
+    );
+
+    const loading = schemasLoading || networksLoading || jobsLoading;
 
     useEffect(() => {
         const timer = setInterval(() => setCurrentTime(new Date()), 60000);
         return () => clearInterval(timer);
     }, []);
 
-    useEffect(() => {
-        loadStats();
-        const interval = setInterval(loadStats, 30000); // Poll every 30s instead of 10s for better INP
-        return () => clearInterval(interval);
-    }, []);
+    // Compute stats from query data
+    const stats = useMemo(() => {
+        const schemas = schemasData || [];
+        const networks = networksData || [];
+        const jobs = Array.isArray(jobsData) ? jobsData : (jobsData?.data || []);
+        const activeAgents = networks.filter((n) => n.status === 'online').length;
 
-    const loadStats = async () => {
-        try {
-            const userRole = localStorage.getItem('role') || 'viewer';
+        return {
+            schemas: schemas.length,
+            networks: networks.length,
+            jobs: jobs.length,
+            activeAgents,
+        };
+    }, [schemasData, networksData, jobsData]);
 
-            const [schemasRes, networksRes, jobsRes, auditLogsRes] = await Promise.all([
-                getSchemas().catch(err => { console.error('Schemas failed', err); return { data: [] }; }),
-                getNetworks().catch(err => { console.error('Networks failed', err); return { data: [] }; }),
-                getJobs().catch(err => { console.error('Jobs failed', err); return { data: { data: [], meta: {} } }; }),
-                // Only fetch audit logs if user is admin
-                userRole === 'admin'
-                    ? getAuditLogs({ limit: 10 }).catch(err => { console.error('AuditLogs failed', err); return { data: { data: [] } }; })
-                    : Promise.resolve({ data: { data: [] } })
-            ]);
+    // Compute recent activity from jobs and audit logs
+    const recentActivity = useMemo(() => {
+        const jobsArray = Array.isArray(jobsData) ? jobsData : (jobsData?.data || []);
 
-            const activeAgents = networksRes.data.filter((n) => n.status === 'online').length;
-
-            // Jobs API returns { data: { data: [...], meta: {...} } }
-            const jobsData = Array.isArray(jobsRes.data) ? jobsRes.data : (jobsRes.data?.data || []);
-
-            setStats({
-                schemas: schemasRes.data.length,
-                networks: networksRes.data.length,
-                jobs: jobsData.length,
-                activeAgents,
-            });
-
-            // Create job activities from jobs that have been run
-            const jobActivities = jobsData
-                .filter(job => job.last_run && new Date(job.last_run).getFullYear() > 2000)
-                .map((job, idx) => {
-                    let actionText = 'Job terjadwal';
-                    let statusType = 'pending';
-                    if (job.status === 'completed') {
-                        actionText = 'Sinkronisasi selesai';
-                        statusType = 'success';
-                    } else if (job.status === 'running') {
-                        actionText = 'Sinkronisasi berjalan';
-                        statusType = 'running';
-                    } else if (job.status === 'failed') {
-                        actionText = 'Sinkronisasi gagal';
-                        statusType = 'error';
-                    }
-
-                    return {
-                        id: `job-${job.id || idx}`,
-                        action: actionText,
-                        target: job.name,
-                        rawTime: new Date(job.last_run),
-                        time: new Date(job.last_run).toLocaleTimeString('id-ID'),
-                        status: job.status || 'pending',
-                        statusType,
-                        type: 'job'
-                    };
-                });
-
-            // Parse audit logs - response is { data: { data: [...], total: ... } }
-            const auditLogsData = auditLogsRes.data?.data || [];
-            const logActivities = auditLogsData.map((log, idx) => {
-                // Determine status type based on action
-                let statusType = 'info';
-                if (log.action === 'LOGIN') statusType = 'success';
-                else if (log.action === 'DELETE') statusType = 'error';
-                else if (log.action === 'CREATE') statusType = 'success';
-                else if (log.action === 'UPDATE') statusType = 'pending';
+        // Create job activities from jobs that have been run
+        const jobActivities = jobsArray
+            .filter(job => job.last_run && new Date(job.last_run).getFullYear() > 2000)
+            .map((job, idx) => {
+                let actionText = 'Job terjadwal';
+                let statusType = 'pending';
+                if (job.status === 'completed') {
+                    actionText = 'Sinkronisasi selesai';
+                    statusType = 'success';
+                } else if (job.status === 'running') {
+                    actionText = 'Sinkronisasi berjalan';
+                    statusType = 'running';
+                } else if (job.status === 'failed') {
+                    actionText = 'Sinkronisasi gagal';
+                    statusType = 'error';
+                }
 
                 return {
-                    id: `log-${log.id || idx}`,
-                    action: `${log.action} ${log.entity || ''}`.trim(),
-                    target: log.details || log.username || 'System Action',
-                    rawTime: new Date(log.created_at),
-                    time: new Date(log.created_at).toLocaleTimeString('id-ID'),
-                    status: 'completed',
+                    id: `job-${job.id || idx}`,
+                    action: actionText,
+                    target: job.name,
+                    rawTime: new Date(job.last_run),
+                    time: new Date(job.last_run).toLocaleTimeString('id-ID'),
+                    status: job.status || 'pending',
                     statusType,
-                    type: 'log'
+                    type: 'job'
                 };
             });
 
-            const allActivities = [...jobActivities, ...logActivities]
-                .sort((a, b) => b.rawTime - a.rawTime)
-                .slice(0, 6);
+        // Parse audit logs
+        const auditLogsArray = auditLogsData?.data || [];
+        const logActivities = auditLogsArray.map((log, idx) => {
+            let statusType = 'info';
+            if (log.action === 'LOGIN') statusType = 'success';
+            else if (log.action === 'DELETE') statusType = 'error';
+            else if (log.action === 'CREATE') statusType = 'success';
+            else if (log.action === 'UPDATE') statusType = 'pending';
 
-            setRecentActivity(allActivities);
-        } catch (error) {
-            console.error('Failed to load stats:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+            return {
+                id: `log-${log.id || idx}`,
+                action: `${log.action} ${log.entity || ''}`.trim(),
+                target: log.details || log.username || 'System Action',
+                rawTime: new Date(log.created_at),
+                time: new Date(log.created_at).toLocaleTimeString('id-ID'),
+                status: 'completed',
+                statusType,
+                type: 'log'
+            };
+        });
+
+        return [...jobActivities, ...logActivities]
+            .sort((a, b) => b.rawTime - a.rawTime)
+            .slice(0, 6);
+    }, [jobsData, auditLogsData]);
 
     const getGreeting = () => {
         const hour = currentTime.getHours();

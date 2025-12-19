@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Play, RefreshCw, X, Clock, Database, CheckCircle, XCircle, Loader2, Trash2, Eye, Pause, Network as NetworkIcon } from 'lucide-react';
-import { getJobs, getSchemas, getNetworks, createJob, runJob, getJob, deleteJob, toggleJob } from '../services/api';
+import { useJobs, useSchemas, useNetworks, useJob, useCreateJob, useDeleteJob, useRunJob, useToggleJob } from '../hooks/useQueries';
 import { useToast, ToastContainer, ConfirmModal } from '../components/Toast';
 import Pagination from '../components/Pagination';
 import { useTheme } from '../contexts/ThemeContext';
@@ -11,15 +11,10 @@ import SearchableSelect from '../components/SearchableSelect';
 function Jobs() {
     const { isDark } = useTheme();
 
-    const [jobs, setJobs] = useState([]);
-    const [schemas, setSchemas] = useState([]);
-    const [networks, setNetworks] = useState([]);
     const [showForm, setShowForm] = useState(false);
     const [formData, setFormData] = useState({ name: '', schema_id: '', network_id: '', schedule: '' });
     const [selectedJob, setSelectedJob] = useState(null);
-    const [jobDetails, setJobDetails] = useState(null);
     const [lastUpdated, setLastUpdated] = useState(new Date());
-    const [isRefreshing, setIsRefreshing] = useState(false);
 
     // New states for enhanced UX
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -32,47 +27,33 @@ function Jobs() {
     // Pagination states
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(5);
-    const [totalItems, setTotalItems] = useState(0);
 
-    const loadData = useCallback(async () => {
-        setIsRefreshing(true);
-        try {
-            const [jobsRes, schemasRes, networksRes] = await Promise.all([
-                getJobs({ page: currentPage, page_size: itemsPerPage }),
-                getSchemas(),
-                getNetworks(),
-            ]);
-            setJobs(jobsRes.data.data || []);
-            setTotalItems(jobsRes.data.meta?.total || 0);
-            setSchemas(schemasRes.data);
-            setNetworks(networksRes.data);
+    // React Query hooks
+    const { data: jobsData, isLoading: jobsLoading, refetch: refetchJobs, isFetching } = useJobs({ page: currentPage, page_size: itemsPerPage });
+    const { data: schemas = [] } = useSchemas();
+    const { data: networks = [] } = useNetworks();
+    const { data: jobDetails } = useJob(selectedJob?.id);
+
+    // Mutations
+    const createJobMutation = useCreateJob();
+    const deleteJobMutation = useDeleteJob();
+    const runJobMutation = useRunJob();
+    const toggleJobMutation = useToggleJob();
+
+    // Extract jobs array and total from query data
+    const jobs = useMemo(() => jobsData?.data || [], [jobsData]);
+    const totalItems = useMemo(() => jobsData?.meta?.total || 0, [jobsData]);
+    const isRefreshing = isFetching;
+
+    // Update lastUpdated when data changes
+    useMemo(() => {
+        if (!jobsLoading) {
             setLastUpdated(new Date());
-        } catch (error) {
-            console.error('Failed to load data:', error);
-        } finally {
-            setIsRefreshing(false);
         }
-    }, [currentPage, itemsPerPage]);
-
-    // Initial load and auto-refresh every 5 seconds
-    useEffect(() => {
-        loadData();
-        const interval = setInterval(loadData, 15000); // Poll every 15s instead of 5s for better INP
-        return () => clearInterval(interval);
-    }, [loadData]);
-
-    const loadJobDetails = async (jobId) => {
-        try {
-            const response = await getJob(jobId);
-            setJobDetails(response.data);
-        } catch (error) {
-            console.error('Failed to load job details:', error);
-        }
-    };
+    }, [jobsData, jobsLoading]);
 
     const handleJobClick = (job) => {
         setSelectedJob(job);
-        loadJobDetails(job.id);
     };
 
     const handleSubmit = async (e) => {
@@ -85,9 +66,8 @@ function Jobs() {
                 network_id: parseInt(formData.network_id, 10),
                 schedule: formData.schedule || '',
             };
-            await createJob(jobData);
+            await createJobMutation.mutateAsync(jobData);
             addToast('Job created successfully!', 'success');
-            loadData();
             resetForm();
         } catch (error) {
             console.error('Failed to create job:', error);
@@ -101,16 +81,12 @@ function Jobs() {
         e?.stopPropagation();
         setRunningJobs(prev => new Set([...prev, jobId]));
         try {
-            const response = await runJob(jobId);
+            const response = await runJobMutation.mutateAsync(jobId);
             // Check if response indicates success or has error
             if (response.data?.job?.status === 'failed') {
                 addToast(`Job failed: ${response.data?.error || 'Unknown error'}`, 'error');
             } else {
                 addToast('Job started successfully!', 'success');
-            }
-            setTimeout(loadData, 1000);
-            if (selectedJob?.id === jobId) {
-                setTimeout(() => loadJobDetails(jobId), 2000);
             }
         } catch (error) {
             console.error('Failed to run job:', error);
@@ -134,9 +110,8 @@ function Jobs() {
         if (!deleteTarget) return;
         setIsDeleting(true);
         try {
-            await deleteJob(deleteTarget.id);
+            await deleteJobMutation.mutateAsync(deleteTarget.id);
             addToast(`Job "${deleteTarget.name}" deleted successfully!`, 'success');
-            loadData();
             if (selectedJob?.id === deleteTarget.id) {
                 setSelectedJob(null);
             }
@@ -152,10 +127,9 @@ function Jobs() {
     const handleToggle = async (job, e) => {
         e?.stopPropagation();
         try {
-            await toggleJob(job.id);
+            await toggleJobMutation.mutateAsync(job.id);
             const action = job.enabled ? 'paused' : 'resumed';
             addToast(`Job "${job.name}" ${action}!`, 'success');
-            loadData();
         } catch (error) {
             console.error('Failed to toggle job:', error);
             addToast(getErrorMessage(error, 'Failed to toggle job. Please try again.'), 'error');

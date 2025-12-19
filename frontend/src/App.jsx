@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from './contexts/ThemeContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -15,6 +16,18 @@ import MainLayout from './components/Layout/MainLayout';
 import useSessionTimeout from './hooks/useSessionTimeout';
 
 import { ConfirmModal } from './components/Toast';
+
+// Create a QueryClient instance with default options
+const queryClient = new QueryClient({
+    defaultOptions: {
+        queries: {
+            staleTime: 60 * 1000, // 1 minute default stale time
+            gcTime: 5 * 60 * 1000, // 5 minutes cache time (formerly cacheTime)
+            retry: 1, // Retry failed requests once
+            refetchOnWindowFocus: false, // Don't refetch on window focus
+        },
+    },
+});
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -55,30 +68,32 @@ const ProtectedRoute = ({ children }) => {
 
 function App() {
     return (
-        <ThemeProvider>
-            <BrowserRouter>
-                <Routes>
-                    <Route path="/login" element={<Login />} />
+        <QueryClientProvider client={queryClient}>
+            <ThemeProvider>
+                <BrowserRouter>
+                    <Routes>
+                        <Route path="/login" element={<Login />} />
 
-                    <Route path="/" element={
-                        <ProtectedRoute>
-                            <MainLayout />
-                        </ProtectedRoute>
-                    }>
-                        <Route index element={<Dashboard />} />
-                        <Route path="schema" element={<Schema />} />
-                        <Route path="network" element={<Network />} />
-                        <Route path="/jobs" element={<Jobs />} />
-                        <Route path="/users" element={<Users />} />
-                        <Route path="/audit-logs" element={<AuditLogs />} />
-                        <Route path="/tokens" element={<TokenManagement />} />
-                        <Route path="/activation" element={<Activation />} />
-                        <Route path="/terminal" element={<Terminal />} />
-                        <Route path="/settings" element={<Settings />} />
-                    </Route>
-                </Routes>
-            </BrowserRouter>
-        </ThemeProvider>
+                        <Route path="/" element={
+                            <ProtectedRoute>
+                                <MainLayout />
+                            </ProtectedRoute>
+                        }>
+                            <Route index element={<Dashboard />} />
+                            <Route path="schema" element={<Schema />} />
+                            <Route path="network" element={<Network />} />
+                            <Route path="/jobs" element={<Jobs />} />
+                            <Route path="/users" element={<Users />} />
+                            <Route path="/audit-logs" element={<AuditLogs />} />
+                            <Route path="/tokens" element={<TokenManagement />} />
+                            <Route path="/activation" element={<Activation />} />
+                            <Route path="/terminal" element={<Terminal />} />
+                            <Route path="/settings" element={<Settings />} />
+                        </Route>
+                    </Routes>
+                </BrowserRouter>
+            </ThemeProvider>
+        </QueryClientProvider>
     );
 }
 

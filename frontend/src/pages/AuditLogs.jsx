@@ -1,39 +1,29 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { Shield, Search, Filter, AlertCircle } from 'lucide-react';
-import { getAuditLogs } from '../services/api';
+import { useAuditLogs } from '../hooks/useQueries';
 import Pagination from '../components/Pagination';
 import { useTheme } from '../contexts/ThemeContext';
 
 function AuditLogs() {
     const { isDark } = useTheme();
-    const [logs, setLogs] = useState([]);
-    const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState({ action: '', entity: '' });
 
     // Pagination states
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(5);
 
-    useEffect(() => {
-        fetchLogs();
+    // Build query params
+    const queryParams = useMemo(() => {
+        const params = {};
+        if (filter.action) params.action = filter.action.toUpperCase();
+        if (filter.entity) params.entity = filter.entity.toUpperCase();
+        return params;
     }, [filter]);
 
-    const fetchLogs = async () => {
-        setLoading(true);
-        try {
-            const params = {};
-            if (filter.action) params.action = filter.action.toUpperCase();
-            if (filter.entity) params.entity = filter.entity.toUpperCase();
-
-            const response = await getAuditLogs(params);
-            setLogs(response.data.data || []);
-        } catch (error) {
-            console.error("Failed to fetch logs", error);
-        } finally {
-            setLoading(false);
-        }
-    };
+    // React Query hook - auto caching & refetch
+    const { data: logsData, isLoading: loading } = useAuditLogs(queryParams);
+    const logs = logsData?.data || [];
 
     return (
         <div className="space-y-6">

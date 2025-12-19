@@ -33,11 +33,20 @@ func RedisConnect(config RedisConfig) (*RedisConnection, error) {
 		config.Port = "6379"
 	}
 
-	// Create Redis client
+	// Create Redis client with connection pooling for better concurrent performance
 	client := redis.NewClient(&redis.Options{
 		Addr:     fmt.Sprintf("%s:%s", config.Host, config.Port),
 		Password: config.Password,
 		DB:       config.DB,
+
+		// Connection pooling
+		PoolSize:     10, // Maximum connections in pool
+		MinIdleConns: 3,  // Keep minimum idle connections ready
+
+		// Timeouts for better reliability
+		DialTimeout:  5 * time.Second,
+		ReadTimeout:  3 * time.Second,
+		WriteTimeout: 3 * time.Second,
 	})
 
 	// Ping to verify connection
