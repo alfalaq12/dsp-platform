@@ -280,7 +280,7 @@ function Network() {
     const handleClone = async (network) => {
         try {
             setCloningNetwork(network.id);
-            await cloneNetworkMutation.mutateAsync(network.id);
+            await cloneNetworkMutation.mutateAsync({ id: network.id });
             addToast(`Network "${network.name}" cloned successfully!`, 'success');
             // Scroll to top to see the new item
             setCurrentPage(1);
