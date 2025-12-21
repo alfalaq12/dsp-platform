@@ -405,8 +405,8 @@ function Jobs() {
                 </div>
             )}
 
-            {/* Jobs Table */}
-            <div className={`rounded-2xl border overflow-hidden ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200 shadow-lg'}`}>
+            {/* Jobs Table - Desktop Only */}
+            <div className={`hidden lg:block rounded-2xl border overflow-hidden ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200 shadow-lg'}`}>
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead>
@@ -471,12 +471,12 @@ function Jobs() {
                                     </td>
                                     <td className="px-4 py-3">
                                         <span className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full w-fit ${job.status === 'running'
-                                                ? (isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600')
-                                                : job.status === 'completed'
-                                                    ? (isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-50 text-emerald-600')
-                                                    : job.status === 'failed'
-                                                        ? (isDark ? 'bg-red-500/20 text-red-400' : 'bg-red-50 text-red-600')
-                                                        : (isDark ? 'bg-slate-700 text-slate-400' : 'bg-slate-100 text-slate-600')
+                                            ? (isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600')
+                                            : job.status === 'completed'
+                                                ? (isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-50 text-emerald-600')
+                                                : job.status === 'failed'
+                                                    ? (isDark ? 'bg-red-500/20 text-red-400' : 'bg-red-50 text-red-600')
+                                                    : (isDark ? 'bg-slate-700 text-slate-400' : 'bg-slate-100 text-slate-600')
                                             }`}>
                                             {getStatusIcon(job.status)}
                                             {job.status ? job.status.charAt(0).toUpperCase() + job.status.slice(1) : 'Idle'}
@@ -538,6 +538,104 @@ function Jobs() {
                         </tbody>
                     </table>
                 </div>
+            </div>
+
+            {/* Jobs Cards - Mobile Only */}
+            <div className="lg:hidden space-y-4">
+                {jobs.map((job) => (
+                    <div
+                        key={job.id}
+                        className={`rounded-2xl border p-4 ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200 shadow-md'}`}
+                        onClick={() => handleJobClick(job)}
+                    >
+                        {/* Header */}
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>
+                                    <Database className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <div className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{job.name}</div>
+                                    <div className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>ID: {job.id}</div>
+                                </div>
+                            </div>
+                            <span className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${job.status === 'running'
+                                ? (isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600')
+                                : job.status === 'completed'
+                                    ? (isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-50 text-emerald-600')
+                                    : job.status === 'failed'
+                                        ? (isDark ? 'bg-red-500/20 text-red-400' : 'bg-red-50 text-red-600')
+                                        : (isDark ? 'bg-slate-700 text-slate-400' : 'bg-slate-100 text-slate-600')
+                                }`}>
+                                {getStatusIcon(job.status)}
+                                {job.status ? job.status.charAt(0).toUpperCase() + job.status.slice(1) : 'Idle'}
+                            </span>
+                        </div>
+
+                        {/* Info Lines */}
+                        <div className={`space-y-1 text-xs mb-3 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                            <div className="flex items-center gap-2">
+                                <NetworkIcon className="w-3.5 h-3.5" />
+                                <span>Network:</span>
+                                <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>{job.network?.name || '-'}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Database className="w-3.5 h-3.5" />
+                                <span>Schema:</span>
+                                <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>{job.schema?.name || '-'}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Clock className="w-3.5 h-3.5" />
+                                <span>Schedule:</span>
+                                <span className={`font-mono ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{getScheduleLabel(job.schedule)}</span>
+                            </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className={`flex flex-wrap gap-2 pt-3 border-t ${isDark ? 'border-slate-700' : 'border-slate-200'}`} onClick={(e) => e.stopPropagation()}>
+                            <button
+                                onClick={() => handleJobClick(job)}
+                                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition ${isDark ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
+                            >
+                                <Eye className="w-3.5 h-3.5" />
+                                Detail
+                            </button>
+                            {userRole === 'admin' && (
+                                <>
+                                    <button
+                                        onClick={(e) => handleRunJob(job.id, e)}
+                                        disabled={job.status === 'running' || runningJobs.has(job.id)}
+                                        className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition ${isDark ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}`}
+                                    >
+                                        {(job.status === 'running' || runningJobs.has(job.id)) ? (
+                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        ) : (
+                                            <Play className="w-3.5 h-3.5" />
+                                        )}
+                                        Run
+                                    </button>
+                                    <button
+                                        onClick={(e) => handleToggle(job, e)}
+                                        className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition ${job.enabled !== false
+                                            ? (isDark ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30' : 'bg-amber-50 text-amber-600 hover:bg-amber-100')
+                                            : (isDark ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100')
+                                            }`}
+                                    >
+                                        {job.enabled !== false ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                                        {job.enabled !== false ? 'Pause' : 'Resume'}
+                                    </button>
+                                    <button
+                                        onClick={(e) => handleDeleteClick(job, e)}
+                                        className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition ${isDark ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                        Hapus
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                ))}
             </div>
 
             {/* Pagination */}

@@ -437,7 +437,8 @@ function Schema() {
                         {schemas.length} Total
                     </div>
                 </div>
-                <div className="overflow-x-auto">
+                {/* Desktop Table */}
+                <div className="hidden lg:block overflow-x-auto">
                     <table className="w-full">
                         <thead className={isDark ? 'bg-slate-900/50 border-b border-slate-700' : 'bg-slate-50/80 border-b border-slate-200'}>
                             <tr>
@@ -536,6 +537,90 @@ function Schema() {
                             )}
                         </tbody>
                     </table>
+                </div>
+
+                {/* Mobile Cards */}
+                <div className="lg:hidden p-4 space-y-3">
+                    {schemas.length === 0 ? (
+                        <div className={`text-center py-8 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            <Database className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                            <p className="font-medium">No schemas found</p>
+                        </div>
+                    ) : (
+                        schemas
+                            .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                            .map((schema) => (
+                                <div
+                                    key={schema.id}
+                                    className={`rounded-xl border p-4 ${isDark ? 'bg-slate-900/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}
+                                >
+                                    {/* Header */}
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${schema.source_type === 'api'
+                                                    ? (isDark ? 'bg-cyan-500/20 text-cyan-400' : 'bg-cyan-100 text-cyan-600')
+                                                    : schema.source_type === 'file'
+                                                        ? (isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-600')
+                                                        : (isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600')
+                                                }`}>
+                                                <Database className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                                <div className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>{schema.name}</div>
+                                                {schema.description && (
+                                                    <div className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{schema.description}</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <span className={`text-xs px-2 py-1 rounded-lg font-medium ${schema.source_type === 'api'
+                                                ? (isDark ? 'bg-cyan-500/20 text-cyan-400' : 'bg-cyan-50 text-cyan-700')
+                                                : schema.source_type === 'file'
+                                                    ? (isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-50 text-amber-700')
+                                                    : (isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-700')
+                                            }`}>
+                                            {schema.source_type === 'api' ? 'API' : schema.source_type === 'file' ? 'File' : 'SQL'}
+                                        </span>
+                                    </div>
+
+                                    {/* Info */}
+                                    <div className={`text-xs mb-3 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                        <span>Target: </span>
+                                        <span className={`font-mono px-1.5 py-0.5 rounded ${isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-50 text-emerald-700'}`}>
+                                            {schema.target_table}
+                                        </span>
+                                    </div>
+
+                                    {/* Actions */}
+                                    <div className={`flex gap-2 pt-3 border-t ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+                                        <button
+                                            onClick={() => setSelectedSchema(schema)}
+                                            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition ${isDark ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
+                                        >
+                                            <Eye className="w-3.5 h-3.5" />
+                                            Detail
+                                        </button>
+                                        {userRole === 'admin' && (
+                                            <>
+                                                <button
+                                                    onClick={() => handleEdit(schema)}
+                                                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition ${isDark ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                                                >
+                                                    <Edit className="w-3.5 h-3.5" />
+                                                    Edit
+                                                </button>
+                                                <button
+                                                    onClick={() => setDeleteTarget(schema)}
+                                                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition ${isDark ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                    Hapus
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            ))
+                    )}
                 </div>
 
                 {/* Pagination */}

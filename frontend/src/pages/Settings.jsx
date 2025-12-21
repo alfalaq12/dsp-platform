@@ -153,44 +153,46 @@ function Settings() {
 
             {/* Backup & Restore Section */}
             <div className={`rounded-2xl border shadow-xl overflow-hidden ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200 shadow-lg'}`}>
-                <div className={`px-8 py-6 border-b flex items-center justify-between ${isDark ? 'border-slate-700 bg-slate-900/50' : 'border-slate-100 bg-slate-50/80'}`}>
-                    <div className="flex items-center gap-3">
-                        <div className={`p-3 rounded-xl ${isDark ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-600'}`}>
-                            <HardDrive className="w-6 h-6" />
+                <div className={`px-4 sm:px-8 py-4 sm:py-6 border-b ${isDark ? 'border-slate-700 bg-slate-900/50' : 'border-slate-100 bg-slate-50/80'}`}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className={`p-2 sm:p-3 rounded-xl ${isDark ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-600'}`}>
+                                <HardDrive className="w-5 h-5 sm:w-6 sm:h-6" />
+                            </div>
+                            <div>
+                                <h2 className={`text-lg sm:text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                    Backup & Restore
+                                </h2>
+                                <p className={`text-xs sm:text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                    Backup database, config, and certificates for migration
+                                </p>
+                            </div>
                         </div>
-                        <div>
-                            <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                Backup & Restore
-                            </h2>
-                            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                Backup database, config, and certificates for migration
-                            </p>
+                        <div className="flex flex-wrap gap-2 sm:gap-3">
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleFileSelect}
+                                accept=".zip"
+                                className="hidden"
+                            />
+                            <button
+                                onClick={handleRestoreClick}
+                                disabled={isRestoring}
+                                className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 text-xs sm:text-sm ${isDark ? 'bg-slate-700 hover:bg-slate-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
+                            >
+                                {isRestoring ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                                {isRestoring ? 'Restoring...' : 'Restore'}
+                            </button>
+                            <button
+                                onClick={handleCreateBackup}
+                                disabled={isCreatingBackup}
+                                className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white rounded-xl font-medium shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 text-xs sm:text-sm"
+                            >
+                                {isCreatingBackup ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Archive className="w-4 h-4" />}
+                                {isCreatingBackup ? 'Creating...' : 'Backup Now'}
+                            </button>
                         </div>
-                    </div>
-                    <div className="flex gap-3">
-                        <input
-                            type="file"
-                            ref={fileInputRef}
-                            onChange={handleFileSelect}
-                            accept=".zip"
-                            className="hidden"
-                        />
-                        <button
-                            onClick={handleRestoreClick}
-                            disabled={isRestoring}
-                            className={`px-4 py-2.5 rounded-xl font-medium transition-all duration-200 flex items-center gap-2 disabled:opacity-50 ${isDark ? 'bg-slate-700 hover:bg-slate-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
-                        >
-                            {isRestoring ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                            {isRestoring ? 'Restoring...' : 'Restore Backup'}
-                        </button>
-                        <button
-                            onClick={handleCreateBackup}
-                            disabled={isCreatingBackup}
-                            className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white rounded-xl font-medium shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 transition-all duration-200 flex items-center gap-2 disabled:opacity-50"
-                        >
-                            {isCreatingBackup ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Archive className="w-4 h-4" />}
-                            {isCreatingBackup ? 'Creating...' : 'Backup Now'}
-                        </button>
                     </div>
                 </div>
 
@@ -204,19 +206,19 @@ function Settings() {
                             {backupsData.backups.map((backup) => (
                                 <div
                                     key={backup.filename}
-                                    className={`flex items-center justify-between p-4 rounded-xl border transition-all ${isDark ? 'bg-slate-900/50 border-slate-700 hover:border-slate-600' : 'bg-slate-50 border-slate-200 hover:border-slate-300'}`}
+                                    className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-xl border transition-all gap-3 ${isDark ? 'bg-slate-900/50 border-slate-700 hover:border-slate-600' : 'bg-slate-50 border-slate-200 hover:border-slate-300'}`}
                                 >
-                                    <div className="flex items-center gap-4">
-                                        <div className={`p-2.5 rounded-lg ${isDark ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-600'}`}>
-                                            <FileArchive className="w-5 h-5" />
+                                    <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                                        <div className={`p-2 sm:p-2.5 rounded-lg flex-shrink-0 ${isDark ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-600'}`}>
+                                            <FileArchive className="w-4 h-4 sm:w-5 sm:h-5" />
                                         </div>
-                                        <div>
-                                            <p className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                        <div className="min-w-0 flex-1">
+                                            <p className={`font-medium text-sm sm:text-base truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                                 {backup.filename}
                                             </p>
-                                            <div className={`flex items-center gap-3 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                            <div className={`flex items-center gap-2 sm:gap-3 text-xs sm:text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                                 <span className="flex items-center gap-1">
-                                                    <Clock className="w-3.5 h-3.5" />
+                                                    <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                                                     {formatDate(backup.created_at)}
                                                 </span>
                                                 <span>•</span>
@@ -224,17 +226,17 @@ function Settings() {
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 justify-end">
                                         <button
                                             onClick={() => handleDownloadBackup(backup.filename)}
-                                            className={`p-2.5 rounded-lg transition-all ${isDark ? 'hover:bg-slate-700 text-slate-400 hover:text-blue-400' : 'hover:bg-slate-200 text-slate-500 hover:text-blue-600'}`}
+                                            className={`p-2 sm:p-2.5 rounded-lg transition-all ${isDark ? 'hover:bg-slate-700 text-slate-400 hover:text-blue-400' : 'hover:bg-slate-200 text-slate-500 hover:text-blue-600'}`}
                                             title="Download"
                                         >
                                             <Download className="w-4 h-4" />
                                         </button>
                                         <button
                                             onClick={() => setDeleteConfirm({ show: true, filename: backup.filename })}
-                                            className={`p-2.5 rounded-lg transition-all ${isDark ? 'hover:bg-red-500/20 text-slate-400 hover:text-red-400' : 'hover:bg-red-100 text-slate-500 hover:text-red-600'}`}
+                                            className={`p-2 sm:p-2.5 rounded-lg transition-all ${isDark ? 'hover:bg-red-500/20 text-slate-400 hover:text-red-400' : 'hover:bg-red-100 text-slate-500 hover:text-red-600'}`}
                                             title="Delete"
                                         >
                                             <Trash2 className="w-4 h-4" />
