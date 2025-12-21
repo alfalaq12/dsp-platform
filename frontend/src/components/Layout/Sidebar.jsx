@@ -49,102 +49,68 @@ function Sidebar({ isOpen, onClose }) {
     const userRole = localStorage.getItem('role') || 'viewer';
 
     return (
-        <>
-            {/* Mobile Overlay - only show when sidebar open */}
-            {isOpen && (
-                <div
-                    className="fixed inset-0 bg-black/60 z-40 lg:hidden backdrop-blur-sm transition-opacity duration-300"
-                    onClick={onClose}
-                />
+        <aside className={`
+                hidden lg:flex lg:flex-col lg:w-64
+                ${isDark
+                ? 'bg-panda-dark-100 border-r border-panda-dark-300'
+                : 'bg-gov-blue-900 border-r border-gov-blue-800 shadow-xl'
+            }
+            `}>
+            <div className={`p-6 ${isDark ? 'border-b border-panda-dark-300' : 'border-b border-gov-blue-800'}`}>
+                <h1 className={`text-2xl font-bold ${isDark ? 'text-blue-500' : 'text-white'}`}>DSP Platform</h1>
+                <p className={`text-sm mt-1 ${isDark ? 'text-panda-text-muted' : 'text-blue-200'}`}>Data Sync</p>
+            </div>
+
+            {/* License Warning Banner */}
+            {!licenseActive && (
+                <div className={`mx-4 mt-4 px-3 py-2 rounded-lg flex items-center gap-2 text-xs ${isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-800'}`}>
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                    <span>License tidak aktif</span>
+                </div>
             )}
 
-            {/* Sidebar - Desktop: fixed left, Mobile: dropdown from top with animation */}
-            <aside className={`
-                lg:static lg:inset-auto lg:w-64 lg:flex lg:flex-col lg:translate-y-0 lg:opacity-100
-                fixed inset-x-0 top-0 z-50 lg:z-auto
-                transform transition-all duration-300 ease-out
-                ${isOpen ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none lg:pointer-events-auto lg:translate-y-0 lg:opacity-100'}
-                ${isDark
-                    ? 'bg-panda-dark-100 lg:border-r lg:border-panda-dark-300'
-                    : 'bg-gov-blue-900 lg:border-r lg:border-gov-blue-800 lg:shadow-xl'
-                }
-            `}>
-                <div className={`p-6 flex items-center justify-between ${isDark ? 'border-b border-panda-dark-300' : 'border-b border-gov-blue-800'}`}>
-                    {/* Mobile: Animated Hamburger/X with Menu text */}
-                    <div className="lg:hidden flex items-center gap-3">
-                        <button
-                            onClick={onClose}
-                            className={`p-1 transition-colors ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-white hover:text-blue-200'}`}
-                            aria-label="Toggle menu"
-                        >
-                            <div className="w-6 h-6 flex flex-col justify-center items-center relative">
-                                {/* Animated hamburger lines - transition to X when isOpen */}
-                                <span className={`block absolute h-0.5 w-5 transform transition-all duration-300 ease-in-out bg-current ${isOpen ? 'rotate-45 delay-100' : '-translate-y-1.5'}`}></span>
-                                <span className={`block absolute h-0.5 w-5 transform transition-all duration-300 ease-in-out bg-current ${isOpen ? 'opacity-0 scale-0' : 'opacity-100'}`}></span>
-                                <span className={`block absolute h-0.5 w-5 transform transition-all duration-300 ease-in-out bg-current ${isOpen ? '-rotate-45 delay-100' : 'translate-y-1.5'}`}></span>
-                            </div>
-                        </button>
-                        <span className={`text-lg font-bold ${isDark ? 'text-blue-400' : 'text-white'}`}>Menu</span>
-                    </div>
-
-                    {/* Desktop: Logo */}
-                    <div className="hidden lg:block">
-                        <h1 className={`text-2xl font-bold ${isDark ? 'text-blue-500' : 'text-white'}`}>DSP Platform</h1>
-                        <p className={`text-sm mt-1 ${isDark ? 'text-panda-text-muted' : 'text-blue-200'}`}>Data Sync</p>
-                    </div>
+            {/* License Expiry Warning */}
+            {licenseActive && daysRemaining !== null && daysRemaining <= 30 && (
+                <div className={`mx-4 mt-4 px-3 py-2 rounded-lg flex items-center gap-2 text-xs ${isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-800'}`}>
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                    <span>License expires in {daysRemaining} days</span>
                 </div>
+            )}
 
-                {/* License Warning Banner */}
-                {!licenseActive && (
-                    <div className={`mx-4 mt-4 px-3 py-2 rounded-lg flex items-center gap-2 text-xs ${isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-800'}`}>
-                        <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                        <span>License tidak aktif</span>
-                    </div>
-                )}
-
-                {/* License Expiry Warning */}
-                {licenseActive && daysRemaining !== null && daysRemaining <= 30 && (
-                    <div className={`mx-4 mt-4 px-3 py-2 rounded-lg flex items-center gap-2 text-xs ${isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-800'}`}>
-                        <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                        <span>License expires in {daysRemaining} days</span>
-                    </div>
-                )}
-
-                <nav className="flex-1 p-4">
-                    <ul className="space-y-2">
-                        {menuItems.filter(item => !item.role || item.role === userRole).map((item) => {
-                            const Icon = item.icon;
-                            return (
-                                <li key={item.path}>
-                                    <NavLink
-                                        to={item.path}
-                                        end
-                                        onClick={onClose}
-                                        className={({ isActive }) =>
-                                            `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${isActive
-                                                ? item.highlight
-                                                    ? 'bg-amber-500 text-white font-semibold shadow-lg shadow-amber-500/30'
-                                                    : 'bg-blue-500 text-white font-semibold shadow-lg shadow-blue-500/30'
-                                                : item.highlight
-                                                    ? isDark
-                                                        ? 'text-amber-400 hover:bg-amber-500/20 hover:text-amber-300 animate-pulse'
-                                                        : 'text-amber-200 hover:bg-amber-500/20 hover:text-white animate-pulse'
-                                                    : isDark
-                                                        ? 'text-panda-text-muted hover:bg-panda-dark-300 hover:text-blue-500'
-                                                        : 'text-blue-100 hover:bg-gov-blue-800 hover:text-white'
-                                            }`
-                                        }
-                                    >
-                                        <Icon className="w-5 h-5" />
-                                        <span className="font-medium">{item.label}</span>
-                                    </NavLink>
-                                </li>
-                            );
-                        })}
-                    </ul>
-                </nav>
-            </aside>
-        </>
+            <nav className="flex-1 p-4">
+                <ul className="space-y-2">
+                    {menuItems.filter(item => !item.role || item.role === userRole).map((item) => {
+                        const Icon = item.icon;
+                        return (
+                            <li key={item.path}>
+                                <NavLink
+                                    to={item.path}
+                                    end
+                                    onClick={onClose}
+                                    className={({ isActive }) =>
+                                        `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${isActive
+                                            ? item.highlight
+                                                ? 'bg-amber-500 text-white font-semibold shadow-lg shadow-amber-500/30'
+                                                : 'bg-blue-500 text-white font-semibold shadow-lg shadow-blue-500/30'
+                                            : item.highlight
+                                                ? isDark
+                                                    ? 'text-amber-400 hover:bg-amber-500/20 hover:text-amber-300 animate-pulse'
+                                                    : 'text-amber-200 hover:bg-amber-500/20 hover:text-white animate-pulse'
+                                                : isDark
+                                                    ? 'text-panda-text-muted hover:bg-panda-dark-300 hover:text-blue-500'
+                                                    : 'text-blue-100 hover:bg-gov-blue-800 hover:text-white'
+                                        }`
+                                    }
+                                >
+                                    <Icon className="w-5 h-5" />
+                                    <span className="font-medium">{item.label}</span>
+                                </NavLink>
+                            </li>
+                        );
+                    })}
+                </ul>
+            </nav>
+        </aside>
     );
 }
 
