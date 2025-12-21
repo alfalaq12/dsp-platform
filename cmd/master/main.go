@@ -268,6 +268,8 @@ func setupRouter(handler *server.Handler) *gin.Engine {
 
 		// Network test connection
 		api.POST("/networks/:id/test", auth.RequireRole("admin"), handler.TestNetworkConnection)
+		api.POST("/networks/:id/test-target", auth.RequireRole("admin"), handler.TestNetworkTargetConnection)
+		api.POST("/networks/:id/reverse", auth.RequireRole("admin"), handler.ReverseNetwork)
 
 		// Audit Logs (Viewable by admin only usually, or maybe all? Let's restrict to admin for now based on Sidebar)
 		api.GET("/audit-logs", auth.RequireRole("admin"), handler.GetAuditLogs)
@@ -291,6 +293,13 @@ func setupRouter(handler *server.Handler) *gin.Engine {
 		api.POST("/agents/:name/exec", auth.RequireRole("admin"), handler.ExecuteAgentCommand)
 		api.GET("/agents/:name/terminal-history", auth.RequireRole("admin"), handler.GetAgentTerminalHistory)
 		api.GET("/agents/connected", auth.RequireRole("admin"), handler.GetConnectedAgents)
+
+		// Backup & Restore (Admin only)
+		api.POST("/backup", auth.RequireRole("admin"), handler.CreateBackup)
+		api.GET("/backups", auth.RequireRole("admin"), handler.ListBackups)
+		api.GET("/backups/:filename/download", auth.RequireRole("admin"), handler.DownloadBackup)
+		api.POST("/backup/restore", auth.RequireRole("admin"), handler.RestoreBackup)
+		api.DELETE("/backups/:filename", auth.RequireRole("admin"), handler.DeleteBackup)
 	}
 
 	// Health check

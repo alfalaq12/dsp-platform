@@ -1,103 +1,114 @@
-import { useState, useEffect } from 'react';
-import { useTargetDBConfig, useUpdateTargetDBConfig, useTestTargetDBConnection } from '../hooks/useQueries';
-import { useToast, ToastContainer } from '../components/Toast';
+import { useState, useRef } from 'react';
+import { useBackups, useCreateBackup, useRestoreBackup, useDeleteBackup } from '../hooks/useQueries';
+import { getBackupDownloadUrl } from '../services/api';
+import { useToast, ToastContainer, ConfirmModal } from '../components/Toast';
 import { useTheme } from '../contexts/ThemeContext';
-import { Shield, Database, Save, RefreshCw, CheckCircle, Server, AlertCircle, Info, Play, Settings as SettingsIcon } from 'lucide-react';
+import { RefreshCw, Info, Settings as SettingsIcon, HardDrive, Download, Trash2, Upload, Archive, Clock, FileArchive, ArrowRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 function Settings() {
     const { isDark } = useTheme();
     const { toasts, addToast, removeToast } = useToast();
-    const [isSaving, setIsSaving] = useState(false);
-    const [isTesting, setIsTesting] = useState(false);
-    const [testResult, setTestResult] = useState(null);
-    const [config, setConfig] = useState({
-        driver: 'postgres',
-        host: '',
-        port: '5432',
-        user: '',
-        password: '',
-        db_name: '',
-        sslmode: 'disable'
-    });
 
-    // React Query hooks
-    const { data: configData, isLoading } = useTargetDBConfig();
-    const updateConfigMutation = useUpdateTargetDBConfig();
-    const testConnectionMutation = useTestTargetDBConnection();
+    // Backup state
+    const [isCreatingBackup, setIsCreatingBackup] = useState(false);
+    const [isRestoring, setIsRestoring] = useState(false);
+    const [deleteConfirm, setDeleteConfirm] = useState({ show: false, filename: '' });
+    const [restoreConfirm, setRestoreConfirm] = useState({ show: false, file: null });
+    const fileInputRef = useRef(null);
 
-    // Sync query data to local state when loaded
-    useEffect(() => {
-        if (configData) {
-            setConfig({
-                driver: configData.target_db_driver || 'postgres',
-                host: configData.target_db_host || '',
-                port: configData.target_db_port || '5432',
-                user: configData.target_db_user || '',
-                password: configData.target_db_password || '',
-                db_name: configData.target_db_name || '',
-                sslmode: configData.target_db_sslmode || 'disable'
-            });
-        }
-    }, [configData]);
+    // Backup hooks
+    const { data: backupsData, isLoading: isLoadingBackups } = useBackups();
+    const createBackupMutation = useCreateBackup();
+    const restoreBackupMutation = useRestoreBackup();
+    const deleteBackupMutation = useDeleteBackup();
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    // Backup handlers
+    const handleCreateBackup = async () => {
         try {
-            setIsSaving(true);
-            await updateConfigMutation.mutateAsync(config);
-            addToast('Target database configuration saved!', 'success');
+            setIsCreatingBackup(true);
+            await createBackupMutation.mutateAsync();
+            addToast('Backup created successfully!', 'success');
         } catch (error) {
-            console.error('Failed to save config:', error);
-            addToast('Failed to save settings', 'error');
+            console.error('Backup failed:', error);
+            addToast('Failed to create backup: ' + (error.response?.data?.error || error.message), 'error');
         } finally {
-            setIsSaving(false);
+            setIsCreatingBackup(false);
         }
     };
 
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        setConfig(prev => ({ ...prev, [name]: value }));
+    const handleDownloadBackup = (filename) => {
+        window.open(getBackupDownloadUrl(filename), '_blank');
     };
 
-    const handleTest = async () => {
-        if (!config.host) {
-            addToast('Please enter host address first', 'warning');
-            return;
-        }
+    const handleDeleteBackup = async () => {
         try {
-            setIsTesting(true);
-            setTestResult(null);
-            const response = await testConnectionMutation.mutateAsync(config);
-            setTestResult(response.data);
-            if (response.data.success) {
-                addToast('Connection successful!', 'success');
-            } else {
-                addToast('Connection failed: ' + response.data.error, 'error');
+            await deleteBackupMutation.mutateAsync(deleteConfirm.filename);
+            addToast('Backup deleted successfully!', 'success');
+            setDeleteConfirm({ show: false, filename: '' });
+        } catch (error) {
+            console.error('Delete failed:', error);
+            addToast('Failed to delete backup: ' + (error.response?.data?.error || error.message), 'error');
+        }
+    };
+
+    const handleRestoreClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileSelect = (e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            if (!file.name.endsWith('.zip')) {
+                addToast('Please select a .zip backup file', 'warning');
+                return;
+            }
+            setRestoreConfirm({ show: true, file });
+        }
+        // Reset input so same file can be selected again
+        e.target.value = '';
+    };
+
+    const handleRestore = async () => {
+        if (!restoreConfirm.file) return;
+
+        try {
+            setIsRestoring(true);
+            const formData = new FormData();
+            formData.append('backup', restoreConfirm.file);
+
+            const response = await restoreBackupMutation.mutateAsync(formData);
+            addToast(response.data.message || 'Backup restored successfully!', 'success');
+            setRestoreConfirm({ show: false, file: null });
+
+            if (response.data.restart_needed) {
+                addToast('Please restart the server for changes to take effect.', 'warning');
             }
         } catch (error) {
-            console.error('Test failed:', error);
-            setTestResult({ success: false, error: error.message });
-            addToast('Test failed: ' + error.message, 'error');
+            console.error('Restore failed:', error);
+            addToast('Failed to restore backup: ' + (error.response?.data?.error || error.message), 'error');
         } finally {
-            setIsTesting(false);
+            setIsRestoring(false);
         }
     };
 
-    // Unified Input Styles
-    const inputClass = `w-full px-4 py-3 rounded-xl border transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isDark
-        ? 'bg-slate-900/50 border-slate-700 text-white placeholder-slate-500'
-        : 'bg-white border-slate-200 text-slate-900 placeholder-slate-400'
-        }`;
+    const formatBytes = (bytes) => {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
 
-    const labelClass = `block text-sm font-semibold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`;
-
-    if (isLoading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-            </div>
-        );
-    }
+    const formatDate = (dateStr) => {
+        return new Date(dateStr).toLocaleString('id-ID', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
 
     return (
         <div className="space-y-8">
@@ -114,197 +125,155 @@ function Settings() {
                         System Administration
                     </div>
                     <h1 className={`text-3xl font-bold mb-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>Platform Settings</h1>
-                    <p className={isDark ? 'text-slate-400' : 'text-slate-600'}>Configure global system preferences and database connections</p>
+                    <p className={isDark ? 'text-slate-400' : 'text-slate-600'}>Backup, restore, and system configuration</p>
                 </div>
             </div>
 
-            {/* Target Database Configuration */}
-            <div className={`rounded-2xl border shadow-xl overflow-hidden ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200 shadow-lg'}`}>
-                <div className={`px-8 py-6 border-b flex items-center gap-3 ${isDark ? 'border-slate-700 bg-slate-900/50' : 'border-slate-100 bg-slate-50/80'}`}>
-                    <div className={`p-3 rounded-xl ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>
-                        <Database className="w-6 h-6" />
-                    </div>
-                    <div>
-                        <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                            Target Database Configuration
-                        </h2>
-                        <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            Configure where synced data will be stored
-                        </p>
-                    </div>
-                </div>
-
-                <div className="p-8">
-                    <form onSubmit={handleSubmit} className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Driver */}
-                            <div>
-                                <label className={labelClass}>Database Driver</label>
-                                <div className="relative">
-                                    <Server className={`absolute left-4 top-3.5 w-5 h-5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
-                                    <select
-                                        name="driver"
-                                        value={config.driver}
-                                        onChange={handleChange}
-                                        className={`${inputClass} pl-12 appearance-none`}
-                                    >
-                                        <option value="postgres">PostgreSQL</option>
-                                        <option value="mysql">MySQL</option>
-                                        <option value="sqlserver">SQL Server (MSSQL)</option>
-                                        <option value="oracle">Oracle</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            {/* SSL Mode */}
-                            <div>
-                                <label className={labelClass}>SSL Mode</label>
-                                <div className="relative">
-                                    <Shield className={`absolute left-4 top-3.5 w-5 h-5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
-                                    <select
-                                        name="sslmode"
-                                        value={config.sslmode}
-                                        onChange={handleChange}
-                                        className={`${inputClass} pl-12 appearance-none`}
-                                    >
-                                        <option value="disable">Disable</option>
-                                        <option value="require">Require</option>
-                                        <option value="verify-full">Verify Full</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            {/* Host */}
-                            <div>
-                                <label className={labelClass}>Host</label>
-                                <input
-                                    type="text"
-                                    name="host"
-                                    value={config.host}
-                                    onChange={handleChange}
-                                    placeholder="localhost or IP address"
-                                    className={inputClass}
-                                />
-                            </div>
-
-                            {/* Port */}
-                            <div>
-                                <label className={labelClass}>Port</label>
-                                <input
-                                    type="text"
-                                    name="port"
-                                    value={config.port}
-                                    onChange={handleChange}
-                                    placeholder="5432"
-                                    className={inputClass}
-                                />
-                            </div>
-
-                            {/* User */}
-                            <div>
-                                <label className={labelClass}>Username</label>
-                                <input
-                                    type="text"
-                                    name="user"
-                                    value={config.user}
-                                    onChange={handleChange}
-                                    placeholder="postgres"
-                                    className={inputClass}
-                                />
-                            </div>
-
-                            {/* Password */}
-                            <div>
-                                <label className={labelClass}>Password</label>
-                                <input
-                                    type="password"
-                                    name="password"
-                                    value={config.password}
-                                    onChange={handleChange}
-                                    placeholder="••••••••"
-                                    className={inputClass}
-                                />
-                            </div>
-
-                            {/* Database Name */}
-                            <div className="md:col-span-2">
-                                <label className={labelClass}>Database Name</label>
-                                <input
-                                    type="text"
-                                    name="db_name"
-                                    value={config.db_name}
-                                    onChange={handleChange}
-                                    placeholder="dsp_sync"
-                                    className={inputClass}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Test Result Display */}
-                        {testResult && (
-                            <div className={`p-4 rounded-xl border flex items-start gap-3 modal-scale-in ${testResult.success
-                                ? isDark ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' : 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                                : isDark ? 'bg-red-500/10 border-red-500/20 text-red-300' : 'bg-red-50 border-red-200 text-red-800'
-                                }`}>
-                                <div className={`p-1.5 rounded-full mt-0.5 ${testResult.success
-                                    ? isDark ? 'bg-emerald-500/20' : 'bg-emerald-100'
-                                    : isDark ? 'bg-red-500/20' : 'bg-red-100'}`}>
-                                    {testResult.success ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                                </div>
-                                <div className="flex-1">
-                                    <h4 className="font-bold flex items-center gap-2">
-                                        {testResult.success ? 'Connection Successful' : 'Connection Failed'}
-                                    </h4>
-                                    {testResult.success && (
-                                        <div className={`text-sm mt-1 opacity-80 font-mono`}>
-                                            <p>Host: {testResult.host}:{testResult.port}</p>
-                                            <p>Database: {testResult.database}</p>
-                                        </div>
-                                    )}
-                                    {!testResult.success && (
-                                        <p className="text-sm mt-1 opacity-90">{testResult.error}</p>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-
-                        <div className={`flex flex-col sm:flex-row justify-end items-center gap-4 pt-6 border-t ${isDark ? 'border-slate-700' : 'border-slate-100'}`}>
-                            <button
-                                type="button"
-                                onClick={handleTest}
-                                disabled={isTesting}
-                                className={`w-full sm:w-auto px-6 py-3 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 ${isDark ? 'bg-slate-700 hover:bg-slate-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
-                            >
-                                {isTesting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                                {isTesting ? 'Testing...' : 'Test Connection'}
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={isSaving}
-                                className="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50"
-                            >
-                                {isSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                                {isSaving ? 'Saving...' : 'Save Configuration'}
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            {/* Info Box */}
+            {/* Quick Links Info */}
             <div className={`rounded-2xl p-6 border ${isDark ? 'bg-blue-900/10 border-blue-800' : 'bg-blue-50 border-blue-200'}`}>
                 <div className="flex items-start gap-4">
                     <div className={`p-3 rounded-xl ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>
                         <Info className="w-5 h-5" />
                     </div>
-                    <div>
-                        <h3 className={`font-bold text-lg mb-1 ${isDark ? 'text-blue-300' : 'text-blue-800'}`}>Cara Kerja</h3>
-                        <p className={`text-base leading-relaxed ${isDark ? 'text-blue-200/70' : 'text-blue-700/80'}`}>
-                            Data dari database sumber akan diambil oleh agent dan dikirim ke Master server, kemudian dimasukkan ke database target yang dikonfigurasi di atas.
+                    <div className="flex-1">
+                        <h3 className={`font-bold text-lg mb-1 ${isDark ? 'text-blue-300' : 'text-blue-800'}`}>Target Database Configuration</h3>
+                        <p className={`text-base leading-relaxed mb-3 ${isDark ? 'text-blue-200/70' : 'text-blue-700/80'}`}>
+                            Target database configuration is now set per-network. Each network has its own SOURCE and TARGET configuration for flexible data synchronization.
                         </p>
+                        <Link
+                            to="/network"
+                            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${isDark ? 'bg-blue-500/20 hover:bg-blue-500/30 text-blue-300' : 'bg-blue-100 hover:bg-blue-200 text-blue-700'}`}
+                        >
+                            Go to Network Management
+                            <ArrowRight className="w-4 h-4" />
+                        </Link>
                     </div>
                 </div>
             </div>
+
+            {/* Backup & Restore Section */}
+            <div className={`rounded-2xl border shadow-xl overflow-hidden ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200 shadow-lg'}`}>
+                <div className={`px-8 py-6 border-b flex items-center justify-between ${isDark ? 'border-slate-700 bg-slate-900/50' : 'border-slate-100 bg-slate-50/80'}`}>
+                    <div className="flex items-center gap-3">
+                        <div className={`p-3 rounded-xl ${isDark ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-600'}`}>
+                            <HardDrive className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                Backup & Restore
+                            </h2>
+                            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                Backup database, config, and certificates for migration
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex gap-3">
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleFileSelect}
+                            accept=".zip"
+                            className="hidden"
+                        />
+                        <button
+                            onClick={handleRestoreClick}
+                            disabled={isRestoring}
+                            className={`px-4 py-2.5 rounded-xl font-medium transition-all duration-200 flex items-center gap-2 disabled:opacity-50 ${isDark ? 'bg-slate-700 hover:bg-slate-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
+                        >
+                            {isRestoring ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                            {isRestoring ? 'Restoring...' : 'Restore Backup'}
+                        </button>
+                        <button
+                            onClick={handleCreateBackup}
+                            disabled={isCreatingBackup}
+                            className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white rounded-xl font-medium shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 transition-all duration-200 flex items-center gap-2 disabled:opacity-50"
+                        >
+                            {isCreatingBackup ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Archive className="w-4 h-4" />}
+                            {isCreatingBackup ? 'Creating...' : 'Backup Now'}
+                        </button>
+                    </div>
+                </div>
+
+                <div className="p-8">
+                    {isLoadingBackups ? (
+                        <div className="flex items-center justify-center h-32">
+                            <div className="w-6 h-6 border-3 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                    ) : backupsData?.backups?.length > 0 ? (
+                        <div className="space-y-3">
+                            {backupsData.backups.map((backup) => (
+                                <div
+                                    key={backup.filename}
+                                    className={`flex items-center justify-between p-4 rounded-xl border transition-all ${isDark ? 'bg-slate-900/50 border-slate-700 hover:border-slate-600' : 'bg-slate-50 border-slate-200 hover:border-slate-300'}`}
+                                >
+                                    <div className="flex items-center gap-4">
+                                        <div className={`p-2.5 rounded-lg ${isDark ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-600'}`}>
+                                            <FileArchive className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <p className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                                {backup.filename}
+                                            </p>
+                                            <div className={`flex items-center gap-3 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                <span className="flex items-center gap-1">
+                                                    <Clock className="w-3.5 h-3.5" />
+                                                    {formatDate(backup.created_at)}
+                                                </span>
+                                                <span>•</span>
+                                                <span>{formatBytes(backup.size)}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => handleDownloadBackup(backup.filename)}
+                                            className={`p-2.5 rounded-lg transition-all ${isDark ? 'hover:bg-slate-700 text-slate-400 hover:text-blue-400' : 'hover:bg-slate-200 text-slate-500 hover:text-blue-600'}`}
+                                            title="Download"
+                                        >
+                                            <Download className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            onClick={() => setDeleteConfirm({ show: true, filename: backup.filename })}
+                                            className={`p-2.5 rounded-lg transition-all ${isDark ? 'hover:bg-red-500/20 text-slate-400 hover:text-red-400' : 'hover:bg-red-100 text-slate-500 hover:text-red-600'}`}
+                                            title="Delete"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className={`text-center py-12 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                            <HardDrive className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                            <p className="font-medium">No backups available</p>
+                            <p className="text-sm mt-1">Create a backup to protect your data</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Delete Confirmation Modal */}
+            <ConfirmModal
+                isOpen={deleteConfirm.show}
+                onClose={() => setDeleteConfirm({ show: false, filename: '' })}
+                onConfirm={handleDeleteBackup}
+                title="Delete Backup"
+                message={`Are you sure you want to delete "${deleteConfirm.filename}"? This action cannot be undone.`}
+                confirmText="Delete"
+                variant="danger"
+            />
+
+            {/* Restore Confirmation Modal */}
+            <ConfirmModal
+                isOpen={restoreConfirm.show}
+                onClose={() => setRestoreConfirm({ show: false, file: null })}
+                onConfirm={handleRestore}
+                title="Restore Backup"
+                message={`Are you sure you want to restore from "${restoreConfirm.file?.name}"? This will overwrite current database, config, and certificates. You may need to restart the server after restore.`}
+                confirmText="Restore"
+                variant="warning"
+            />
         </div>
     );
 }

@@ -82,6 +82,37 @@ type Network struct {
 	RedisPassword string `json:"redis_password"`
 	RedisDB       int    `json:"redis_db" gorm:"default:0"` // Database number (0-15)
 	RedisPattern  string `json:"redis_pattern"`             // Key pattern to scan (e.g., "user:*")
+
+	// ===== TARGET CONFIGURATION (for 1:1 Source-Target Pair) =====
+
+	// Target Source Type: database, ftp, sftp, api
+	TargetSourceType string `json:"target_source_type" gorm:"default:'database'"`
+
+	// Target Database Configuration
+	TargetDBDriver   string `json:"target_db_driver" gorm:"default:'postgres'"`
+	TargetDBHost     string `json:"target_db_host"`
+	TargetDBPort     string `json:"target_db_port" gorm:"default:'5432'"`
+	TargetDBUser     string `json:"target_db_user"`
+	TargetDBPassword string `json:"target_db_password"`
+	TargetDBName     string `json:"target_db_name"`
+	TargetDBSSLMode  string `json:"target_db_sslmode" gorm:"default:'disable'"`
+
+	// Target FTP/SFTP Configuration
+	TargetFTPHost       string `json:"target_ftp_host"`
+	TargetFTPPort       string `json:"target_ftp_port" gorm:"default:'21'"`
+	TargetFTPUser       string `json:"target_ftp_user"`
+	TargetFTPPassword   string `json:"target_ftp_password"`
+	TargetFTPPrivateKey string `json:"target_ftp_private_key" gorm:"type:text"`
+	TargetFTPPath       string `json:"target_ftp_path"`
+
+	// Target API Configuration
+	TargetAPIURL       string `json:"target_api_url"`
+	TargetAPIMethod    string `json:"target_api_method" gorm:"default:'POST'"`
+	TargetAPIHeaders   string `json:"target_api_headers" gorm:"type:text"`
+	TargetAPIAuthType  string `json:"target_api_auth_type"`
+	TargetAPIAuthKey   string `json:"target_api_auth_key"`
+	TargetAPIAuthValue string `json:"target_api_auth_value"`
+	TargetAPIBody      string `json:"target_api_body" gorm:"type:text"`
 }
 
 // Job represents a data synchronization job linking a Schema to a Network

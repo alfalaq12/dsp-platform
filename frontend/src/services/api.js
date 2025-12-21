@@ -73,6 +73,8 @@ export const getAuditLogs = (params) => api.get('/audit-logs', { params });
 // Test Connections
 export const testTargetDBConnection = (data) => api.post('/settings/target-db/test', data);
 export const testNetworkConnection = (id) => api.post(`/networks/${id}/test`);
+export const testNetworkTargetConnection = (id) => api.post(`/networks/${id}/test-target`);
+export const reverseNetwork = (id) => api.post(`/networks/${id}/reverse`);
 
 // Agent Tokens
 export const getAgentTokens = () => api.get('/agent-tokens');
@@ -88,9 +90,19 @@ export const activateLicense = (activationCode) => api.post('/license/activate',
 // Schema Discovery
 export const listNetworkSchemas = (networkId) => api.get(`/networks/${networkId}/schemas`);
 export const discoverTables = (networkId, schema) => {
-    const params = schema ? `?schema=${encodeURIComponent(schema)}` : '';
-    return api.get(`/networks/${networkId}/tables${params}`);
+  const params = schema ? `?schema=${encodeURIComponent(schema)}` : '';
+  return api.get(`/networks/${networkId}/tables${params}`);
 };
 export const bulkCreateSchemas = (data) => api.post('/schemas/bulk', data);
 
+// Backup & Restore
+export const createBackup = () => api.post('/backup');
+export const listBackups = () => api.get('/backups');
+export const getBackupDownloadUrl = (filename) => `/api/backups/${encodeURIComponent(filename)}/download`;
+export const restoreBackup = (formData) => api.post('/backup/restore', formData, {
+  headers: { 'Content-Type': 'multipart/form-data' }
+});
+export const deleteBackup = (filename) => api.delete(`/backups/${encodeURIComponent(filename)}`);
+
 export default api;
+

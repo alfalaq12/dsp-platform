@@ -3,13 +3,16 @@ package server
 import (
 	"database/sql"
 	"dsp-platform/internal/auth"
+	"dsp-platform/internal/backup"
 	"dsp-platform/internal/core"
 	"dsp-platform/internal/database"
 	"dsp-platform/internal/license"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -36,6 +39,16 @@ func NewHandler(db *gorm.DB) *Handler {
 }
 
 // Login handles user authentication
+// @Summary User login
+// @Description Authenticate user and receive JWT token
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param request body core.LoginRequest true "Login credentials"
+// @Success 200 {object} map[string]interface{} "Login successful with token"
+// @Failure 400 {object} map[string]string "Bad request"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Router /login [post]
 func (h *Handler) Login(c *gin.Context) {
 	var req core.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -126,6 +139,17 @@ func (h *Handler) GetSchemas(c *gin.Context) {
 }
 
 // CreateSchema creates a new schema
+// @Summary Create a new schema
+// @Description Create a new data sync schema
+// @Tags Schema
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param schema body core.Schema true "Schema data"
+// @Success 201 {object} core.Schema
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Router /schemas [post]
 func (h *Handler) CreateSchema(c *gin.Context) {
 	var schema core.Schema
 	if err := c.ShouldBindJSON(&schema); err != nil {
@@ -142,10 +166,38 @@ func (h *Handler) CreateSchema(c *gin.Context) {
 		return
 	}
 
+	// Log audit
+	go func() {
+		h.db.Create(&core.AuditLog{
+			Username:  c.GetString("username"),
+			UserID:    c.GetUint("user_id"),
+			Action:    "CREATE",
+			Entity:    "SCHEMA",
+			EntityID:  fmt.Sprintf("%d", schema.ID),
+			Details:   fmt.Sprintf("Created schema '%s'", schema.Name),
+			IPAddress: c.ClientIP(),
+			UserAgent: c.Request.UserAgent(),
+			CreatedAt: time.Now(),
+		})
+	}()
+
 	c.JSON(http.StatusCreated, schema)
 }
 
 // UpdateSchema updates an existing schema
+// @Summary Update a schema
+// @Description Update an existing data sync schema
+// @Tags Schema
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "Schema ID"
+// @Param schema body core.Schema true "Schema data"
+// @Success 200 {object} core.Schema
+// @Failure 400 {object} map[string]string
+// @Failure 403 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /schemas/{id} [put]
 func (h *Handler) UpdateSchema(c *gin.Context) {
 	id := c.Param("id")
 	var schema core.Schema
@@ -174,10 +226,36 @@ func (h *Handler) UpdateSchema(c *gin.Context) {
 		return
 	}
 
+	// Log audit
+	go func() {
+		h.db.Create(&core.AuditLog{
+			Username:  c.GetString("username"),
+			UserID:    c.GetUint("user_id"),
+			Action:    "UPDATE",
+			Entity:    "SCHEMA",
+			EntityID:  id,
+			Details:   fmt.Sprintf("Updated schema '%s'", schema.Name),
+			IPAddress: c.ClientIP(),
+			UserAgent: c.Request.UserAgent(),
+			CreatedAt: time.Now(),
+		})
+	}()
+
 	c.JSON(http.StatusOK, schema)
 }
 
 // DeleteSchema deletes a schema
+// @Summary Delete a schema
+// @Description Delete a data sync schema by ID
+// @Tags Schema
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "Schema ID"
+// @Success 200 {object} map[string]string
+// @Failure 403 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /schemas/{id} [delete]
 func (h *Handler) DeleteSchema(c *gin.Context) {
 	id := c.Param("id")
 
@@ -197,10 +275,35 @@ func (h *Handler) DeleteSchema(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Log audit
+	go func() {
+		h.db.Create(&core.AuditLog{
+			Username:  c.GetString("username"),
+			UserID:    c.GetUint("user_id"),
+			Action:    "DELETE",
+			Entity:    "SCHEMA",
+			EntityID:  id,
+			Details:   fmt.Sprintf("Deleted schema '%s'", schema.Name),
+			IPAddress: c.ClientIP(),
+			UserAgent: c.Request.UserAgent(),
+			CreatedAt: time.Now(),
+		})
+	}()
+
 	c.JSON(http.StatusOK, gin.H{"message": "Schema deleted successfully"})
 }
 
 // GetNetworks returns all networks (agents/sources) - newest first
+// @Summary List all networks
+// @Description Get all network/agent connections
+// @Tags Network
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {array} core.Network
+// @Failure 401 {object} map[string]string
+// @Router /networks [get]
 func (h *Handler) GetNetworks(c *gin.Context) {
 	var networks []core.Network
 	if err := h.db.Order("id DESC").Find(&networks).Error; err != nil {
@@ -211,6 +314,17 @@ func (h *Handler) GetNetworks(c *gin.Context) {
 }
 
 // CreateNetwork creates a new network entry
+// @Summary Create a new network
+// @Description Create a new network/agent connection
+// @Tags Network
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param network body core.Network true "Network data"
+// @Success 201 {object} core.Network
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Router /networks [post]
 func (h *Handler) CreateNetwork(c *gin.Context) {
 	var network core.Network
 	if err := c.ShouldBindJSON(&network); err != nil {
@@ -227,10 +341,38 @@ func (h *Handler) CreateNetwork(c *gin.Context) {
 		return
 	}
 
+	// Log audit
+	go func() {
+		h.db.Create(&core.AuditLog{
+			Username:  c.GetString("username"),
+			UserID:    c.GetUint("user_id"),
+			Action:    "CREATE",
+			Entity:    "NETWORK",
+			EntityID:  fmt.Sprintf("%d", network.ID),
+			Details:   fmt.Sprintf("Created network '%s' (%s)", network.Name, network.SourceType),
+			IPAddress: c.ClientIP(),
+			UserAgent: c.Request.UserAgent(),
+			CreatedAt: time.Now(),
+		})
+	}()
+
 	c.JSON(http.StatusCreated, network)
 }
 
 // UpdateNetwork updates an existing network
+// @Summary Update a network
+// @Description Update an existing network/agent connection
+// @Tags Network
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "Network ID"
+// @Param network body core.Network true "Network data"
+// @Success 200 {object} core.Network
+// @Failure 400 {object} map[string]string
+// @Failure 403 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /networks/{id} [put]
 func (h *Handler) UpdateNetwork(c *gin.Context) {
 	id := c.Param("id")
 	var network core.Network
@@ -259,6 +401,21 @@ func (h *Handler) UpdateNetwork(c *gin.Context) {
 		return
 	}
 
+	// Log audit
+	go func() {
+		h.db.Create(&core.AuditLog{
+			Username:  c.GetString("username"),
+			UserID:    c.GetUint("user_id"),
+			Action:    "UPDATE",
+			Entity:    "NETWORK",
+			EntityID:  id,
+			Details:   fmt.Sprintf("Updated network '%s'", network.Name),
+			IPAddress: c.ClientIP(),
+			UserAgent: c.Request.UserAgent(),
+			CreatedAt: time.Now(),
+		})
+	}()
+
 	c.JSON(http.StatusOK, network)
 }
 
@@ -282,6 +439,22 @@ func (h *Handler) DeleteNetwork(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Log audit
+	go func() {
+		h.db.Create(&core.AuditLog{
+			Username:  c.GetString("username"),
+			UserID:    c.GetUint("user_id"),
+			Action:    "DELETE",
+			Entity:    "NETWORK",
+			EntityID:  id,
+			Details:   fmt.Sprintf("Deleted network '%s'", network.Name),
+			IPAddress: c.ClientIP(),
+			UserAgent: c.Request.UserAgent(),
+			CreatedAt: time.Now(),
+		})
+	}()
+
 	c.JSON(http.StatusOK, gin.H{"message": "Network deleted successfully"})
 }
 
@@ -391,6 +564,21 @@ func (h *Handler) CreateJob(c *gin.Context) {
 		return
 	}
 
+	// Log audit
+	go func() {
+		h.db.Create(&core.AuditLog{
+			Username:  c.GetString("username"),
+			UserID:    c.GetUint("user_id"),
+			Action:    "CREATE",
+			Entity:    "JOB",
+			EntityID:  fmt.Sprintf("%d", job.ID),
+			Details:   fmt.Sprintf("Created job '%s'", job.Name),
+			IPAddress: c.ClientIP(),
+			UserAgent: c.Request.UserAgent(),
+			CreatedAt: time.Now(),
+		})
+	}()
+
 	c.JSON(http.StatusCreated, job)
 }
 
@@ -423,6 +611,21 @@ func (h *Handler) UpdateJob(c *gin.Context) {
 		return
 	}
 
+	// Log audit
+	go func() {
+		h.db.Create(&core.AuditLog{
+			Username:  c.GetString("username"),
+			UserID:    c.GetUint("user_id"),
+			Action:    "UPDATE",
+			Entity:    "JOB",
+			EntityID:  id,
+			Details:   fmt.Sprintf("Updated job '%s'", job.Name),
+			IPAddress: c.ClientIP(),
+			UserAgent: c.Request.UserAgent(),
+			CreatedAt: time.Now(),
+		})
+	}()
+
 	c.JSON(http.StatusOK, job)
 }
 
@@ -446,6 +649,22 @@ func (h *Handler) DeleteJob(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Log audit
+	go func() {
+		h.db.Create(&core.AuditLog{
+			Username:  c.GetString("username"),
+			UserID:    c.GetUint("user_id"),
+			Action:    "DELETE",
+			Entity:    "JOB",
+			EntityID:  id,
+			Details:   fmt.Sprintf("Deleted job '%s'", job.Name),
+			IPAddress: c.ClientIP(),
+			UserAgent: c.Request.UserAgent(),
+			CreatedAt: time.Now(),
+		})
+	}()
+
 	c.JSON(http.StatusOK, gin.H{"message": "Job deleted successfully"})
 }
 
@@ -618,6 +837,21 @@ func (h *Handler) ToggleJob(c *gin.Context) {
 	if !job.Enabled {
 		status = "paused"
 	}
+
+	// Log audit
+	go func() {
+		h.db.Create(&core.AuditLog{
+			Username:  c.GetString("username"),
+			UserID:    c.GetUint("user_id"),
+			Action:    "TOGGLE",
+			Entity:    "JOB",
+			EntityID:  id,
+			Details:   fmt.Sprintf("Job '%s' %s", job.Name, status),
+			IPAddress: c.ClientIP(),
+			UserAgent: c.Request.UserAgent(),
+			CreatedAt: time.Now(),
+		})
+	}()
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": fmt.Sprintf("Job %s %s", job.Name, status),
@@ -1001,6 +1235,192 @@ func (h *Handler) TestNetworkConnection(c *gin.Context) {
 		"success": true,
 		"message": "Test command sent to agent",
 		"agent":   network.Name,
+	})
+}
+
+// TestNetworkTargetConnection tests the TARGET database/FTP/API connection directly from master
+func (h *Handler) TestNetworkTargetConnection(c *gin.Context) {
+	id := c.Param("id")
+
+	var network core.Network
+	if err := h.db.First(&network, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"success": false, "error": "Network not found"})
+		return
+	}
+
+	// Test based on target source type
+	sourceType := network.TargetSourceType
+	if sourceType == "" {
+		sourceType = "database"
+	}
+
+	switch sourceType {
+	case "database":
+		// Test database connection directly from master
+		dbConfig := database.Config{
+			Driver:   network.TargetDBDriver,
+			Host:     network.TargetDBHost,
+			Port:     network.TargetDBPort,
+			User:     network.TargetDBUser,
+			Password: network.TargetDBPassword,
+			DBName:   network.TargetDBName,
+			SSLMode:  network.TargetDBSSLMode,
+		}
+
+		if dbConfig.Driver == "" {
+			dbConfig.Driver = "postgres"
+		}
+		if dbConfig.Port == "" {
+			dbConfig.Port = "5432"
+		}
+		if dbConfig.SSLMode == "" {
+			dbConfig.SSLMode = "disable"
+		}
+
+		startTime := time.Now()
+		conn, err := database.Connect(dbConfig)
+		duration := time.Since(startTime).Milliseconds()
+
+		if err != nil {
+			log.Printf("Target test connection failed: %v", err)
+			c.JSON(http.StatusOK, gin.H{
+				"success":  false,
+				"error":    err.Error(),
+				"duration": duration,
+			})
+			return
+		}
+		defer conn.Close()
+
+		c.JSON(http.StatusOK, gin.H{
+			"success":  true,
+			"message":  "Target connection successful",
+			"duration": duration,
+			"host":     network.TargetDBHost,
+			"port":     network.TargetDBPort,
+			"database": network.TargetDBName,
+		})
+
+	case "ftp", "sftp":
+		// For FTP/SFTP target, send command to agent
+		if h.agentListener == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"success": false, "error": "Agent listener not available"})
+			return
+		}
+
+		command := core.AgentMessage{
+			Type:      "TEST_CONNECTION",
+			Timestamp: time.Now(),
+			Data: map[string]interface{}{
+				"network_id":  network.ID,
+				"source_type": sourceType,
+				"ftp_config": map[string]interface{}{
+					"host":        network.TargetFTPHost,
+					"port":        network.TargetFTPPort,
+					"user":        network.TargetFTPUser,
+					"password":    network.TargetFTPPassword,
+					"private_key": network.TargetFTPPrivateKey,
+					"path":        network.TargetFTPPath,
+				},
+			},
+		}
+
+		agentName := network.AgentName
+		if agentName == "" {
+			agentName = network.Name
+		}
+
+		err := h.agentListener.SendCommandToAgent(agentName, command)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"error":   fmt.Sprintf("Agent not connected: %v", err),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "Test command sent to agent for target FTP/SFTP",
+			"agent":   agentName,
+		})
+
+	case "api":
+		// For API target, we could do a quick test from master
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "API target configured",
+			"url":     network.TargetAPIURL,
+		})
+
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Unknown target source type"})
+	}
+}
+
+// ReverseNetwork swaps source and target configurations
+func (h *Handler) ReverseNetwork(c *gin.Context) {
+	id := c.Param("id")
+
+	var network core.Network
+	if err := h.db.First(&network, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Network not found"})
+		return
+	}
+
+	// Swap source type
+	network.SourceType, network.TargetSourceType = network.TargetSourceType, network.SourceType
+
+	// Swap Database config
+	network.DBDriver, network.TargetDBDriver = network.TargetDBDriver, network.DBDriver
+	network.DBHost, network.TargetDBHost = network.TargetDBHost, network.DBHost
+	network.DBPort, network.TargetDBPort = network.TargetDBPort, network.DBPort
+	network.DBUser, network.TargetDBUser = network.TargetDBUser, network.DBUser
+	network.DBPassword, network.TargetDBPassword = network.TargetDBPassword, network.DBPassword
+	network.DBName, network.TargetDBName = network.TargetDBName, network.DBName
+	network.DBSSLMode, network.TargetDBSSLMode = network.TargetDBSSLMode, network.DBSSLMode
+
+	// Swap FTP config
+	network.FTPHost, network.TargetFTPHost = network.TargetFTPHost, network.FTPHost
+	network.FTPPort, network.TargetFTPPort = network.TargetFTPPort, network.FTPPort
+	network.FTPUser, network.TargetFTPUser = network.TargetFTPUser, network.FTPUser
+	network.FTPPassword, network.TargetFTPPassword = network.TargetFTPPassword, network.FTPPassword
+	network.FTPPrivateKey, network.TargetFTPPrivateKey = network.TargetFTPPrivateKey, network.FTPPrivateKey
+	network.FTPPath, network.TargetFTPPath = network.TargetFTPPath, network.FTPPath
+
+	// Swap API config
+	network.APIURL, network.TargetAPIURL = network.TargetAPIURL, network.APIURL
+	network.APIMethod, network.TargetAPIMethod = network.TargetAPIMethod, network.APIMethod
+	network.APIHeaders, network.TargetAPIHeaders = network.TargetAPIHeaders, network.APIHeaders
+	network.APIAuthType, network.TargetAPIAuthType = network.TargetAPIAuthType, network.APIAuthType
+	network.APIAuthKey, network.TargetAPIAuthKey = network.TargetAPIAuthKey, network.APIAuthKey
+	network.APIAuthValue, network.TargetAPIAuthValue = network.TargetAPIAuthValue, network.APIAuthValue
+	network.APIBody, network.TargetAPIBody = network.TargetAPIBody, network.APIBody
+
+	// Save the reversed network
+	if err := h.db.Save(&network).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save reversed network"})
+		return
+	}
+
+	// Log audit
+	go func() {
+		h.db.Create(&core.AuditLog{
+			Username:  c.GetString("username"),
+			UserID:    c.GetUint("user_id"),
+			Action:    "REVERSE",
+			Entity:    "NETWORK",
+			EntityID:  id,
+			Details:   fmt.Sprintf("Reversed source/target for network '%s'", network.Name),
+			IPAddress: c.ClientIP(),
+			UserAgent: c.Request.UserAgent(),
+			CreatedAt: time.Now(),
+		})
+	}()
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Network source/target reversed successfully",
+		"network": network,
 	})
 }
 
@@ -1964,4 +2384,171 @@ func (h *Handler) GetAgentTerminalHistory(c *gin.Context) {
 		Find(&logs)
 
 	c.JSON(http.StatusOK, logs)
+}
+
+// ==================== BACKUP & RESTORE HANDLERS ====================
+
+// CreateBackup creates a new backup of database, config, and certs
+func (h *Handler) CreateBackup(c *gin.Context) {
+	filename, err := backup.CreateBackup(backup.DefaultBackupDir)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Log audit
+	go func() {
+		h.db.Create(&core.AuditLog{
+			Username:  c.GetString("username"),
+			UserID:    c.GetUint("user_id"),
+			Action:    "CREATE",
+			Entity:    "BACKUP",
+			EntityID:  filename,
+			Details:   fmt.Sprintf("Created backup: %s", filename),
+			IPAddress: c.ClientIP(),
+			UserAgent: c.Request.UserAgent(),
+			CreatedAt: time.Now(),
+		})
+	}()
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":  true,
+		"message":  "Backup created successfully",
+		"filename": filename,
+	})
+}
+
+// ListBackups returns all available backups
+func (h *Handler) ListBackups(c *gin.Context) {
+	backups, err := backup.ListBackups(backup.DefaultBackupDir)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"backups": backups,
+		"total":   len(backups),
+	})
+}
+
+// DownloadBackup serves a backup file for download
+func (h *Handler) DownloadBackup(c *gin.Context) {
+	filename := c.Param("filename")
+
+	path, err := backup.GetBackupPath(backup.DefaultBackupDir, filename)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Log audit
+	go func() {
+		h.db.Create(&core.AuditLog{
+			Username:  c.GetString("username"),
+			UserID:    c.GetUint("user_id"),
+			Action:    "DOWNLOAD",
+			Entity:    "BACKUP",
+			EntityID:  filename,
+			Details:   fmt.Sprintf("Downloaded backup: %s", filename),
+			IPAddress: c.ClientIP(),
+			UserAgent: c.Request.UserAgent(),
+			CreatedAt: time.Now(),
+		})
+	}()
+
+	c.Header("Content-Description", "File Transfer")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	c.Header("Content-Type", "application/zip")
+	c.File(path)
+}
+
+// RestoreBackup uploads and restores a backup file
+func (h *Handler) RestoreBackup(c *gin.Context) {
+	// Get uploaded file
+	file, header, err := c.Request.FormFile("backup")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No backup file provided"})
+		return
+	}
+	defer file.Close()
+
+	// Validate file extension
+	if filepath.Ext(header.Filename) != ".zip" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid file format. Please upload a .zip backup file"})
+		return
+	}
+
+	// Save uploaded file temporarily
+	tempPath := filepath.Join(os.TempDir(), "dsp_restore_"+header.Filename)
+	dest, err := os.Create(tempPath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save uploaded file"})
+		return
+	}
+	defer dest.Close()
+	defer os.Remove(tempPath) // Clean up temp file
+
+	if _, err := io.Copy(dest, file); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save uploaded file"})
+		return
+	}
+
+	// Close the dest file before restore to release any locks
+	dest.Close()
+
+	// Log audit before restore
+	h.db.Create(&core.AuditLog{
+		Username:  c.GetString("username"),
+		UserID:    c.GetUint("user_id"),
+		Action:    "RESTORE",
+		Entity:    "BACKUP",
+		EntityID:  header.Filename,
+		Details:   fmt.Sprintf("Restored backup: %s", header.Filename),
+		IPAddress: c.ClientIP(),
+		UserAgent: c.Request.UserAgent(),
+		CreatedAt: time.Now(),
+	})
+
+	// Perform restore
+	if err := backup.RestoreBackup(tempPath); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Restore failed: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":        true,
+		"message":        "Backup restored successfully. Please restart the server for changes to take effect.",
+		"restart_needed": true,
+	})
+}
+
+// DeleteBackup deletes a backup file
+func (h *Handler) DeleteBackup(c *gin.Context) {
+	filename := c.Param("filename")
+
+	if err := backup.DeleteBackup(backup.DefaultBackupDir, filename); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Log audit
+	go func() {
+		h.db.Create(&core.AuditLog{
+			Username:  c.GetString("username"),
+			UserID:    c.GetUint("user_id"),
+			Action:    "DELETE",
+			Entity:    "BACKUP",
+			EntityID:  filename,
+			Details:   fmt.Sprintf("Deleted backup: %s", filename),
+			IPAddress: c.ClientIP(),
+			UserAgent: c.Request.UserAgent(),
+			CreatedAt: time.Now(),
+		})
+	}()
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Backup deleted successfully",
+	})
 }

@@ -18,6 +18,7 @@ export const queryKeys = {
   notifications: ['notifications'],
   licenseStatus: ['licenseStatus'],
   licenseMachineId: ['licenseMachineId'],
+  backups: ['backups'],
 };
 
 // ============================================
@@ -130,6 +131,22 @@ export const useCloneNetwork = () => {
 export const useTestNetworkConnection = () => {
   return useMutation({
     mutationFn: api.testNetworkConnection,
+  });
+};
+
+export const useTestNetworkTargetConnection = () => {
+  return useMutation({
+    mutationFn: api.testNetworkTargetConnection,
+  });
+};
+
+export const useReverseNetwork = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.reverseNetwork,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.networks });
+    },
   });
 };
 
@@ -451,6 +468,46 @@ export const useBulkCreateSchemas = () => {
     mutationFn: api.bulkCreateSchemas,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.schemas });
+    },
+  });
+};
+
+// ============================================
+// Backup & Restore Hooks
+// ============================================
+export const useBackups = () => {
+  return useQuery({
+    queryKey: queryKeys.backups,
+    queryFn: async () => {
+      const { data } = await api.listBackups();
+      return data;
+    },
+    staleTime: STALE_TIME.standard,
+  });
+};
+
+export const useCreateBackup = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.createBackup,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.backups });
+    },
+  });
+};
+
+export const useRestoreBackup = () => {
+  return useMutation({
+    mutationFn: api.restoreBackup,
+  });
+};
+
+export const useDeleteBackup = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.deleteBackup,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.backups });
     },
   });
 };
