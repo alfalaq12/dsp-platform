@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus, Edit, Trash2, Network as NetworkIcon, Circle, Eye, Loader2, Zap, Database, Server, Shield, Globe, Folder, Copy, ArrowLeftRight, Play, RefreshCw } from 'lucide-react';
 import { useNetworks, useCreateNetwork, useUpdateNetwork, useDeleteNetwork, useTestNetworkConnection, useTestNetworkTargetConnection, useReverseNetwork, useCloneNetwork } from '../hooks/useQueries';
+import { testTargetDBConnection } from '../services/api';
 import { useToast, ToastContainer, ConfirmModal, ViewModal } from '../components/Toast';
 import Pagination from '../components/Pagination';
 import { useTheme } from '../contexts/ThemeContext';
@@ -374,7 +375,7 @@ function Network() {
                 db_name: formData.db_name,
                 sslmode: formData.db_sslmode
             };
-            const response = await testTargetConnectionMutation.mutateAsync({ data: testData });
+            const response = await testTargetDBConnection(testData);
             if (response.data.success) {
                 addToast(`Source connection successful! ${response.data.version ? `(${response.data.version.substring(0, 50)}...)` : ''}`, 'success');
             } else {
@@ -418,7 +419,7 @@ function Network() {
                 db_name: formData.target_db_name,
                 sslmode: formData.target_db_sslmode
             };
-            const response = await testTargetConnectionMutation.mutateAsync({ data: testData });
+            const response = await testTargetDBConnection(testData);
             if (response.data.success) {
                 addToast(`Target connection successful! ${response.data.version ? `(${response.data.version.substring(0, 50)}...)` : ''}`, 'success');
             } else {
