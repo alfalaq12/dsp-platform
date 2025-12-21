@@ -405,139 +405,139 @@ function Jobs() {
                 </div>
             )}
 
-            {/* Jobs Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-stagger">
-                {jobs.map((job) => (
-                    <div
-                        key={job.id}
-                        onClick={() => handleJobClick(job)}
-                        className={`group border rounded-2xl p-6 cursor-pointer transition-all duration-300 ${isDark
-                            ? 'bg-slate-800/50 border-slate-700 hover:bg-slate-800 hover:border-blue-500/50'
-                            : 'bg-white border-slate-200 hover:border-blue-300 hover:shadow-xl shadow-sm'
-                            }`}
-                    >
-                        <div className="flex justify-between items-start mb-4">
-                            <div className="flex items-start gap-4">
-                                <div className={`p-3 rounded-xl ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>
-                                    <Database className="w-6 h-6" />
-                                </div>
-                                <div>
-                                    <h3 className={`text-lg font-bold mb-1 transition-colors ${isDark ? 'text-white group-hover:text-blue-400' : 'text-slate-900 group-hover:text-blue-600'}`}>
-                                        {job.name}
-                                    </h3>
-                                    <div className="flex flex-col gap-1">
-                                        <p className={`text-sm flex items-center gap-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                            <span className="opacity-70">Schema:</span> {job.schema?.name}
-                                        </p>
-                                        <p className={`text-sm flex items-center gap-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                            <span className="opacity-70">Network:</span> {job.network?.name}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold border ${isDark
-                                    ? 'bg-slate-700 border-slate-600 text-slate-300'
-                                    : 'bg-slate-100 border-slate-200 text-slate-600'
-                                    }`}>
-                                    {getScheduleLabel(job.schedule)}
-                                </span>
-                                {job.enabled === false && (
-                                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-50 text-amber-700'}`}>
-                                        Paused
+            {/* Jobs Table */}
+            <div className={`rounded-2xl border overflow-hidden ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200 shadow-lg'}`}>
+                <div className="overflow-x-auto">
+                    <table className="w-full">
+                        <thead>
+                            <tr className={isDark ? 'bg-slate-900/50' : 'bg-slate-50'}>
+                                <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>ID</th>
+                                <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Job Name</th>
+                                <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
+                                    <span className="flex items-center gap-1">
+                                        <NetworkIcon className="w-3 h-3" />
+                                        Network
                                     </span>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Schedule Details - Show next runs for scheduled jobs */}
-                        {job.schedule && job.schedule !== '' && job.enabled !== false && getNextScheduledRuns(job.schedule, job.last_run) && (
-                            <div className={`mt-3 p-3 rounded-xl ${isDark ? 'bg-slate-900/50 border border-slate-700/50' : 'bg-slate-50 border border-slate-100'}`}>
-                                <div className="flex items-center gap-2 mb-2">
-                                    <Clock className={`w-3.5 h-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
-                                    <span className={`text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                                        Jadwal Berikutnya
+                                </th>
+                                <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>
+                                    <span className="flex items-center gap-1">
+                                        <Database className="w-3 h-3" />
+                                        Schema
                                     </span>
-                                </div>
-                                <div className={`text-xs font-mono ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                                    <span className={`font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                        Next: {getNextScheduledRuns(job.schedule, job.last_run)?.[0]?.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                </th>
+                                <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                    <span className="flex items-center gap-1">
+                                        <Clock className="w-3 h-3" />
+                                        Schedule
                                     </span>
-                                    <span className="mx-2">→</span>
-                                    <span className="opacity-80">
-                                        {formatScheduleRuns(getNextScheduledRuns(job.schedule, job.last_run)?.slice(1, 4))}...
-                                    </span>
-                                </div>
-                            </div>
-                        )}
-
-                        <div className={`mt-4 pt-4 border-t flex items-center justify-between ${isDark ? 'border-slate-700' : 'border-slate-100'}`}>
-                            <div className="flex items-center gap-3">
-                                <span className={`flex items-center gap-1.5 text-sm font-medium px-2.5 py-1 rounded-full ${job.status === 'running'
-                                    ? (isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600')
-                                    : job.status === 'completed'
-                                        ? (isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-50 text-emerald-600')
-                                        : job.status === 'failed'
-                                            ? (isDark ? 'bg-red-500/20 text-red-400' : 'bg-red-50 text-red-600')
-                                            : (isDark ? 'bg-slate-700 text-slate-400' : 'bg-slate-100 text-slate-600')
-                                    }`}>
-                                    {getStatusIcon(job.status)}
-                                    {job.status ? job.status.charAt(0).toUpperCase() + job.status.slice(1) : 'Idle'}
-                                </span>
-                                <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                                    Last run: {job.last_run ? new Date(job.last_run).toLocaleString('id-ID') : 'Never'}
-                                </span>
-                            </div>
-
-                            <div className="flex items-center gap-1 opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-                                <button
-                                    onClick={(e) => handleJobClick(job)}
-                                    className={`p-2 rounded-lg transition ${isDark ? 'hover:bg-slate-700 text-slate-400 hover:text-blue-400' : 'hover:bg-blue-50 text-slate-400 hover:text-blue-600'}`}
-                                    title="View Details"
+                                </th>
+                                <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Status</th>
+                                <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Last Run</th>
+                                <th className={`px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className={`divide-y ${isDark ? 'divide-slate-700' : 'divide-slate-200'}`}>
+                            {jobs.map((job) => (
+                                <tr
+                                    key={job.id}
+                                    className={`transition-colors cursor-pointer ${isDark ? 'hover:bg-slate-700/50' : 'hover:bg-slate-50'}`}
+                                    onClick={() => handleJobClick(job)}
                                 >
-                                    <Eye className="w-4 h-4" />
-                                </button>
-                                {userRole === 'admin' && (
-                                    <>
-                                        <button
-                                            onClick={(e) => handleRunJob(job.id, e)}
-                                            disabled={job.status === 'running' || runningJobs.has(job.id)}
-                                            className={`p-2 rounded-lg transition ${isDark
-                                                ? 'hover:bg-blue-500/20 text-blue-400'
-                                                : 'hover:bg-blue-50 text-blue-600'
-                                                }`}
-                                            title="Run Now"
-                                        >
-                                            {(job.status === 'running' || runningJobs.has(job.id)) ? (
-                                                <Loader2 className="w-4 h-4 animate-spin" />
-                                            ) : (
-                                                <Play className="w-4 h-4" />
+                                    <td className={`px-4 py-3 text-sm font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                        {job.id}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div className={`font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{job.name}</div>
+                                        {job.enabled === false && (
+                                            <span className={`text-xs px-1.5 py-0.5 rounded ${isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-700'}`}>
+                                                Paused
+                                            </span>
+                                        )}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                            {job.network?.name || '-'}
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                            {job.schema?.name || '-'}
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <span className={`text-xs font-mono px-2 py-1 rounded ${isDark ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
+                                            {getScheduleLabel(job.schedule)}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <span className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full w-fit ${job.status === 'running'
+                                                ? (isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600')
+                                                : job.status === 'completed'
+                                                    ? (isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-50 text-emerald-600')
+                                                    : job.status === 'failed'
+                                                        ? (isDark ? 'bg-red-500/20 text-red-400' : 'bg-red-50 text-red-600')
+                                                        : (isDark ? 'bg-slate-700 text-slate-400' : 'bg-slate-100 text-slate-600')
+                                            }`}>
+                                            {getStatusIcon(job.status)}
+                                            {job.status ? job.status.charAt(0).toUpperCase() + job.status.slice(1) : 'Idle'}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                            {job.last_run ? new Date(job.last_run).toLocaleString('id-ID', {
+                                                day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                                            }) : 'Never'}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                        <div className="flex items-center justify-center gap-1">
+                                            <button
+                                                onClick={() => handleJobClick(job)}
+                                                className={`p-1.5 rounded-lg transition ${isDark ? 'hover:bg-slate-600 text-blue-400' : 'hover:bg-blue-50 text-blue-600'}`}
+                                                title="View Details"
+                                            >
+                                                <Eye className="w-3.5 h-3.5" />
+                                            </button>
+                                            {userRole === 'admin' && (
+                                                <>
+                                                    <button
+                                                        onClick={(e) => handleRunJob(job.id, e)}
+                                                        disabled={job.status === 'running' || runningJobs.has(job.id)}
+                                                        className={`p-1.5 rounded-lg transition ${isDark ? 'hover:bg-slate-600 text-emerald-400' : 'hover:bg-emerald-50 text-emerald-600'}`}
+                                                        title="Run Now"
+                                                    >
+                                                        {(job.status === 'running' || runningJobs.has(job.id)) ? (
+                                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                        ) : (
+                                                            <Play className="w-3.5 h-3.5" />
+                                                        )}
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => handleToggle(job, e)}
+                                                        className={`p-1.5 rounded-lg transition ${job.enabled !== false
+                                                            ? (isDark ? 'hover:bg-slate-600 text-amber-400' : 'hover:bg-amber-50 text-amber-600')
+                                                            : (isDark ? 'hover:bg-slate-600 text-emerald-400' : 'hover:bg-emerald-50 text-emerald-600')
+                                                            }`}
+                                                        title={job.enabled !== false ? 'Pause' : 'Resume'}
+                                                    >
+                                                        {job.enabled !== false ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => handleDeleteClick(job, e)}
+                                                        className={`p-1.5 rounded-lg transition ${isDark ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-50 text-red-500'}`}
+                                                        title="Delete"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </>
                                             )}
-                                        </button>
-                                        <button
-                                            onClick={(e) => handleToggle(job, e)}
-                                            className={`p-2 rounded-lg transition ${job.enabled !== false
-                                                ? (isDark ? 'hover:bg-amber-500/20 text-slate-400 hover:text-amber-400' : 'hover:bg-amber-50 text-slate-400 hover:text-amber-600')
-                                                : (isDark ? 'hover:bg-emerald-500/20 text-slate-400 hover:text-emerald-400' : 'hover:bg-emerald-50 text-slate-400 hover:text-emerald-600')
-                                                }`}
-                                            title={job.enabled !== false ? 'Pause Schedule' : 'Resume Schedule'}
-                                        >
-                                            {job.enabled !== false ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                                        </button>
-                                        <button
-                                            onClick={(e) => handleDeleteClick(job, e)}
-                                            className={`p-2 rounded-lg transition ${isDark ? 'hover:bg-red-500/20 text-slate-400 hover:text-red-400' : 'hover:bg-red-50 text-slate-400 hover:text-red-600'
-                                                }`}
-                                            title="Delete"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                ))}
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             {/* Pagination */}
