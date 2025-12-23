@@ -15,10 +15,17 @@ import (
 // Secret key for HMAC signing (in production, load from env or secure storage)
 var licenseSecretKey = []byte("DSP-LICENSE-SECRET-KEY-2024-CHANGE-IN-PRODUCTION")
 
+// Test mode flag - when true, days are treated as minutes for testing
+var licenseTestMode = false
+
 func init() {
 	// Allow override from environment
 	if key := os.Getenv("LICENSE_SECRET_KEY"); key != "" {
 		licenseSecretKey = []byte(key)
+	}
+	// Check for test mode
+	if os.Getenv("LICENSE_TEST_MODE") == "true" {
+		licenseTestMode = true
 	}
 }
 
@@ -60,9 +67,22 @@ func GenerateMachineID() (string, error) {
 
 // GenerateActivationCode creates an activation code for a given machine ID and expiry duration
 // This function should be used by the vendor to generate codes for customers
+// In test mode (LICENSE_TEST_MODE=true), days are treated as minutes
 func GenerateActivationCode(machineID string, expiryDays int) string {
-	expiryDate := time.Now().AddDate(0, 0, expiryDays)
-	expiryStr := expiryDate.Format("2006-01-02")
+	var expiryDate time.Time
+	if licenseTestMode {
+		// Test mode: treat days as minutes
+		expiryDate = time.Now().Add(time.Duration(expiryDays) * time.Minute)
+	} else {
+		expiryDate = time.Now().AddDate(0, 0, expiryDays)
+	}
+	// Use full timestamp format in test mode for precision
+	var expiryStr string
+	if licenseTestMode {
+		expiryStr = expiryDate.Format(time.RFC3339)
+	} else {
+		expiryStr = expiryDate.Format("2006-01-02")
+	}
 
 	// Payload: machineID|expiryDate
 	payload := fmt.Sprintf("%s|%s", machineID, expiryStr)
@@ -118,14 +138,20 @@ func ValidateActivationCode(machineID, activationCode string) (bool, time.Time, 
 		return false, time.Time{}, fmt.Errorf("activation code is for a different machine")
 	}
 
-	// Parse expiry date
-	expiryDate, err := time.Parse("2006-01-02", expiryStr)
+	// Parse expiry date - try RFC3339 first (test mode), then date only (production)
+	expiryDate, err := time.Parse(time.RFC3339, expiryStr)
 	if err != nil {
-		return false, time.Time{}, fmt.Errorf("invalid expiry date in activation code")
+		// Fallback to date-only format
+		expiryDate, err = time.Parse("2006-01-02", expiryStr)
+		if err != nil {
+			return false, time.Time{}, fmt.Errorf("invalid expiry date in activation code")
+		}
+		// For date-only, give until end of day
+		expiryDate = expiryDate.Add(24 * time.Hour)
 	}
 
 	// Check if expired
-	if time.Now().After(expiryDate.Add(24 * time.Hour)) { // Give until end of expiry day
+	if time.Now().After(expiryDate) {
 		return false, expiryDate, fmt.Errorf("activation code has expired")
 	}
 

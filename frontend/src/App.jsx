@@ -1,21 +1,35 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from './contexts/ThemeContext';
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import Schema from './pages/Schema';
-import Network from './pages/Network';
-import Jobs from './pages/Jobs';
-import Users from './pages/Users';
-import Settings from './pages/Settings';
-import AuditLogs from './pages/AuditLogs';
-import TokenManagement from './pages/TokenManagement';
-import Activation from './pages/Activation';
-import Terminal from './pages/Terminal';
 import MainLayout from './components/Layout/MainLayout';
 import useSessionTimeout from './hooks/useSessionTimeout';
-
 import { ConfirmModal } from './components/Toast';
+import PageLoader from './components/ui/PageLoader';
+
+// Helper function to add minimum delay to lazy loading (3 seconds)
+const lazyWithDelay = (importFunc, minDelay = 2000) => {
+    return lazy(() => {
+        return Promise.all([
+            importFunc(),
+            new Promise(resolve => setTimeout(resolve, minDelay))
+        ]).then(([moduleExports]) => moduleExports);
+    });
+};
+
+// Lazy load all pages with minimum 3 second delay for smooth loading experience
+const Login = lazyWithDelay(() => import('./pages/Login'));
+const Dashboard = lazyWithDelay(() => import('./pages/Dashboard'));
+const Schema = lazyWithDelay(() => import('./pages/Schema'));
+const Network = lazyWithDelay(() => import('./pages/Network'));
+const Jobs = lazyWithDelay(() => import('./pages/Jobs'));
+const Users = lazyWithDelay(() => import('./pages/Users'));
+const Settings = lazyWithDelay(() => import('./pages/Settings'));
+const AuditLogs = lazyWithDelay(() => import('./pages/AuditLogs'));
+const TokenManagement = lazyWithDelay(() => import('./pages/TokenManagement'));
+const Activation = lazyWithDelay(() => import('./pages/Activation'));
+const Terminal = lazyWithDelay(() => import('./pages/Terminal'));
+const NotFound = lazyWithDelay(() => import('./pages/NotFound'));
 
 // Create a QueryClient instance with default options
 const queryClient = new QueryClient({
@@ -71,26 +85,31 @@ function App() {
         <QueryClientProvider client={queryClient}>
             <ThemeProvider>
                 <BrowserRouter>
-                    <Routes>
-                        <Route path="/login" element={<Login />} />
+                    <Suspense fallback={<PageLoader />}>
+                        <Routes>
+                            <Route path="/login" element={<Login />} />
 
-                        <Route path="/" element={
-                            <ProtectedRoute>
-                                <MainLayout />
-                            </ProtectedRoute>
-                        }>
-                            <Route index element={<Dashboard />} />
-                            <Route path="schema" element={<Schema />} />
-                            <Route path="network" element={<Network />} />
-                            <Route path="/jobs" element={<Jobs />} />
-                            <Route path="/users" element={<Users />} />
-                            <Route path="/audit-logs" element={<AuditLogs />} />
-                            <Route path="/tokens" element={<TokenManagement />} />
-                            <Route path="/activation" element={<Activation />} />
-                            <Route path="/terminal" element={<Terminal />} />
-                            <Route path="/settings" element={<Settings />} />
-                        </Route>
-                    </Routes>
+                            <Route path="/" element={
+                                <ProtectedRoute>
+                                    <MainLayout />
+                                </ProtectedRoute>
+                            }>
+                                <Route index element={<Dashboard />} />
+                                <Route path="schema" element={<Schema />} />
+                                <Route path="network" element={<Network />} />
+                                <Route path="jobs" element={<Jobs />} />
+                                <Route path="users" element={<Users />} />
+                                <Route path="audit-logs" element={<AuditLogs />} />
+                                <Route path="tokens" element={<TokenManagement />} />
+                                <Route path="activation" element={<Activation />} />
+                                <Route path="terminal" element={<Terminal />} />
+                                <Route path="settings" element={<Settings />} />
+                            </Route>
+
+                            {/* Catch-all 404 route */}
+                            <Route path="*" element={<NotFound />} />
+                        </Routes>
+                    </Suspense>
                 </BrowserRouter>
             </ThemeProvider>
         </QueryClientProvider>
