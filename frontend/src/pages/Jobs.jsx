@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Play, RefreshCw, X, Clock, Database, CheckCircle, XCircle, Loader2, Trash2, Eye, Pause, Network as NetworkIcon } from 'lucide-react';
 import { useJobs, useSchemas, useNetworks, useJob, useCreateJob, useDeleteJob, useRunJob, useToggleJob } from '../hooks/useQueries';
@@ -32,7 +32,7 @@ function Jobs() {
     const { data: jobsData, isLoading: jobsLoading, refetch: refetchJobs, isFetching } = useJobs({ page: currentPage, page_size: itemsPerPage });
     const { data: schemas = [] } = useSchemas();
     const { data: networks = [] } = useNetworks();
-    const { data: jobDetails } = useJob(selectedJob?.id);
+    const { data: jobDetails, refetch: refetchJobDetails } = useJob(selectedJob?.id);
 
     // Mutations
     const createJobMutation = useCreateJob();
@@ -44,6 +44,27 @@ function Jobs() {
     const jobs = useMemo(() => jobsData?.data || [], [jobsData]);
     const totalItems = useMemo(() => jobsData?.meta?.total || 0, [jobsData]);
     const isRefreshing = isFetching;
+
+    // Check if there are any running jobs
+    const hasRunningJobs = useMemo(() =>
+        jobs.some(job => job.status === 'running') || runningJobs.size > 0,
+        [jobs, runningJobs]
+    );
+
+    // Auto-refresh when there are running jobs
+    useEffect(() => {
+        if (hasRunningJobs) {
+            const interval = setInterval(() => {
+                refetchJobs();
+                // Also refetch job details if modal is open
+                if (selectedJob) {
+                    refetchJobDetails();
+                }
+            }, 5000); // Refresh every 5 seconds
+
+            return () => clearInterval(interval);
+        }
+    }, [hasRunningJobs, refetchJobs, refetchJobDetails, selectedJob]);
 
     // Update lastUpdated when data changes
     useMemo(() => {
