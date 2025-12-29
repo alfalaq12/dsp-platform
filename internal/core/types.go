@@ -83,9 +83,18 @@ type Network struct {
 	RedisDB       int    `json:"redis_db" gorm:"default:0"` // Database number (0-15)
 	RedisPattern  string `json:"redis_pattern"`             // Key pattern to scan (e.g., "user:*")
 
+	// MinIO/S3 Configuration (for agent to use when SourceType=minio)
+	MinIOEndpoint   string `json:"minio_endpoint"` // e.g., "minio.example.com:9000"
+	MinIOAccessKey  string `json:"minio_access_key"`
+	MinIOSecretKey  string `json:"minio_secret_key"`
+	MinIOBucket     string `json:"minio_bucket"`
+	MinIOObjectPath string `json:"minio_object_path"` // Object path prefix
+	MinIOUseSSL     bool   `json:"minio_use_ssl" gorm:"default:false"`
+	MinIORegion     string `json:"minio_region" gorm:"default:'us-east-1'"`
+
 	// ===== TARGET CONFIGURATION (for 1:1 Source-Target Pair) =====
 
-	// Target Source Type: database, ftp, sftp, api
+	// Target Source Type: database, ftp, sftp, api, minio
 	TargetSourceType string `json:"target_source_type" gorm:"default:'database'"`
 
 	// Target Database Configuration
@@ -113,6 +122,16 @@ type Network struct {
 	TargetAPIAuthKey   string `json:"target_api_auth_key"`
 	TargetAPIAuthValue string `json:"target_api_auth_value"`
 	TargetAPIBody      string `json:"target_api_body" gorm:"type:text"`
+
+	// Target MinIO/S3 Configuration
+	TargetMinIOEndpoint     string `json:"target_minio_endpoint"`
+	TargetMinIOAccessKey    string `json:"target_minio_access_key"`
+	TargetMinIOSecretKey    string `json:"target_minio_secret_key"`
+	TargetMinIOBucket       string `json:"target_minio_bucket"`
+	TargetMinIOObjectPath   string `json:"target_minio_object_path"` // Object key to write
+	TargetMinIOUseSSL       bool   `json:"target_minio_use_ssl" gorm:"default:false"`
+	TargetMinIORegion       string `json:"target_minio_region" gorm:"default:'us-east-1'"`
+	TargetMinIOExportFormat string `json:"target_minio_export_format" gorm:"default:'csv'"` // csv, json, parquet
 }
 
 // Job represents a data synchronization job linking a Schema to a Network

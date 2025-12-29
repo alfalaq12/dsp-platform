@@ -8,7 +8,7 @@ import { ConfirmModal } from './components/Toast';
 import PageLoader from './components/ui/PageLoader';
 
 // Helper function to add minimum delay to lazy loading (3 seconds)
-const lazyWithDelay = (importFunc, minDelay = 2000) => {
+const lazyWithDelay = (importFunc, minDelay = 1500) => {
     return lazy(() => {
         return Promise.all([
             importFunc(),

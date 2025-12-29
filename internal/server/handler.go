@@ -6,6 +6,7 @@ import (
 	"dsp-platform/internal/backup"
 	"dsp-platform/internal/core"
 	"dsp-platform/internal/database"
+	"dsp-platform/internal/filesync"
 	"dsp-platform/internal/license"
 	"fmt"
 	"io"
@@ -788,6 +789,39 @@ func (h *Handler) RunJob(c *gin.Context) {
 				"db":       job.Network.RedisDB,
 				"pattern":  job.Network.RedisPattern,
 			},
+			// MinIO/S3 config (for source_type=minio)
+			"minio_config": map[string]interface{}{
+				"endpoint":    job.Network.MinIOEndpoint,
+				"access_key":  job.Network.MinIOAccessKey,
+				"secret_key":  job.Network.MinIOSecretKey,
+				"bucket":      job.Network.MinIOBucket,
+				"object_path": job.Network.MinIOObjectPath,
+				"use_ssl":     job.Network.MinIOUseSSL,
+				"region":      job.Network.MinIORegion,
+			},
+			// ===== TARGET CONFIGURATIONS =====
+			"target_source_type": job.Network.TargetSourceType,
+			// Target Database config
+			"target_db_config": map[string]interface{}{
+				"driver":   job.Network.TargetDBDriver,
+				"host":     job.Network.TargetDBHost,
+				"port":     job.Network.TargetDBPort,
+				"user":     job.Network.TargetDBUser,
+				"password": job.Network.TargetDBPassword,
+				"db_name":  job.Network.TargetDBName,
+				"sslmode":  job.Network.TargetDBSSLMode,
+			},
+			// Target MinIO/S3 config (for target_source_type=minio)
+			"target_minio_config": map[string]interface{}{
+				"endpoint":      job.Network.TargetMinIOEndpoint,
+				"access_key":    job.Network.TargetMinIOAccessKey,
+				"secret_key":    job.Network.TargetMinIOSecretKey,
+				"bucket":        job.Network.TargetMinIOBucket,
+				"object_path":   job.Network.TargetMinIOObjectPath,
+				"use_ssl":       job.Network.TargetMinIOUseSSL,
+				"region":        job.Network.TargetMinIORegion,
+				"export_format": job.Network.TargetMinIOExportFormat,
+			},
 		},
 	}
 
@@ -1217,6 +1251,15 @@ func (h *Handler) TestNetworkConnection(c *gin.Context) {
 				"path":        network.FTPPath,
 				"passive":     network.FTPPassive,
 			},
+			"minio_config": map[string]interface{}{
+				"endpoint":    network.MinIOEndpoint,
+				"access_key":  network.MinIOAccessKey,
+				"secret_key":  network.MinIOSecretKey,
+				"bucket":      network.MinIOBucket,
+				"object_path": network.MinIOObjectPath,
+				"use_ssl":     network.MinIOUseSSL,
+				"region":      network.MinIORegion,
+			},
 		},
 	}
 
@@ -1353,6 +1396,48 @@ func (h *Handler) TestNetworkTargetConnection(c *gin.Context) {
 			"url":     network.TargetAPIURL,
 		})
 
+	case "minio":
+		// Test MinIO connection directly from master
+		minioConfig := filesync.MinIOConfig{
+			Endpoint:        network.TargetMinIOEndpoint,
+			AccessKeyID:     network.TargetMinIOAccessKey,
+			SecretAccessKey: network.TargetMinIOSecretKey,
+			BucketName:      network.TargetMinIOBucket,
+			ObjectPath:      network.TargetMinIOObjectPath,
+			UseSSL:          network.TargetMinIOUseSSL,
+			Region:          network.TargetMinIORegion,
+		}
+
+		startTime := time.Now()
+		client, err := filesync.NewMinIOClient(minioConfig)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success":  false,
+				"error":    err.Error(),
+				"duration": time.Since(startTime).Milliseconds(),
+			})
+			return
+		}
+		defer client.Close()
+
+		if err := client.TestConnection(); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success":  false,
+				"error":    err.Error(),
+				"duration": time.Since(startTime).Milliseconds(),
+			})
+			return
+		}
+
+		duration := time.Since(startTime).Milliseconds()
+		c.JSON(http.StatusOK, gin.H{
+			"success":  true,
+			"message":  "MinIO connection successful",
+			"duration": duration,
+			"endpoint": network.TargetMinIOEndpoint,
+			"bucket":   network.TargetMinIOBucket,
+		})
+
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Unknown target source type"})
 	}
@@ -1396,6 +1481,15 @@ func (h *Handler) ReverseNetwork(c *gin.Context) {
 	network.APIAuthKey, network.TargetAPIAuthKey = network.TargetAPIAuthKey, network.APIAuthKey
 	network.APIAuthValue, network.TargetAPIAuthValue = network.TargetAPIAuthValue, network.APIAuthValue
 	network.APIBody, network.TargetAPIBody = network.TargetAPIBody, network.APIBody
+
+	// Swap MinIO config
+	network.MinIOEndpoint, network.TargetMinIOEndpoint = network.TargetMinIOEndpoint, network.MinIOEndpoint
+	network.MinIOAccessKey, network.TargetMinIOAccessKey = network.TargetMinIOAccessKey, network.MinIOAccessKey
+	network.MinIOSecretKey, network.TargetMinIOSecretKey = network.TargetMinIOSecretKey, network.MinIOSecretKey
+	network.MinIOBucket, network.TargetMinIOBucket = network.TargetMinIOBucket, network.MinIOBucket
+	network.MinIOObjectPath, network.TargetMinIOObjectPath = network.TargetMinIOObjectPath, network.MinIOObjectPath
+	network.MinIOUseSSL, network.TargetMinIOUseSSL = network.TargetMinIOUseSSL, network.MinIOUseSSL
+	network.MinIORegion, network.TargetMinIORegion = network.TargetMinIORegion, network.MinIORegion
 
 	// Save the reversed network
 	if err := h.db.Save(&network).Error; err != nil {

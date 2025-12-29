@@ -492,6 +492,8 @@ func executeRunJobCommand(conn net.Conn, msg AgentMessage) {
 		executeMongoDBSyncJob(conn, msg, jobID, logID, jobName)
 	case "redis":
 		executeRedisSyncJob(conn, msg, jobID, logID, jobName)
+	case "minio":
+		executeMinIOSyncJob(conn, msg, jobID, logID, jobName)
 	default:
 		executeDatabaseSyncJob(conn, msg, jobID, logID, jobName)
 	}
@@ -785,6 +787,163 @@ func executeRedisSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, job
 		Str("job", jobName).
 		Int("total_records", len(records)).
 		Msg("Redis scan completed")
+
+	// Send records in batches
+	batchSize := 5000
+	for i := 0; i < len(records); i += batchSize {
+		end := i + batchSize
+		if end > len(records) {
+			end = len(records)
+		}
+		batch := records[i:end]
+		isPartial := end < len(records)
+
+		sendDataResponse(conn, jobID, logID, batch, len(batch), "", isPartial)
+	}
+
+	// Send final completion if needed
+	if len(records) == 0 || len(records)%batchSize == 0 {
+		sendDataResponse(conn, jobID, logID, nil, 0, "", false)
+	}
+}
+
+// executeMinIOSyncJob handles MinIO/S3 based sync jobs
+func executeMinIOSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, jobName string) {
+	logger.Logger.Info().
+		Uint("job_id", jobID).
+		Str("job", jobName).
+		Msg("Starting MinIO sync job")
+
+	// Extract MinIO config from message
+	minioConfig := filesync.MinIOConfig{}
+	if cfg, ok := msg.Data["minio_config"].(map[string]interface{}); ok {
+		if endpoint, ok := cfg["endpoint"].(string); ok {
+			minioConfig.Endpoint = endpoint
+		}
+		if accessKey, ok := cfg["access_key"].(string); ok {
+			minioConfig.AccessKeyID = accessKey
+		}
+		if secretKey, ok := cfg["secret_key"].(string); ok {
+			minioConfig.SecretAccessKey = secretKey
+		}
+		if bucket, ok := cfg["bucket"].(string); ok {
+			minioConfig.BucketName = bucket
+		}
+		if objectPath, ok := cfg["object_path"].(string); ok {
+			minioConfig.ObjectPath = objectPath
+		}
+		if useSSL, ok := cfg["use_ssl"].(bool); ok {
+			minioConfig.UseSSL = useSSL
+		}
+		if region, ok := cfg["region"].(string); ok {
+			minioConfig.Region = region
+		}
+	}
+
+	// Get file config for parsing
+	fileFormat := "csv" // default
+	filePattern := "*"
+	hasHeader := true
+	var delimiter rune = ','
+
+	if fileCfg, ok := msg.Data["file_config"].(map[string]interface{}); ok {
+		if format, ok := fileCfg["format"].(string); ok && format != "" {
+			fileFormat = format
+		}
+		if pattern, ok := fileCfg["pattern"].(string); ok && pattern != "" {
+			filePattern = pattern
+		}
+		if hdr, ok := fileCfg["has_header"].(bool); ok {
+			hasHeader = hdr
+		}
+		if delim, ok := fileCfg["delimiter"].(string); ok && len(delim) > 0 {
+			delimiter = rune(delim[0])
+		}
+	}
+
+	// Override pattern from object_path if provided
+	if minioConfig.ObjectPath != "" {
+		filePattern = minioConfig.ObjectPath
+	}
+
+	logger.Logger.Debug().
+		Str("endpoint", minioConfig.Endpoint).
+		Str("bucket", minioConfig.BucketName).
+		Str("pattern", filePattern).
+		Str("format", fileFormat).
+		Bool("use_ssl", minioConfig.UseSSL).
+		Msg("MinIO config received")
+
+	// Validate config
+	if minioConfig.Endpoint == "" || minioConfig.BucketName == "" {
+		errMsg := "MinIO config missing required fields (endpoint or bucket)"
+		logger.Logger.Error().Msg(errMsg)
+		sendDataResponse(conn, jobID, logID, nil, 0, errMsg, false)
+		return
+	}
+
+	// Connect to MinIO
+	client, err := filesync.NewMinIOClient(minioConfig)
+	if err != nil {
+		logger.Logger.Error().Err(err).Msg("Failed to connect to MinIO")
+		sendDataResponse(conn, jobID, logID, nil, 0, err.Error(), false)
+		return
+	}
+	defer client.Close()
+
+	logger.Logger.Info().
+		Str("job", jobName).
+		Str("pattern", filePattern).
+		Msg("Finding and reading object from MinIO")
+
+	// Read the object
+	data, objectName, err := client.FindAndReadObject("", filePattern)
+	if err != nil {
+		logger.Logger.Error().Err(err).Msg("Failed to read object from MinIO")
+		sendDataResponse(conn, jobID, logID, nil, 0, err.Error(), false)
+		return
+	}
+
+	logger.Logger.Info().
+		Int("data_size", len(data)).
+		Str("object", objectName).
+		Str("format", fileFormat).
+		Msg("Object read successfully, parsing content")
+
+	// Parse data based on format
+	var records []map[string]interface{}
+
+	switch fileFormat {
+	case "csv":
+		// Parse CSV
+		records, err = filesync.ParseCSV(data, hasHeader, delimiter)
+	case "json":
+		// Parse JSON
+		records, err = filesync.ParseAPIResponse(data)
+	case "excel":
+		// For Excel, we need actual Excel parsing (not implemented in filesync yet)
+		errMsg := "Excel parsing from MinIO not yet implemented"
+		logger.Logger.Warn().Msg(errMsg)
+		sendDataResponse(conn, jobID, logID, nil, 0, errMsg, false)
+		return
+	default:
+		// Try JSON first, then CSV
+		records, err = filesync.ParseAPIResponse(data)
+		if err != nil {
+			records, err = filesync.ParseCSV(data, hasHeader, ',')
+		}
+	}
+
+	if err != nil {
+		logger.Logger.Error().Err(err).Str("format", fileFormat).Msg("Failed to parse object content")
+		sendDataResponse(conn, jobID, logID, nil, 0, err.Error(), false)
+		return
+	}
+
+	logger.Logger.Info().
+		Str("job", jobName).
+		Int("total_records", len(records)).
+		Msg("MinIO object parsed successfully")
 
 	// Send records in batches
 	batchSize := 5000
@@ -1165,6 +1324,8 @@ func executeTestConnection(conn net.Conn, msg AgentMessage) {
 	switch sourceType {
 	case "ftp", "sftp":
 		testFTPConnection(msg, sourceType, &response, startTime)
+	case "minio":
+		testMinIOConnection(msg, &response, startTime)
 	default:
 		testDatabaseConnection(msg, &response, startTime)
 	}
@@ -1390,6 +1551,87 @@ func testFTPConnection(msg AgentMessage, sourceType string, response *AgentMessa
 			}
 		}
 	}
+}
+
+// testMinIOConnection tests MinIO/S3 connection
+func testMinIOConnection(msg AgentMessage, response *AgentMessage, startTime time.Time) {
+	// Extract MinIO config
+	minioConfig := filesync.MinIOConfig{}
+	if cfg, ok := msg.Data["minio_config"].(map[string]interface{}); ok {
+		if endpoint, ok := cfg["endpoint"].(string); ok {
+			minioConfig.Endpoint = endpoint
+		}
+		if accessKey, ok := cfg["access_key"].(string); ok {
+			minioConfig.AccessKeyID = accessKey
+		}
+		if secretKey, ok := cfg["secret_key"].(string); ok {
+			minioConfig.SecretAccessKey = secretKey
+		}
+		if bucket, ok := cfg["bucket"].(string); ok {
+			minioConfig.BucketName = bucket
+		}
+		if objectPath, ok := cfg["object_path"].(string); ok {
+			minioConfig.ObjectPath = objectPath
+		}
+		if useSSL, ok := cfg["use_ssl"].(bool); ok {
+			minioConfig.UseSSL = useSSL
+		}
+		if region, ok := cfg["region"].(string); ok {
+			minioConfig.Region = region
+		}
+	}
+
+	logger.Logger.Debug().
+		Str("endpoint", minioConfig.Endpoint).
+		Str("bucket", minioConfig.BucketName).
+		Bool("use_ssl", minioConfig.UseSSL).
+		Msg("Testing MinIO connection")
+
+	// Validate config
+	if minioConfig.Endpoint == "" || minioConfig.BucketName == "" {
+		errMsg := "MinIO config missing required fields (endpoint or bucket)"
+		logger.Logger.Error().Msg(errMsg)
+		response.Data["success"] = false
+		response.Data["error"] = errMsg
+		response.Data["duration"] = time.Since(startTime).Milliseconds()
+		return
+	}
+
+	// Try to connect
+	client, err := filesync.NewMinIOClient(minioConfig)
+	duration := time.Since(startTime).Milliseconds()
+
+	if err != nil {
+		logger.Logger.Error().Err(err).Msg("Test MinIO connection failed")
+		response.Data["success"] = false
+		response.Data["error"] = fmt.Sprintf("MinIO connection failed: %v", err)
+		response.Data["duration"] = duration
+		return
+	}
+	defer client.Close()
+
+	// Test bucket access
+	if err := client.TestConnection(); err != nil {
+		duration = time.Since(startTime).Milliseconds()
+		logger.Logger.Error().Err(err).Msg("Test MinIO bucket access failed")
+		response.Data["success"] = false
+		response.Data["error"] = fmt.Sprintf("MinIO connected but bucket check failed: %v", err)
+		response.Data["duration"] = duration
+		return
+	}
+
+	duration = time.Since(startTime).Milliseconds()
+	logger.Logger.Info().
+		Str("endpoint", minioConfig.Endpoint).
+		Str("bucket", minioConfig.BucketName).
+		Int64("duration_ms", duration).
+		Msg("Test MinIO connection successful")
+
+	response.Data["success"] = true
+	response.Data["message"] = "MinIO connection successful"
+	response.Data["duration"] = duration
+	response.Data["endpoint"] = minioConfig.Endpoint
+	response.Data["bucket"] = minioConfig.BucketName
 }
 
 // executeRemoteCommand handles EXEC_COMMAND from master terminal console

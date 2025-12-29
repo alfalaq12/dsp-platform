@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Edit, Trash2, Network as NetworkIcon, Circle, Eye, Loader2, Zap, Database, Server, Shield, Globe, Folder, Copy, ArrowLeftRight, Play, RefreshCw } from 'lucide-react';
+import { Plus, Edit, Trash2, Network as NetworkIcon, Circle, Eye, Loader2, Zap, Database, Server, Shield, Globe, Folder, Copy, ArrowLeftRight, Play, RefreshCw, HardDrive } from 'lucide-react';
 import { useNetworks, useCreateNetwork, useUpdateNetwork, useDeleteNetwork, useTestNetworkConnection, useTestNetworkTargetConnection, useReverseNetwork, useCloneNetwork } from '../hooks/useQueries';
 import { testTargetDBConnection } from '../services/api';
 import { useToast, ToastContainer, ConfirmModal, ViewModal } from '../components/Toast';
@@ -55,6 +55,14 @@ function Network() {
         redis_password: '',
         redis_db: 0,
         redis_pattern: '*',
+        // MinIO/S3 fields
+        minio_endpoint: '',
+        minio_access_key: '',
+        minio_secret_key: '',
+        minio_bucket: '',
+        minio_object_path: '',
+        minio_use_ssl: false,
+        minio_region: 'us-east-1',
         // ===== TARGET CONFIGURATION =====
         target_source_type: 'database',
         // Target Database
@@ -80,6 +88,15 @@ function Network() {
         target_api_auth_key: '',
         target_api_auth_value: '',
         target_api_body: '',
+        // Target MinIO/S3
+        target_minio_endpoint: '',
+        target_minio_access_key: '',
+        target_minio_secret_key: '',
+        target_minio_bucket: '',
+        target_minio_object_path: '',
+        target_minio_use_ssl: false,
+        target_minio_region: 'us-east-1',
+        target_minio_export_format: 'csv',
     });
 
     // New states for enhanced UX
@@ -175,6 +192,14 @@ function Network() {
             redis_password: network.redis_password || '',
             redis_db: network.redis_db || 0,
             redis_pattern: network.redis_pattern || '*',
+            // MinIO fields
+            minio_endpoint: network.minio_endpoint || '',
+            minio_access_key: network.minio_access_key || '',
+            minio_secret_key: network.minio_secret_key || '',
+            minio_bucket: network.minio_bucket || '',
+            minio_object_path: network.minio_object_path || '',
+            minio_use_ssl: network.minio_use_ssl || false,
+            minio_region: network.minio_region || 'us-east-1',
             // Target fields
             target_source_type: network.target_source_type || 'database',
             target_db_driver: network.target_db_driver || 'postgres',
@@ -197,6 +222,15 @@ function Network() {
             target_api_auth_key: network.target_api_auth_key || '',
             target_api_auth_value: network.target_api_auth_value || '',
             target_api_body: network.target_api_body || '',
+            // Target MinIO fields
+            target_minio_endpoint: network.target_minio_endpoint || '',
+            target_minio_access_key: network.target_minio_access_key || '',
+            target_minio_secret_key: network.target_minio_secret_key || '',
+            target_minio_bucket: network.target_minio_bucket || '',
+            target_minio_object_path: network.target_minio_object_path || '',
+            target_minio_use_ssl: network.target_minio_use_ssl || false,
+            target_minio_region: network.target_minio_region || 'us-east-1',
+            target_minio_export_format: network.target_minio_export_format || 'csv',
         });
         setEditingId(network.id);
         setShowForm(true);
@@ -226,12 +260,14 @@ function Network() {
             api_url: '', api_method: 'GET', api_headers: '', api_auth_type: 'none', api_auth_key: '', api_auth_value: '', api_body: '',
             mongo_host: '', mongo_port: '27017', mongo_user: '', mongo_password: '', mongo_database: '', mongo_collection: '', mongo_auth_db: 'admin',
             redis_host: '', redis_port: '6379', redis_password: '', redis_db: 0, redis_pattern: '*',
+            minio_endpoint: '', minio_access_key: '', minio_secret_key: '', minio_bucket: '', minio_object_path: '', minio_use_ssl: false, minio_region: 'us-east-1',
             // Target fields
             target_source_type: 'database',
             target_db_driver: 'postgres', target_db_host: '', target_db_port: '5432',
             target_db_user: '', target_db_password: '', target_db_name: '', target_db_sslmode: 'disable',
             target_ftp_host: '', target_ftp_port: '21', target_ftp_user: '', target_ftp_password: '', target_ftp_private_key: '', target_ftp_path: '',
             target_api_url: '', target_api_method: 'POST', target_api_headers: '', target_api_auth_type: 'none', target_api_auth_key: '', target_api_auth_value: '', target_api_body: '',
+            target_minio_endpoint: '', target_minio_access_key: '', target_minio_secret_key: '', target_minio_bucket: '', target_minio_object_path: '', target_minio_use_ssl: false, target_minio_region: 'us-east-1', target_minio_export_format: 'csv',
         });
         setEditingId(null);
         setShowForm(false);
@@ -252,6 +288,9 @@ function Network() {
                 break;
             case 'api':
                 hasHost = !!network.api_url;
+                break;
+            case 'minio':
+                hasHost = !!network.minio_endpoint;
                 break;
             default:
                 hasHost = false;
@@ -307,6 +346,9 @@ function Network() {
                 break;
             case 'api':
                 hasHost = !!network.target_api_url;
+                break;
+            case 'minio':
+                hasHost = !!network.target_minio_endpoint;
                 break;
             default:
                 hasHost = false;
@@ -500,11 +542,12 @@ function Network() {
                         {/* Source Type Selection */}
                         <div className="space-y-3">
                             <label className={`block text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Connection Protocol</label>
-                            <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                            <div className="grid grid-cols-2 md:grid-cols-7 gap-3">
                                 {[
                                     { id: 'database', label: 'Database', icon: Database },
                                     { id: 'mongodb', label: 'MongoDB', icon: Database },
                                     { id: 'redis', label: 'Redis', icon: Database },
+                                    { id: 'minio', label: 'MinIO/S3', icon: HardDrive },
                                     { id: 'ftp', label: 'FTP', icon: Server },
                                     { id: 'sftp', label: 'SFTP (SSH)', icon: Shield },
                                     { id: 'api', label: 'REST API', icon: Globe }
@@ -994,6 +1037,100 @@ function Network() {
                             </div>
                         )}
 
+                        {/* MinIO/S3 Configuration */}
+                        {formData.source_type === 'minio' && (
+                            <div className={`border-t pt-6 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+                                <h3 className={`text-md font-semibold mb-4 flex items-center gap-2 ${isDark ? 'text-orange-400' : 'text-orange-700'}`}>
+                                    <div className="p-1.5 rounded-lg bg-orange-100 dark:bg-orange-500/20 text-orange-600 dark:text-orange-400">
+                                        <HardDrive className="w-4 h-4" />
+                                    </div>
+                                    MinIO/S3 Configuration
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="md:col-span-2">
+                                        <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Endpoint</label>
+                                        <input
+                                            type="text"
+                                            value={formData.minio_endpoint}
+                                            onChange={(e) => setFormData({ ...formData, minio_endpoint: e.target.value })}
+                                            className={`w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                            placeholder="minio.example.com:9000 or s3.amazonaws.com"
+                                        />
+                                        <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                            MinIO server endpoint (without http/https prefix)
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Access Key ID</label>
+                                        <input
+                                            type="text"
+                                            value={formData.minio_access_key}
+                                            onChange={(e) => setFormData({ ...formData, minio_access_key: e.target.value })}
+                                            className={`w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                            placeholder="minioadmin"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Secret Access Key</label>
+                                        <input
+                                            type="password"
+                                            value={formData.minio_secret_key}
+                                            onChange={(e) => setFormData({ ...formData, minio_secret_key: e.target.value })}
+                                            className={`w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                            placeholder="••••••••"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Bucket Name</label>
+                                        <input
+                                            type="text"
+                                            value={formData.minio_bucket}
+                                            onChange={(e) => setFormData({ ...formData, minio_bucket: e.target.value })}
+                                            className={`w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                            placeholder="my-bucket"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Region</label>
+                                        <input
+                                            type="text"
+                                            value={formData.minio_region}
+                                            onChange={(e) => setFormData({ ...formData, minio_region: e.target.value })}
+                                            className={`w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                            placeholder="us-east-1"
+                                        />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Object Path/Prefix</label>
+                                        <input
+                                            type="text"
+                                            value={formData.minio_object_path}
+                                            onChange={(e) => setFormData({ ...formData, minio_object_path: e.target.value })}
+                                            className={`w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                            placeholder="data/exports/ or data.csv"
+                                        />
+                                        <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                            Path prefix to list objects or specific object key to read
+                                        </p>
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className={`flex items-center gap-2 text-sm cursor-pointer ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.minio_use_ssl}
+                                                onChange={(e) => setFormData({ ...formData, minio_use_ssl: e.target.checked })}
+                                                className="w-4 h-4 rounded border-slate-600 bg-slate-900 text-orange-500 focus:ring-orange-500"
+                                            />
+                                            Use SSL/TLS (HTTPS)
+                                        </label>
+                                        <p className={`text-xs mt-1 ml-6 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                            Enable for production MinIO or AWS S3
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         {/* ===== TARGET CONFIGURATION SECTION ===== */}
                         <div className={`border-t-2 border-dashed pt-6 mt-6 ${isDark ? 'border-purple-500/30' : 'border-purple-200'}`}>
                             <div className="flex items-center justify-between mb-4">
@@ -1019,9 +1156,10 @@ function Network() {
                             {/* Target Source Type Selection */}
                             <div className="space-y-3 mb-6">
                                 <label className={`block text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Target Type</label>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                                     {[
                                         { id: 'database', label: 'Database', icon: Database },
+                                        { id: 'minio', label: 'MinIO/S3', icon: HardDrive },
                                         { id: 'ftp', label: 'FTP', icon: Server },
                                         { id: 'sftp', label: 'SFTP (SSH)', icon: Shield },
                                         { id: 'api', label: 'REST API', icon: Globe }
@@ -1234,6 +1372,102 @@ function Network() {
                                                 />
                                             </div>
                                         )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Target MinIO/S3 Configuration */}
+                            {formData.target_source_type === 'minio' && (
+                                <div className={`p-4 rounded-xl border ${isDark ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-emerald-200 bg-emerald-50/50'}`}>
+                                    <h4 className={`text-sm font-semibold mb-3 flex items-center gap-2 ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
+                                        <HardDrive className="w-4 h-4" />
+                                        Target MinIO/S3 Bucket
+                                    </h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div className="md:col-span-2">
+                                            <label className={`block text-xs font-medium mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Endpoint</label>
+                                            <input
+                                                type="text"
+                                                value={formData.target_minio_endpoint}
+                                                onChange={(e) => setFormData({ ...formData, target_minio_endpoint: e.target.value })}
+                                                className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                                placeholder="minio.example.com:9000"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className={`block text-xs font-medium mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Access Key ID</label>
+                                            <input
+                                                type="text"
+                                                value={formData.target_minio_access_key}
+                                                onChange={(e) => setFormData({ ...formData, target_minio_access_key: e.target.value })}
+                                                className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                                placeholder="minioadmin"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className={`block text-xs font-medium mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Secret Access Key</label>
+                                            <input
+                                                type="password"
+                                                value={formData.target_minio_secret_key}
+                                                onChange={(e) => setFormData({ ...formData, target_minio_secret_key: e.target.value })}
+                                                className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                                placeholder="••••••••"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className={`block text-xs font-medium mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Bucket Name</label>
+                                            <input
+                                                type="text"
+                                                value={formData.target_minio_bucket}
+                                                onChange={(e) => setFormData({ ...formData, target_minio_bucket: e.target.value })}
+                                                className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                                placeholder="my-bucket"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className={`block text-xs font-medium mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Region</label>
+                                            <input
+                                                type="text"
+                                                value={formData.target_minio_region}
+                                                onChange={(e) => setFormData({ ...formData, target_minio_region: e.target.value })}
+                                                className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                                placeholder="us-east-1"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className={`block text-xs font-medium mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Object Path/Key</label>
+                                            <input
+                                                type="text"
+                                                value={formData.target_minio_object_path}
+                                                onChange={(e) => setFormData({ ...formData, target_minio_object_path: e.target.value })}
+                                                className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                                placeholder="exports/data.csv"
+                                            />
+                                            <p className={`text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Object key to write (extension auto-added based on format)</p>
+                                        </div>
+                                        <div>
+                                            <label className={`block text-xs font-medium mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Export Format</label>
+                                            <select
+                                                value={formData.target_minio_export_format}
+                                                onChange={(e) => setFormData({ ...formData, target_minio_export_format: e.target.value })}
+                                                className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                            >
+                                                <option value="csv">CSV</option>
+                                                <option value="json">JSON</option>
+                                                <option value="parquet">Parquet (JSON Lines)</option>
+                                            </select>
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <label className={`flex items-center gap-2 text-sm cursor-pointer ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.target_minio_use_ssl}
+                                                    onChange={(e) => setFormData({ ...formData, target_minio_use_ssl: e.target.checked })}
+                                                    className="w-4 h-4 rounded border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-500"
+                                                />
+                                                Use SSL/TLS (HTTPS)
+                                            </label>
+                                        </div>
                                     </div>
                                 </div>
                             )}
