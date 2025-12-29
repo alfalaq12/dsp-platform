@@ -353,18 +353,20 @@ func (al *AgentListener) handleDataResponse(msg core.AgentMessage, clientAddr st
 	// Get target table and unique key from job's schema
 	targetTable := ""
 	uniqueKeyColumn := ""
+	var networkID uint
 	if jobID > 0 {
 		var job core.Job
-		if err := al.handler.db.Preload("Schema").First(&job, jobID).Error; err == nil {
+		if err := al.handler.db.Preload("Schema").Preload("Network").First(&job, jobID).Error; err == nil {
 			targetTable = job.Schema.TargetTable
 			uniqueKeyColumn = job.Schema.UniqueKeyColumn
+			networkID = job.NetworkID
 		}
 	}
 
 	// Insert/Upsert data into target database
 	insertedCount := 0
 	if records, ok := msg.Data["records"].([]interface{}); ok && len(records) > 0 && targetTable != "" {
-		insertedCount = al.upsertToTargetDB(targetTable, records, uniqueKeyColumn)
+		insertedCount = al.upsertToTargetDBWithNetwork(targetTable, records, uniqueKeyColumn, networkID)
 		if uniqueKeyColumn != "" {
 			log.Printf("Upserted %d records into target table '%s' (key: %s)", insertedCount, targetTable, uniqueKeyColumn)
 		} else {
@@ -425,6 +427,112 @@ func (al *AgentListener) handleDataResponse(msg core.AgentMessage, clientAddr st
 // insertToTargetDB connects to target database and inserts records
 func (al *AgentListener) insertToTargetDB(tableName string, records []interface{}) int {
 	return al.upsertToTargetDB(tableName, records, "")
+}
+
+// upsertToTargetDBWithNetwork connects to target database using Network config and inserts or updates records
+func (al *AgentListener) upsertToTargetDBWithNetwork(tableName string, records []interface{}, uniqueKeyColumn string, networkID uint) int {
+	// Try to load target database config from Network first
+	config := al.loadTargetDBConfigFromNetwork(networkID)
+
+	// Fall back to global settings if Network config is not available
+	if config.Host == "" {
+		config = al.loadTargetDBConfig()
+	}
+
+	// Check if target DB is configured
+	if config.Password == "" && config.Host == "" {
+		log.Printf("Target database not configured, skipping insert")
+		return 0
+	}
+
+	log.Printf("Connecting to target DB: %s@%s:%s/%s (driver: %s)",
+		config.User, config.Host, config.Port, config.DBName, config.Driver)
+
+	// Connect to target database
+	targetConn, err := database.ConnectTarget(config)
+	if err != nil {
+		log.Printf("Failed to connect to target database: %v", err)
+		return 0
+	}
+	defer targetConn.Close()
+
+	// Convert records to map format
+	var recordMaps []map[string]interface{}
+	for _, r := range records {
+		if rec, ok := r.(map[string]interface{}); ok {
+			recordMaps = append(recordMaps, rec)
+		}
+	}
+
+	if len(recordMaps) == 0 {
+		log.Printf("No valid records to insert")
+		return 0
+	}
+
+	// Ensure table exists
+	if err := targetConn.EnsureTable(tableName, recordMaps[0]); err != nil {
+		log.Printf("Failed to ensure table: %v", err)
+		return 0
+	}
+
+	// Upsert or Insert records based on unique key
+	var count int
+	if uniqueKeyColumn != "" {
+		log.Printf("Upserting with unique key column: %s", uniqueKeyColumn)
+		count, err = targetConn.UpsertBatch(tableName, recordMaps, uniqueKeyColumn)
+	} else {
+		count, err = targetConn.InsertBatch(tableName, recordMaps)
+	}
+	if err != nil {
+		log.Printf("Batch operation error: %v", err)
+	}
+
+	return count
+}
+
+// loadTargetDBConfigFromNetwork loads target database config from Network
+func (al *AgentListener) loadTargetDBConfigFromNetwork(networkID uint) database.TargetConfig {
+	config := database.TargetConfig{
+		Driver:  "postgres",
+		Port:    "5432",
+		SSLMode: "disable",
+	}
+
+	if networkID == 0 {
+		return config
+	}
+
+	var network core.Network
+	if err := al.handler.db.First(&network, networkID).Error; err != nil {
+		log.Printf("Failed to load network %d for target DB config: %v", networkID, err)
+		return config
+	}
+
+	// Use target DB config from Network if available
+	if network.TargetDBHost != "" {
+		config.Driver = network.TargetDBDriver
+		config.Host = network.TargetDBHost
+		config.Port = network.TargetDBPort
+		config.User = network.TargetDBUser
+		config.Password = network.TargetDBPassword
+		config.DBName = network.TargetDBName
+		config.SSLMode = network.TargetDBSSLMode
+
+		// Set defaults if not specified
+		if config.Driver == "" {
+			config.Driver = "postgres"
+		}
+		if config.Port == "" {
+			config.Port = "5432"
+		}
+		if config.SSLMode == "" {
+			config.SSLMode = "disable"
+		}
+
+		log.Printf("Using Network target DB config: %s@%s:%s/%s", config.User, config.Host, config.Port, config.DBName)
+	}
+
+	return config
 }
 
 // upsertToTargetDB connects to target database and inserts or updates records
