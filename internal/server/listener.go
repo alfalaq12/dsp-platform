@@ -487,6 +487,15 @@ func (al *AgentListener) upsertToTargetDBWithNetwork(tableName string, records [
 		log.Printf("Batch operation error: %v", err)
 	}
 
+	// Reset sequence to prevent unique constraint violations when app inserts new records
+	primaryKeyCol := uniqueKeyColumn
+	if primaryKeyCol == "" {
+		primaryKeyCol = "id" // Default to 'id' if no unique key specified
+	}
+	if err := targetConn.ResetSequence(tableName, primaryKeyCol); err != nil {
+		log.Printf("Warning: Failed to reset sequence for %s: %v", tableName, err)
+	}
+
 	return count
 }
 
@@ -582,6 +591,15 @@ func (al *AgentListener) upsertToTargetDB(tableName string, records []interface{
 	}
 	if err != nil {
 		log.Printf("Batch operation error: %v", err)
+	}
+
+	// Reset sequence to prevent unique constraint violations when app inserts new records
+	primaryKeyCol := uniqueKeyColumn
+	if primaryKeyCol == "" {
+		primaryKeyCol = "id" // Default to 'id' if no unique key specified
+	}
+	if err := targetConn.ResetSequence(tableName, primaryKeyCol); err != nil {
+		log.Printf("Warning: Failed to reset sequence for %s: %v", tableName, err)
 	}
 
 	return count

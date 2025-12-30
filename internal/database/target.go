@@ -99,6 +99,106 @@ func (tc *TargetConnection) Close() error {
 	return nil
 }
 
+// ResetSequence resets the sequence for a table's primary key column to MAX(id) + 1
+// This prevents unique constraint violations when the application inserts new records
+// after syncing data with explicit IDs
+func (tc *TargetConnection) ResetSequence(tableName string, primaryKeyColumn string) error {
+	if tc.Config.Driver != "postgres" {
+		// Only PostgreSQL needs sequence reset, MySQL auto-increment handles this automatically
+		log.Printf("Sequence reset not needed for driver: %s", tc.Config.Driver)
+		return nil
+	}
+
+	if !isValidTableName(tableName) || !isValidTableName(primaryKeyColumn) {
+		return fmt.Errorf("invalid table or column name")
+	}
+
+	// Try common sequence naming conventions
+	sequenceNames := []string{
+		fmt.Sprintf("%s_%s_seq", tableName, primaryKeyColumn), // Standard: table_column_seq
+		fmt.Sprintf("%s_id_seq", tableName),                   // Common: table_id_seq
+		fmt.Sprintf("%s_pkey_seq", tableName),                 // Alternative: table_pkey_seq
+	}
+
+	var lastErr error
+	for _, seqName := range sequenceNames {
+		// Check if sequence exists
+		var exists bool
+		checkQuery := "SELECT EXISTS (SELECT FROM pg_sequences WHERE schemaname = 'public' AND sequencename = $1)"
+		err := tc.DB.QueryRow(checkQuery, seqName).Scan(&exists)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		if !exists {
+			continue
+		}
+
+		// Reset sequence to MAX(primary_key) + 1
+		resetQuery := fmt.Sprintf(
+			`SELECT setval('%s', COALESCE((SELECT MAX("%s") FROM "%s"), 0) + 1, false)`,
+			seqName, primaryKeyColumn, tableName,
+		)
+
+		_, err = tc.DB.Exec(resetQuery)
+		if err != nil {
+			lastErr = err
+			log.Printf("Failed to reset sequence %s: %v", seqName, err)
+			continue
+		}
+
+		log.Printf("Successfully reset sequence %s for table %s", seqName, tableName)
+		return nil
+	}
+
+	// If no known sequence found, try to find it from pg_attribute
+	findSeqQuery := `
+		SELECT pg_get_serial_sequence($1, $2)
+	`
+	var seqName sql.NullString
+	err := tc.DB.QueryRow(findSeqQuery, tableName, primaryKeyColumn).Scan(&seqName)
+	if err == nil && seqName.Valid && seqName.String != "" {
+		resetQuery := fmt.Sprintf(
+			`SELECT setval('%s', COALESCE((SELECT MAX("%s") FROM "%s"), 0) + 1, false)`,
+			seqName.String, primaryKeyColumn, tableName,
+		)
+		_, err = tc.DB.Exec(resetQuery)
+		if err == nil {
+			log.Printf("Successfully reset sequence %s for table %s (auto-detected)", seqName.String, tableName)
+			return nil
+		}
+		lastErr = err
+	}
+
+	if lastErr != nil {
+		return fmt.Errorf("failed to reset sequence for %s.%s: %w", tableName, primaryKeyColumn, lastErr)
+	}
+
+	log.Printf("No sequence found for table %s column %s (might not be a serial/identity column)", tableName, primaryKeyColumn)
+	return nil
+}
+
+// ResetAllSequences resets sequences for all specified tables
+func (tc *TargetConnection) ResetAllSequences(tables []string, primaryKeyColumn string) error {
+	if primaryKeyColumn == "" {
+		primaryKeyColumn = "id" // Default to 'id'
+	}
+
+	var errors []string
+	for _, table := range tables {
+		if err := tc.ResetSequence(table, primaryKeyColumn); err != nil {
+			errors = append(errors, fmt.Sprintf("%s: %v", table, err))
+		}
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("some sequences failed to reset: %s", strings.Join(errors, "; "))
+	}
+
+	return nil
+}
+
 // EnsureTable creates target table if not exists based on data structure
 func (tc *TargetConnection) EnsureTable(tableName string, sampleRecord map[string]interface{}) error {
 	if tableName == "" {
