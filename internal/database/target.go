@@ -11,6 +11,10 @@ import (
 	_ "github.com/lib/pq" // PostgreSQL driver
 )
 
+// DefaultBatchSize is the number of records to upsert in a single query
+// Higher values = faster, but too high may cause "too many parameters" errors
+const DefaultBatchSize = 100
+
 // TargetConfig holds target database connection configuration
 type TargetConfig struct {
 	Driver   string
@@ -390,7 +394,12 @@ func (tc *TargetConnection) UpsertBatch(tableName string, records []map[string]i
 }
 
 // upsertPostgres handles PostgreSQL upsert using ON CONFLICT DO UPDATE
+// Optimized with batch multi-row VALUES for better performance
 func (tc *TargetConnection) upsertPostgres(tableName string, records []map[string]interface{}, columns []string, uniqueKeyColumn string) int {
+	if len(records) == 0 {
+		return 0
+	}
+
 	// Build update set clause (exclude the unique key)
 	var updateClauses []string
 	for _, col := range columns {
@@ -398,30 +407,51 @@ func (tc *TargetConnection) upsertPostgres(tableName string, records []map[strin
 			updateClauses = append(updateClauses, fmt.Sprintf("\"%s\" = EXCLUDED.\"%s\"", col, col))
 		}
 	}
+	updateClause := strings.Join(updateClauses, ", ")
 
 	upsertedCount := 0
-	for _, record := range records {
-		var values []interface{}
-		var placeholders []string
+	batchSize := DefaultBatchSize
 
-		for i, col := range columns {
-			values = append(values, record[col])
-			placeholders = append(placeholders, fmt.Sprintf("$%d", i+1))
+	// Process records in batches
+	for i := 0; i < len(records); i += batchSize {
+		end := i + batchSize
+		if end > len(records) {
+			end = len(records)
+		}
+		batch := records[i:end]
+
+		// Build multi-row VALUES clause
+		var allValues []interface{}
+		var valueRows []string
+		paramIdx := 1
+
+		for _, record := range batch {
+			var placeholders []string
+			for _, col := range columns {
+				allValues = append(allValues, record[col])
+				placeholders = append(placeholders, fmt.Sprintf("$%d", paramIdx))
+				paramIdx++
+			}
+			valueRows = append(valueRows, fmt.Sprintf("(%s)", strings.Join(placeholders, ", ")))
 		}
 
 		// OVERRIDING SYSTEM VALUE allows inserting into GENERATED ALWAYS AS IDENTITY columns
 		upsertSQL := fmt.Sprintf(
-			"INSERT INTO \"%s\" (\"%s\") OVERRIDING SYSTEM VALUE VALUES (%s) ON CONFLICT (\"%s\") DO UPDATE SET %s",
+			"INSERT INTO \"%s\" (\"%s\") OVERRIDING SYSTEM VALUE VALUES %s ON CONFLICT (\"%s\") DO UPDATE SET %s",
 			tableName,
 			strings.Join(columns, "\", \""),
-			strings.Join(placeholders, ", "),
+			strings.Join(valueRows, ", "),
 			uniqueKeyColumn,
-			strings.Join(updateClauses, ", "),
+			updateClause,
 		)
 
-		result, err := tc.DB.Exec(upsertSQL, values...)
+		result, err := tc.DB.Exec(upsertSQL, allValues...)
 		if err != nil {
-			log.Printf("PostgreSQL upsert error (skipping): %v", err)
+			log.Printf("PostgreSQL batch upsert error (batch %d-%d, skipping): %v", i, end, err)
+			// Fallback to per-record for this batch if batch fails
+			for _, record := range batch {
+				upsertedCount += tc.upsertPostgresSingle(tableName, record, columns, uniqueKeyColumn, updateClause)
+			}
 			continue
 		}
 
@@ -432,8 +462,42 @@ func (tc *TargetConnection) upsertPostgres(tableName string, records []map[strin
 	return upsertedCount
 }
 
+// upsertPostgresSingle handles single record upsert (fallback for batch errors)
+func (tc *TargetConnection) upsertPostgresSingle(tableName string, record map[string]interface{}, columns []string, uniqueKeyColumn string, updateClause string) int {
+	var values []interface{}
+	var placeholders []string
+
+	for i, col := range columns {
+		values = append(values, record[col])
+		placeholders = append(placeholders, fmt.Sprintf("$%d", i+1))
+	}
+
+	upsertSQL := fmt.Sprintf(
+		"INSERT INTO \"%s\" (\"%s\") OVERRIDING SYSTEM VALUE VALUES (%s) ON CONFLICT (\"%s\") DO UPDATE SET %s",
+		tableName,
+		strings.Join(columns, "\", \""),
+		strings.Join(placeholders, ", "),
+		uniqueKeyColumn,
+		updateClause,
+	)
+
+	result, err := tc.DB.Exec(upsertSQL, values...)
+	if err != nil {
+		log.Printf("PostgreSQL single upsert error (skipping): %v", err)
+		return 0
+	}
+
+	affected, _ := result.RowsAffected()
+	return int(affected)
+}
+
 // upsertMySQL handles MySQL upsert using ON DUPLICATE KEY UPDATE
+// Optimized with batch multi-row VALUES for better performance
 func (tc *TargetConnection) upsertMySQL(tableName string, records []map[string]interface{}, columns []string, uniqueKeyColumn string) int {
+	if len(records) == 0 {
+		return 0
+	}
+
 	// Build update set clause for MySQL (exclude the unique key)
 	var updateClauses []string
 	for _, col := range columns {
@@ -441,29 +505,48 @@ func (tc *TargetConnection) upsertMySQL(tableName string, records []map[string]i
 			updateClauses = append(updateClauses, fmt.Sprintf("`%s` = VALUES(`%s`)", col, col))
 		}
 	}
+	updateClause := strings.Join(updateClauses, ", ")
 
 	upsertedCount := 0
-	for _, record := range records {
-		var values []interface{}
-		var placeholders []string
+	batchSize := DefaultBatchSize
 
-		for _, col := range columns {
-			values = append(values, record[col])
-			placeholders = append(placeholders, "?")
+	// Process records in batches
+	for i := 0; i < len(records); i += batchSize {
+		end := i + batchSize
+		if end > len(records) {
+			end = len(records)
+		}
+		batch := records[i:end]
+
+		// Build multi-row VALUES clause
+		var allValues []interface{}
+		var valueRows []string
+
+		for _, record := range batch {
+			var placeholders []string
+			for _, col := range columns {
+				allValues = append(allValues, record[col])
+				placeholders = append(placeholders, "?")
+			}
+			valueRows = append(valueRows, fmt.Sprintf("(%s)", strings.Join(placeholders, ", ")))
 		}
 
-		// MySQL uses backticks for identifiers and ? for placeholders
+		// MySQL uses backticks for identifiers
 		upsertSQL := fmt.Sprintf(
-			"INSERT INTO `%s` (`%s`) VALUES (%s) ON DUPLICATE KEY UPDATE %s",
+			"INSERT INTO `%s` (`%s`) VALUES %s ON DUPLICATE KEY UPDATE %s",
 			tableName,
 			strings.Join(columns, "`, `"),
-			strings.Join(placeholders, ", "),
-			strings.Join(updateClauses, ", "),
+			strings.Join(valueRows, ", "),
+			updateClause,
 		)
 
-		result, err := tc.DB.Exec(upsertSQL, values...)
+		result, err := tc.DB.Exec(upsertSQL, allValues...)
 		if err != nil {
-			log.Printf("MySQL upsert error (skipping): %v", err)
+			log.Printf("MySQL batch upsert error (batch %d-%d, skipping): %v", i, end, err)
+			// Fallback to per-record for this batch if batch fails
+			for _, record := range batch {
+				upsertedCount += tc.upsertMySQLSingle(tableName, record, columns, updateClause)
+			}
 			continue
 		}
 
@@ -472,6 +555,34 @@ func (tc *TargetConnection) upsertMySQL(tableName string, records []map[string]i
 	}
 
 	return upsertedCount
+}
+
+// upsertMySQLSingle handles single record upsert (fallback for batch errors)
+func (tc *TargetConnection) upsertMySQLSingle(tableName string, record map[string]interface{}, columns []string, updateClause string) int {
+	var values []interface{}
+	var placeholders []string
+
+	for _, col := range columns {
+		values = append(values, record[col])
+		placeholders = append(placeholders, "?")
+	}
+
+	upsertSQL := fmt.Sprintf(
+		"INSERT INTO `%s` (`%s`) VALUES (%s) ON DUPLICATE KEY UPDATE %s",
+		tableName,
+		strings.Join(columns, "`, `"),
+		strings.Join(placeholders, ", "),
+		updateClause,
+	)
+
+	result, err := tc.DB.Exec(upsertSQL, values...)
+	if err != nil {
+		log.Printf("MySQL single upsert error (skipping): %v", err)
+		return 0
+	}
+
+	affected, _ := result.RowsAffected()
+	return int(affected)
 }
 
 // upsertOracle handles Oracle upsert using MERGE INTO
