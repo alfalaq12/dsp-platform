@@ -722,6 +722,13 @@ func (h *Handler) RunJob(c *gin.Context) {
 	}
 
 	// Send RUN_JOB command to agent with config from Network and Schema
+	// Determine effective source type
+	sourceType := job.Network.SourceType
+	// Auto-detect minio_mirror: when source is MinIO and target is also MinIO, use object-level sync
+	if sourceType == "minio" && job.Network.TargetSourceType == "minio" {
+		sourceType = "minio_mirror"
+	}
+
 	command := core.AgentMessage{
 		Type:      "RUN_JOB",
 		Timestamp: time.Now(),
@@ -730,8 +737,8 @@ func (h *Handler) RunJob(c *gin.Context) {
 			"log_id":       jobLog.ID,
 			"name":         job.Name,
 			"target_table": job.Schema.TargetTable,
-			// Network source type (database, ftp, sftp)
-			"source_type": job.Network.SourceType,
+			// Network source type (database, ftp, sftp, minio, minio_mirror)
+			"source_type": sourceType,
 			// Database config (for source_type=database)
 			"query": job.Schema.SQLCommand,
 			"db_config": map[string]interface{}{

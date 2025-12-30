@@ -494,6 +494,8 @@ func executeRunJobCommand(conn net.Conn, msg AgentMessage) {
 		executeRedisSyncJob(conn, msg, jobID, logID, jobName)
 	case "minio":
 		executeMinIOSyncJob(conn, msg, jobID, logID, jobName)
+	case "minio_mirror":
+		executeMinIOMirrorJob(conn, msg, jobID, logID, jobName)
 	default:
 		executeDatabaseSyncJob(conn, msg, jobID, logID, jobName)
 	}
@@ -962,6 +964,228 @@ func executeMinIOSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, job
 	if len(records) == 0 || len(records)%batchSize == 0 {
 		sendDataResponse(conn, jobID, logID, nil, 0, "", false)
 	}
+}
+
+// executeMinIOMirrorJob handles MinIO to MinIO object-level sync (like mc mirror)
+func executeMinIOMirrorJob(conn net.Conn, msg AgentMessage, jobID, logID uint, jobName string) {
+	logger.Logger.Info().
+		Uint("job_id", jobID).
+		Str("job", jobName).
+		Msg("Starting MinIO mirror job")
+
+	// Extract source MinIO config
+	sourceConfig := filesync.MinIOConfig{}
+	if cfg, ok := msg.Data["minio_config"].(map[string]interface{}); ok {
+		if endpoint, ok := cfg["endpoint"].(string); ok {
+			sourceConfig.Endpoint = endpoint
+		}
+		if accessKey, ok := cfg["access_key"].(string); ok {
+			sourceConfig.AccessKeyID = accessKey
+		}
+		if secretKey, ok := cfg["secret_key"].(string); ok {
+			sourceConfig.SecretAccessKey = secretKey
+		}
+		if bucket, ok := cfg["bucket"].(string); ok {
+			sourceConfig.BucketName = bucket
+		}
+		if objectPath, ok := cfg["object_path"].(string); ok {
+			sourceConfig.ObjectPath = objectPath
+		}
+		if useSSL, ok := cfg["use_ssl"].(bool); ok {
+			sourceConfig.UseSSL = useSSL
+		}
+		if region, ok := cfg["region"].(string); ok {
+			sourceConfig.Region = region
+		}
+	}
+
+	// Extract target MinIO config
+	targetConfig := filesync.MinIOConfig{}
+	if cfg, ok := msg.Data["target_minio_config"].(map[string]interface{}); ok {
+		if endpoint, ok := cfg["endpoint"].(string); ok {
+			targetConfig.Endpoint = endpoint
+		}
+		if accessKey, ok := cfg["access_key"].(string); ok {
+			targetConfig.AccessKeyID = accessKey
+		}
+		if secretKey, ok := cfg["secret_key"].(string); ok {
+			targetConfig.SecretAccessKey = secretKey
+		}
+		if bucket, ok := cfg["bucket"].(string); ok {
+			targetConfig.BucketName = bucket
+		}
+		if objectPath, ok := cfg["object_path"].(string); ok {
+			targetConfig.ObjectPath = objectPath
+		}
+		if useSSL, ok := cfg["use_ssl"].(bool); ok {
+			targetConfig.UseSSL = useSSL
+		}
+		if region, ok := cfg["region"].(string); ok {
+			targetConfig.Region = region
+		}
+	}
+
+	// Extract mirror options
+	mirrorOpts := filesync.MirrorOptions{
+		Incremental: true, // Default: incremental sync
+	}
+	if fileCfg, ok := msg.Data["file_config"].(map[string]interface{}); ok {
+		if pattern, ok := fileCfg["pattern"].(string); ok {
+			mirrorOpts.Pattern = pattern
+		}
+		if prefix, ok := fileCfg["prefix"].(string); ok {
+			mirrorOpts.Prefix = prefix
+		}
+	}
+	if sourceConfig.ObjectPath != "" {
+		mirrorOpts.Prefix = sourceConfig.ObjectPath
+	}
+
+	// Check for watch mode
+	watchMode := false
+	if wm, ok := msg.Data["watch_mode"].(bool); ok {
+		watchMode = wm
+	}
+
+	logger.Logger.Debug().
+		Str("source_endpoint", sourceConfig.Endpoint).
+		Str("source_bucket", sourceConfig.BucketName).
+		Str("target_endpoint", targetConfig.Endpoint).
+		Str("target_bucket", targetConfig.BucketName).
+		Str("prefix", mirrorOpts.Prefix).
+		Bool("incremental", mirrorOpts.Incremental).
+		Bool("watch_mode", watchMode).
+		Msg("MinIO mirror config")
+
+	// Validate configs
+	if sourceConfig.Endpoint == "" || sourceConfig.BucketName == "" {
+		errMsg := "Source MinIO config missing required fields (endpoint or bucket)"
+		logger.Logger.Error().Msg(errMsg)
+		sendMirrorResponse(conn, jobID, logID, nil, errMsg, false)
+		return
+	}
+	if targetConfig.Endpoint == "" || targetConfig.BucketName == "" {
+		errMsg := "Target MinIO config missing required fields (endpoint or bucket)"
+		logger.Logger.Error().Msg(errMsg)
+		sendMirrorResponse(conn, jobID, logID, nil, errMsg, false)
+		return
+	}
+
+	// Connect to source MinIO
+	sourceClient, err := filesync.NewMinIOClient(sourceConfig)
+	if err != nil {
+		logger.Logger.Error().Err(err).Msg("Failed to connect to source MinIO")
+		sendMirrorResponse(conn, jobID, logID, nil, err.Error(), false)
+		return
+	}
+	defer sourceClient.Close()
+
+	// Connect to target MinIO
+	targetClient, err := filesync.NewMinIOClient(targetConfig)
+	if err != nil {
+		logger.Logger.Error().Err(err).Msg("Failed to connect to target MinIO")
+		sendMirrorResponse(conn, jobID, logID, nil, err.Error(), false)
+		return
+	}
+	defer targetClient.Close()
+
+	logger.Logger.Info().
+		Str("job", jobName).
+		Msg("Connected to source and target MinIO, starting mirror")
+
+	if watchMode {
+		// Watch mode: continuous sync
+		stopChan := make(chan struct{})
+
+		// Send initial running status
+		sendMirrorResponse(conn, jobID, logID, &filesync.MirrorStats{}, "", true)
+
+		// Start watch in separate goroutine (will run until stopped)
+		go func() {
+			err := sourceClient.WatchAndMirror(targetClient, mirrorOpts, stopChan, func(event, objectKey string) {
+				logger.Logger.Info().
+					Str("event", event).
+					Str("object", objectKey).
+					Msg("Mirror watch event")
+			})
+			if err != nil {
+				logger.Logger.Error().Err(err).Msg("Watch mirror failed")
+			}
+		}()
+
+		// For now, run for job duration (scheduled job will complete when done)
+		// In production, this would be managed by agent lifecycle
+		logger.Logger.Info().Msg("Watch mode started, running continuous sync")
+	} else {
+		// One-time mirror
+		stats, err := sourceClient.MirrorTo(targetClient, mirrorOpts, func(copied, skipped int64, currentObject string) {
+			logger.Logger.Debug().
+				Int64("copied", copied).
+				Int64("skipped", skipped).
+				Str("current", currentObject).
+				Msg("Mirror progress")
+		})
+
+		if err != nil {
+			logger.Logger.Error().Err(err).Msg("Mirror operation failed")
+			sendMirrorResponse(conn, jobID, logID, nil, err.Error(), false)
+			return
+		}
+
+		logger.Logger.Info().
+			Str("job", jobName).
+			Int64("objects_copied", stats.ObjectsCopied).
+			Int64("objects_skipped", stats.ObjectsSkipped).
+			Int64("bytes_copied", stats.BytesCopied).
+			Int("errors", len(stats.Errors)).
+			Msg("MinIO mirror completed")
+
+		sendMirrorResponse(conn, jobID, logID, stats, "", false)
+	}
+}
+
+// sendMirrorResponse sends mirror job response back to master
+func sendMirrorResponse(conn net.Conn, jobID, logID uint, stats *filesync.MirrorStats, errorMsg string, isPartial bool) {
+	status := "completed"
+	if errorMsg != "" {
+		status = "failed"
+	} else if isPartial {
+		status = "running"
+	}
+
+	data := map[string]interface{}{
+		"job_id":  jobID,
+		"log_id":  logID,
+		"status":  status,
+		"partial": isPartial,
+		"type":    "mirror",
+	}
+
+	if stats != nil {
+		data["objects_copied"] = stats.ObjectsCopied
+		data["objects_skipped"] = stats.ObjectsSkipped
+		data["bytes_copied"] = stats.BytesCopied
+		data["record_count"] = int(stats.ObjectsCopied) // For compatibility with JobLog
+		if len(stats.Errors) > 0 {
+			data["mirror_errors"] = stats.Errors
+		}
+	}
+
+	if errorMsg != "" {
+		data["error"] = errorMsg
+	}
+
+	response := AgentMessage{
+		Type:      "DATA_RESPONSE",
+		AgentName: AgentName,
+		Status:    status,
+		Timestamp: time.Now(),
+		Data:      data,
+	}
+
+	respBytes, _ := json.Marshal(response)
+	respBytes = append(respBytes, '\n')
+	conn.Write(respBytes)
 }
 
 // executeAPISyncJob handles REST API based sync jobs

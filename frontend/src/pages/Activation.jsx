@@ -76,9 +76,17 @@ function Activation() {
                 setMachineId(mid);
                 addConsoleOutput('success', `Machine ID: ${mid}`);
                 addConsoleOutput('info', 'Copy this ID and send to your vendor for activation code.');
-                // Auto-copy to clipboard
-                navigator.clipboard.writeText(mid);
-                addConsoleOutput('info', '✓ Copied to clipboard');
+                // Auto-copy to clipboard (only works with HTTPS)
+                try {
+                    if (navigator.clipboard && window.isSecureContext) {
+                        await navigator.clipboard.writeText(mid);
+                        addConsoleOutput('info', '✓ Copied to clipboard');
+                    } else {
+                        addConsoleOutput('warning', '⚠ Auto-copy disabled (requires HTTPS). Please copy manually.');
+                    }
+                } catch (clipError) {
+                    addConsoleOutput('warning', '⚠ Could not copy to clipboard. Please copy manually.');
+                }
             } catch (error) {
                 addConsoleOutput('error', `Error: ${error.response?.data?.error || error.message}`);
             }

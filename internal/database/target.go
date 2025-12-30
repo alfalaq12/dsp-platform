@@ -230,8 +230,9 @@ func (tc *TargetConnection) InsertBatch(tableName string, records []map[string]i
 			)
 		default: // postgres
 			// PostgreSQL: INSERT ... ON CONFLICT DO NOTHING
+			// OVERRIDING SYSTEM VALUE allows inserting into GENERATED ALWAYS AS IDENTITY columns
 			insertSQL = fmt.Sprintf(
-				"INSERT INTO \"%s\" (\"%s\") VALUES (%s) ON CONFLICT DO NOTHING",
+				"INSERT INTO \"%s\" (\"%s\") OVERRIDING SYSTEM VALUE VALUES (%s) ON CONFLICT DO NOTHING",
 				tableName,
 				strings.Join(columns, "\", \""),
 				strings.Join(placeholders, ", "),
@@ -308,8 +309,9 @@ func (tc *TargetConnection) upsertPostgres(tableName string, records []map[strin
 			placeholders = append(placeholders, fmt.Sprintf("$%d", i+1))
 		}
 
+		// OVERRIDING SYSTEM VALUE allows inserting into GENERATED ALWAYS AS IDENTITY columns
 		upsertSQL := fmt.Sprintf(
-			"INSERT INTO \"%s\" (\"%s\") VALUES (%s) ON CONFLICT (\"%s\") DO UPDATE SET %s",
+			"INSERT INTO \"%s\" (\"%s\") OVERRIDING SYSTEM VALUE VALUES (%s) ON CONFLICT (\"%s\") DO UPDATE SET %s",
 			tableName,
 			strings.Join(columns, "\", \""),
 			strings.Join(placeholders, ", "),
