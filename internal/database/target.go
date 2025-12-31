@@ -285,6 +285,7 @@ func inferPostgresType(value interface{}) string {
 
 // InsertBatch inserts records into target table with conflict handling
 // Supports: PostgreSQL, MySQL, Oracle
+// Optimized with batch multi-row VALUES for better performance
 func (tc *TargetConnection) InsertBatch(tableName string, records []map[string]interface{}) (int, error) {
 	if len(records) == 0 {
 		return 0, nil
@@ -296,56 +297,137 @@ func (tc *TargetConnection) InsertBatch(tableName string, records []map[string]i
 		columns = append(columns, col)
 	}
 
+	// Oracle doesn't support multi-row VALUES, use per-record insert
+	if tc.Config.Driver == "oracle" {
+		return tc.insertBatchOracle(tableName, records, columns)
+	}
+
 	insertedCount := 0
-	for _, record := range records {
-		var values []interface{}
-		var placeholders []string
-		var insertSQL string
+	batchSize := DefaultBatchSize
 
-		for i, col := range columns {
-			values = append(values, record[col])
-
-			switch tc.Config.Driver {
-			case "mysql":
-				placeholders = append(placeholders, "?")
-			case "oracle":
-				placeholders = append(placeholders, fmt.Sprintf(":%d", i+1))
-			default: // postgres
-				placeholders = append(placeholders, fmt.Sprintf("$%d", i+1))
-			}
+	// Process records in batches for PostgreSQL and MySQL
+	for i := 0; i < len(records); i += batchSize {
+		end := i + batchSize
+		if end > len(records) {
+			end = len(records)
 		}
+		batch := records[i:end]
+
+		var count int
+		var err error
 
 		switch tc.Config.Driver {
 		case "mysql":
-			// MySQL: INSERT IGNORE to skip duplicates
-			insertSQL = fmt.Sprintf(
-				"INSERT IGNORE INTO `%s` (`%s`) VALUES (%s)",
-				tableName,
-				strings.Join(columns, "`, `"),
-				strings.Join(placeholders, ", "),
-			)
-		case "oracle":
-			// Oracle: Use MERGE for insert-ignore behavior
-			insertSQL = fmt.Sprintf(
-				"INSERT INTO \"%s\" (\"%s\") VALUES (%s)",
-				tableName,
-				strings.Join(columns, "\", \""),
-				strings.Join(placeholders, ", "),
-			)
+			count, err = tc.insertBatchMySQL(tableName, batch, columns)
 		default: // postgres
-			// PostgreSQL: INSERT ... ON CONFLICT DO NOTHING
-			// OVERRIDING SYSTEM VALUE allows inserting into GENERATED ALWAYS AS IDENTITY columns
-			insertSQL = fmt.Sprintf(
-				"INSERT INTO \"%s\" (\"%s\") OVERRIDING SYSTEM VALUE VALUES (%s) ON CONFLICT DO NOTHING",
-				tableName,
-				strings.Join(columns, "\", \""),
-				strings.Join(placeholders, ", "),
-			)
+			count, err = tc.insertBatchPostgres(tableName, batch, columns)
 		}
+
+		if err != nil {
+			log.Printf("Batch insert error (batch %d-%d): %v", i, end, err)
+			// Fallback to per-record for this batch if batch fails
+			for _, record := range batch {
+				if c := tc.insertSingleRecord(tableName, record, columns); c > 0 {
+					insertedCount += c
+				}
+			}
+			continue
+		}
+
+		insertedCount += count
+	}
+
+	log.Printf("Inserted %d records to %s (driver: %s)", insertedCount, tableName, tc.Config.Driver)
+	return insertedCount, nil
+}
+
+// insertBatchPostgres inserts multiple records using multi-row VALUES for PostgreSQL
+func (tc *TargetConnection) insertBatchPostgres(tableName string, records []map[string]interface{}, columns []string) (int, error) {
+	var allValues []interface{}
+	var valueRows []string
+	paramIdx := 1
+
+	for _, record := range records {
+		var placeholders []string
+		for _, col := range columns {
+			allValues = append(allValues, record[col])
+			placeholders = append(placeholders, fmt.Sprintf("$%d", paramIdx))
+			paramIdx++
+		}
+		valueRows = append(valueRows, fmt.Sprintf("(%s)", strings.Join(placeholders, ", ")))
+	}
+
+	// OVERRIDING SYSTEM VALUE allows inserting into GENERATED ALWAYS AS IDENTITY columns
+	insertSQL := fmt.Sprintf(
+		"INSERT INTO \"%s\" (\"%s\") OVERRIDING SYSTEM VALUE VALUES %s ON CONFLICT DO NOTHING",
+		tableName,
+		strings.Join(columns, "\", \""),
+		strings.Join(valueRows, ", "),
+	)
+
+	result, err := tc.DB.Exec(insertSQL, allValues...)
+	if err != nil {
+		return 0, err
+	}
+
+	affected, _ := result.RowsAffected()
+	return int(affected), nil
+}
+
+// insertBatchMySQL inserts multiple records using multi-row VALUES for MySQL
+func (tc *TargetConnection) insertBatchMySQL(tableName string, records []map[string]interface{}, columns []string) (int, error) {
+	var allValues []interface{}
+	var valueRows []string
+
+	for _, record := range records {
+		var placeholders []string
+		for _, col := range columns {
+			allValues = append(allValues, record[col])
+			placeholders = append(placeholders, "?")
+		}
+		valueRows = append(valueRows, fmt.Sprintf("(%s)", strings.Join(placeholders, ", ")))
+	}
+
+	// MySQL: INSERT IGNORE to skip duplicates
+	insertSQL := fmt.Sprintf(
+		"INSERT IGNORE INTO `%s` (`%s`) VALUES %s",
+		tableName,
+		strings.Join(columns, "`, `"),
+		strings.Join(valueRows, ", "),
+	)
+
+	result, err := tc.DB.Exec(insertSQL, allValues...)
+	if err != nil {
+		return 0, err
+	}
+
+	affected, _ := result.RowsAffected()
+	return int(affected), nil
+}
+
+// insertBatchOracle inserts records one by one for Oracle (no multi-row VALUES support)
+func (tc *TargetConnection) insertBatchOracle(tableName string, records []map[string]interface{}, columns []string) (int, error) {
+	insertedCount := 0
+
+	for _, record := range records {
+		var values []interface{}
+		var placeholders []string
+
+		for i, col := range columns {
+			values = append(values, record[col])
+			placeholders = append(placeholders, fmt.Sprintf(":%d", i+1))
+		}
+
+		insertSQL := fmt.Sprintf(
+			"INSERT INTO \"%s\" (\"%s\") VALUES (%s)",
+			tableName,
+			strings.Join(columns, "\", \""),
+			strings.Join(placeholders, ", "),
+		)
 
 		result, err := tc.DB.Exec(insertSQL, values...)
 		if err != nil {
-			log.Printf("Insert error (driver: %s, skipping): %v", tc.Config.Driver, err)
+			log.Printf("Oracle insert error (skipping): %v", err)
 			continue
 		}
 
@@ -353,8 +435,51 @@ func (tc *TargetConnection) InsertBatch(tableName string, records []map[string]i
 		insertedCount += int(affected)
 	}
 
-	log.Printf("Inserted %d records to %s (driver: %s)", insertedCount, tableName, tc.Config.Driver)
 	return insertedCount, nil
+}
+
+// insertSingleRecord inserts a single record (fallback for batch errors)
+func (tc *TargetConnection) insertSingleRecord(tableName string, record map[string]interface{}, columns []string) int {
+	var values []interface{}
+	var placeholders []string
+	var insertSQL string
+
+	for i, col := range columns {
+		values = append(values, record[col])
+
+		switch tc.Config.Driver {
+		case "mysql":
+			placeholders = append(placeholders, "?")
+		default: // postgres
+			placeholders = append(placeholders, fmt.Sprintf("$%d", i+1))
+		}
+	}
+
+	switch tc.Config.Driver {
+	case "mysql":
+		insertSQL = fmt.Sprintf(
+			"INSERT IGNORE INTO `%s` (`%s`) VALUES (%s)",
+			tableName,
+			strings.Join(columns, "`, `"),
+			strings.Join(placeholders, ", "),
+		)
+	default: // postgres
+		insertSQL = fmt.Sprintf(
+			"INSERT INTO \"%s\" (\"%s\") OVERRIDING SYSTEM VALUE VALUES (%s) ON CONFLICT DO NOTHING",
+			tableName,
+			strings.Join(columns, "\", \""),
+			strings.Join(placeholders, ", "),
+		)
+	}
+
+	result, err := tc.DB.Exec(insertSQL, values...)
+	if err != nil {
+		log.Printf("Single insert error (driver: %s, skipping): %v", tc.Config.Driver, err)
+		return 0
+	}
+
+	affected, _ := result.RowsAffected()
+	return int(affected)
 }
 
 // UpsertBatch inserts or updates records based on unique key column

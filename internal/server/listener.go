@@ -252,6 +252,9 @@ func (al *AgentListener) handleRegister(msg core.AgentMessage, clientAddr string
 	// Store connection for later use (bidirectional communication)
 	al.storeConnection(msg.AgentName, conn)
 
+	// Auto-create Network if not exists (so agent appears in Network Management)
+	al.autoCreateNetwork(msg.AgentName, clientAddr)
+
 	// Send acknowledgment
 	response := core.AgentMessage{
 		Type:      "REGISTER_ACK",
@@ -263,6 +266,52 @@ func (al *AgentListener) handleRegister(msg core.AgentMessage, clientAddr string
 	}
 
 	al.sendResponse(conn, response)
+}
+
+// autoCreateNetwork creates a placeholder Network entry when agent first registers
+func (al *AgentListener) autoCreateNetwork(agentName, clientAddr string) {
+	// Check if Network already exists with this agent name
+	var existingNetwork core.Network
+	err := al.handler.db.Where("name = ? OR agent_name = ?", agentName, agentName).First(&existingNetwork).Error
+
+	if err == nil {
+		// Network already exists, update IP and status
+		existingNetwork.IPAddress = clientAddr
+		existingNetwork.Status = "online"
+		existingNetwork.LastSeen = time.Now()
+		al.handler.db.Save(&existingNetwork)
+		log.Printf("Updated existing Network '%s' with IP: %s", agentName, clientAddr)
+		return
+	}
+
+	// Create new placeholder Network
+	network := core.Network{
+		Name:       agentName,
+		AgentName:  agentName,
+		IPAddress:  clientAddr,
+		Status:     "online",
+		Type:       "source",
+		SourceType: "database", // Default source type
+		LastSeen:   time.Now(),
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+		// Database config fields are empty - user will fill them in
+		DBDriver:  "postgres",
+		DBPort:    "5432",
+		DBSSLMode: "disable",
+		// Target config defaults
+		TargetSourceType: "database",
+		TargetDBDriver:   "postgres",
+		TargetDBPort:     "5432",
+		TargetDBSSLMode:  "disable",
+	}
+
+	if err := al.handler.db.Create(&network).Error; err != nil {
+		log.Printf("Failed to auto-create Network for agent %s: %v", agentName, err)
+		return
+	}
+
+	log.Printf("✅ Auto-created Network '%s' for newly registered agent (IP: %s)", agentName, clientAddr)
 }
 
 // handleHeartbeat processes heartbeat messages
