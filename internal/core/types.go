@@ -138,7 +138,7 @@ type Network struct {
 type Job struct {
 	ID        uint      `json:"id" gorm:"primaryKey"`
 	Name      string    `json:"name" gorm:"not null"`
-	SchemaID  uint      `json:"schema_id" gorm:"not null"`
+	SchemaID  *uint     `json:"schema_id"` // Optional for minio_mirror jobs (no data transformation needed)
 	NetworkID uint      `json:"network_id" gorm:"not null"`
 	Status    string    `json:"status" gorm:"default:'pending'"` // pending/running/completed/failed
 	Schedule  string    `json:"schedule"`                        // cron expression or interval
@@ -150,7 +150,7 @@ type Job struct {
 	UpdatedBy uint      `json:"updated_by"`              // Last modifier user ID
 
 	// Relations
-	Schema  Schema  `json:"schema" gorm:"foreignKey:SchemaID"`
+	Schema  *Schema `json:"schema,omitempty" gorm:"foreignKey:SchemaID"` // Optional relation
 	Network Network `json:"network" gorm:"foreignKey:NetworkID"`
 }
 

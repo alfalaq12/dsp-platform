@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Play, RefreshCw, X, Clock, Database, CheckCircle, XCircle, Loader2, Trash2, Eye, Pause, Network as NetworkIcon } from 'lucide-react';
+import { Plus, Play, RefreshCw, X, Clock, Database, CheckCircle, XCircle, Loader2, Trash2, Eye, Pause, Network as NetworkIcon, HardDrive } from 'lucide-react';
 import { useJobs, useSchemas, useNetworks, useJob, useCreateJob, useDeleteJob, useRunJob, useToggleJob } from '../hooks/useQueries';
 import { useToast, ToastContainer, ConfirmModal } from '../components/Toast';
 import Pagination from '../components/Pagination';
@@ -77,13 +77,21 @@ function Jobs() {
         setSelectedJob(job);
     };
 
+    // Check if selected network is MinIO-to-MinIO (mirror mode - no schema required)
+    const isMinioMirrorMode = useMemo(() => {
+        if (!formData.network_id) return false;
+        const selectedNetwork = networks.find(n => n.id === parseInt(formData.network_id, 10));
+        return selectedNetwork?.source_type === 'minio' && selectedNetwork?.target_source_type === 'minio';
+    }, [formData.network_id, networks]);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsSubmitting(true);
         try {
             const jobData = {
                 name: formData.name,
-                schema_id: parseInt(formData.schema_id, 10),
+                // Schema is optional for MinIO mirror jobs
+                schema_id: isMinioMirrorMode ? null : parseInt(formData.schema_id, 10),
                 network_id: parseInt(formData.network_id, 10),
                 schedule: formData.schedule || '',
             };
@@ -345,25 +353,35 @@ function Jobs() {
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Schema</label>
-                                <SearchableSelect
-                                    options={schemas}
-                                    value={formData.schema_id}
-                                    onChange={(e) => setFormData({ ...formData, schema_id: e.target.value })}
-                                    placeholder="Search schema..."
-                                    required
-                                />
-                            </div>
-                            <div>
                                 <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Network</label>
                                 <SearchableSelect
                                     options={networks}
                                     value={formData.network_id}
-                                    onChange={(e) => setFormData({ ...formData, network_id: e.target.value })}
+                                    onChange={(e) => setFormData({ ...formData, network_id: e.target.value, schema_id: '' })}
                                     placeholder="Search network..."
-                                    subField="db_driver"
+                                    subField="source_type"
                                     required
                                 />
+                            </div>
+                            <div>
+                                <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Schema</label>
+                                {isMinioMirrorMode ? (
+                                    <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${isDark ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>
+                                        <HardDrive className="w-5 h-5" />
+                                        <div>
+                                            <p className="font-semibold">MinIO Mirror Mode</p>
+                                            <p className={`text-xs ${isDark ? 'text-emerald-500' : 'text-emerald-600'}`}>No schema required - direct object sync</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <SearchableSelect
+                                        options={schemas}
+                                        value={formData.schema_id}
+                                        onChange={(e) => setFormData({ ...formData, schema_id: e.target.value })}
+                                        placeholder="Search schema..."
+                                        required
+                                    />
+                                )}
                             </div>
                         </div>
                         <div>
@@ -481,9 +499,16 @@ function Jobs() {
                                         </div>
                                     </td>
                                     <td className="px-4 py-3">
-                                        <div className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                                            {job.schema?.name || '-'}
-                                        </div>
+                                        {job.schema?.name ? (
+                                            <div className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                                {job.schema.name}
+                                            </div>
+                                        ) : (
+                                            <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-50 text-emerald-600'}`}>
+                                                <HardDrive className="w-3 h-3" />
+                                                MinIO Mirror
+                                            </span>
+                                        )}
                                     </td>
                                     <td className="px-4 py-3">
                                         <span className={`text-xs font-mono px-2 py-1 rounded ${isDark ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
@@ -603,7 +628,14 @@ function Jobs() {
                             <div className="flex items-center gap-2">
                                 <Database className="w-3.5 h-3.5" />
                                 <span>Schema:</span>
-                                <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>{job.schema?.name || '-'}</span>
+                                {job.schema?.name ? (
+                                    <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>{job.schema.name}</span>
+                                ) : (
+                                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs ${isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-50 text-emerald-600'}`}>
+                                        <HardDrive className="w-3 h-3" />
+                                        MinIO Mirror
+                                    </span>
+                                )}
                             </div>
                             <div className="flex items-center gap-2">
                                 <Clock className="w-3.5 h-3.5" />
@@ -700,7 +732,14 @@ function Jobs() {
                                         <Database className={`w-4 h-4 ${isDark ? 'text-blue-400' : 'text-blue-500'}`} />
                                         <p className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Schema</p>
                                     </div>
-                                    <p className={`font-semibold text-lg ${isDark ? 'text-white' : 'text-slate-900'}`}>{selectedJob.schema?.name}</p>
+                                    {selectedJob.schema?.name ? (
+                                        <p className={`font-semibold text-lg ${isDark ? 'text-white' : 'text-slate-900'}`}>{selectedJob.schema.name}</p>
+                                    ) : (
+                                        <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg ${isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-50 text-emerald-600'}`}>
+                                            <HardDrive className="w-4 h-4" />
+                                            <span className="font-semibold">MinIO Mirror</span>
+                                        </div>
+                                    )}
                                 </div>
                                 <div className={`rounded-xl p-4 border ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200 shadow-sm'}`}>
                                     <div className="flex items-center gap-2 mb-2">

@@ -729,6 +729,19 @@ func (h *Handler) RunJob(c *gin.Context) {
 		sourceType = "minio_mirror"
 	}
 
+	// Extract schema values safely (Schema is optional for minio_mirror)
+	var targetTable, sqlCommand, fileFormat, filePattern, uniqueKeyColumn, delimiter string
+	var hasHeader bool
+	if job.Schema != nil {
+		targetTable = job.Schema.TargetTable
+		sqlCommand = job.Schema.SQLCommand
+		fileFormat = job.Schema.FileFormat
+		filePattern = job.Schema.FilePattern
+		uniqueKeyColumn = job.Schema.UniqueKeyColumn
+		hasHeader = job.Schema.HasHeader
+		delimiter = job.Schema.Delimiter
+	}
+
 	command := core.AgentMessage{
 		Type:      "RUN_JOB",
 		Timestamp: time.Now(),
@@ -736,11 +749,11 @@ func (h *Handler) RunJob(c *gin.Context) {
 			"job_id":       job.ID,
 			"log_id":       jobLog.ID,
 			"name":         job.Name,
-			"target_table": job.Schema.TargetTable,
+			"target_table": targetTable,
 			// Network source type (database, ftp, sftp, minio, minio_mirror)
 			"source_type": sourceType,
 			// Database config (for source_type=database)
-			"query": job.Schema.SQLCommand,
+			"query": sqlCommand,
 			"db_config": map[string]interface{}{
 				"driver":   job.Network.DBDriver,
 				"host":     job.Network.DBHost,
@@ -762,11 +775,11 @@ func (h *Handler) RunJob(c *gin.Context) {
 			},
 			// File parsing config from Schema
 			"file_config": map[string]interface{}{
-				"format":            job.Schema.FileFormat,
-				"pattern":           job.Schema.FilePattern,
-				"has_header":        job.Schema.HasHeader,
-				"delimiter":         job.Schema.Delimiter,
-				"unique_key_column": job.Schema.UniqueKeyColumn,
+				"format":            fileFormat,
+				"pattern":           filePattern,
+				"has_header":        hasHeader,
+				"delimiter":         delimiter,
+				"unique_key_column": uniqueKeyColumn,
 			},
 			// API config (for source_type=api)
 			"api_config": map[string]interface{}{
