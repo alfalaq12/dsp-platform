@@ -9,12 +9,12 @@ Platform sinkronisasi data terpusat dengan arsitektur Master-Agent untuk kebutuh
 │                       Master Server                              │
 │  ┌──────────────────┐            ┌───────────────────────────┐  │
 │  │   Web Console    │            │      Agent Listener       │  │
-│  │  (React + Vite)  │            │        TCP :8447          │  │
-│  │   Served :8080   │            │                           │  │
+│  │  (React + Vite)  │            │        TCP :447           │  │
+│  │   Served :441    │            │                           │  │
 │  └────────┬─────────┘            └─────────────┬─────────────┘  │
 │           │                                     │                │
 │  ┌────────▼─────────────────────────────────────▼────────────┐  │
-│  │                   Gin HTTP API :8080                       │  │
+│  │                   Gin HTTP API :441                        │  │
 │  │               (REST + JWT Authentication)                  │  │
 │  └────────────────────────────────────────────────────────────┘  │
 │           │                                                      │
@@ -37,8 +37,8 @@ Platform sinkronisasi data terpusat dengan arsitektur Master-Agent untuk kebutuh
 
 ### Master Server
 - **Single Binary**: Tidak butuh install database server terpisah
-- **REST API** (Port 8080): JWT Auth, Management Schema/Network/Job
-- **Agent Listener** (Port 8447): Real-time monitoring & config push
+- **REST API** (Port 441): JWT Auth, Management Schema/Network/Job
+- **Agent Listener** (Port 447): Real-time monitoring & config push
 - **Web Dashboard**: Modern UI (React/Vite) ter-bundle di binary
 - **Target Database**: Push data ke PostgreSQL, MySQL, Oracle
 - **UPSERT Support**: Update or Insert otomatis untuk sync berulang
@@ -48,6 +48,7 @@ Platform sinkronisasi data terpusat dengan arsitektur Master-Agent untuk kebutuh
 - **Multi-Source Sync**:
   - Database: PostgreSQL, MySQL, SQL Server, Oracle
   - NoSQL: MongoDB, Redis
+  - Object Storage: MinIO/S3
   - File: FTP, SFTP (CSV, JSON, Excel)
   - REST API: Fetch dari endpoint external
 - **Service Mode**: Windows Service atau Linux Systemd
@@ -58,7 +59,7 @@ Platform sinkronisasi data terpusat dengan arsitektur Master-Agent untuk kebutuh
 |---------|-------------|
 | **Dashboard** | Overview sync jobs, agent status, recent logs |
 | **Schema** | Define source queries dan target tables |
-| **Network** | Configure data sources (DB, FTP, API) |
+| **Network** | Configure data sources & targets (DB, FTP, API, MinIO) |
 | **Jobs** | Schedule & run sync jobs (cron support) |
 | **Terminal Console** | Remote command execution on agents (Admin) |
 | **Agent Tokens** | Manage agent authentication tokens |
@@ -91,7 +92,7 @@ cp .env.example .env
 ./dsp-master
 ```
 
-Akses Dashboard: `http://localhost:8080`  
+Akses Dashboard: `http://localhost:441` atau `https://localhost:441` (jika TLS enabled)  
 **Login Default**: `admin` / `admin` (wajib ganti saat pertama login!)
 
 ### 3. Jalankan Agent
@@ -102,7 +103,7 @@ cp .env.example .env
 
 # Edit .env:
 # MASTER_HOST=192.168.1.100
-# MASTER_PORT=8447
+# MASTER_PORT=447
 # AGENT_NAME=kantor-a
 # AGENT_TOKEN=<dari dashboard>
 
@@ -136,8 +137,8 @@ releases/v1.0.0/
 
 ### Master `.env`
 ```bash
-PORT=8080
-TCP_PORT=8447
+PORT=441
+TCP_PORT=447
 JWT_SECRET=your-secure-random-string
 TLS_ENABLED=false
 # Database settings configured via Web Console -> Settings
@@ -146,7 +147,7 @@ TLS_ENABLED=false
 ### Agent `.env`
 ```bash
 MASTER_HOST=192.168.1.100
-MASTER_PORT=8447
+MASTER_PORT=447
 AGENT_NAME=tenant-name
 AGENT_TOKEN=paste-token-from-dashboard
 TLS_ENABLED=false
@@ -173,6 +174,7 @@ TLS_ENABLED=false
 | **Database** | Oracle | MERGE INTO support |
 | **NoSQL** | MongoDB | Collection sync |
 | **NoSQL** | Redis | Key pattern scan |
+| **Object Storage** | MinIO/S3 | Bucket sync, MinIO Mirror |
 | **File** | FTP | CSV, JSON, Excel |
 | **File** | SFTP | SSH key auth supported |
 | **API** | REST | GET/POST with auth |
@@ -241,6 +243,9 @@ dsp-platform/
 
 ## 🆕 Recent Updates
 
+- **MinIO Mirror**: Sync data between MinIO/S3 buckets (source to target)
+- **Network 1:1 Pairing**: Configure source AND target dalam satu Network config
+- **License Activation**: Software license management system
 - **Terminal Console**: Remote command execution from Master to Agent
 - **UPSERT Support**: Multi-database UPSERT (PostgreSQL, MySQL, Oracle, MongoDB)
 - **Release Build Scripts**: Automated multi-platform packaging

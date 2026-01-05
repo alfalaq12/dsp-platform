@@ -47,7 +47,7 @@ nano .env
 dsp-master.exe    # Windows
 ```
 
-Akses: **http://localhost:8080**
+Akses: **http://localhost:441** atau **https://localhost:441** (TLS)
 
 ### 3. Login & Setup Target Database
 
@@ -78,7 +78,7 @@ nano .env
 Isi `.env`:
 ```bash
 MASTER_HOST=192.168.1.100    # IP Master Server
-MASTER_PORT=8447
+MASTER_PORT=447
 AGENT_NAME=kantor-cabang-a
 AGENT_TOKEN=eyJhbGciOiJIUzI1NiIs...  # Token dari dashboard
 ```
@@ -97,7 +97,7 @@ Jalankan:
 
 ## ✅ Verification Checklist
 
-- [ ] Master server running di port 8080
+- [ ] Master server running di port 441
 - [ ] Agent connected (cek Dashboard)
 - [ ] Target database connected (Settings → Test)
 - [ ] Network source configured
@@ -108,7 +108,7 @@ Jalankan:
 
 ```bash
 # Check agent connection status
-curl http://localhost:8080/api/agents/connected
+curl http://localhost:441/api/agents/connected
 
 # Run job manually (dari Terminal Console)
 # Login → Terminal → pilih agent → ketik command
@@ -121,7 +121,7 @@ tail -f logs/dsp-master.log
 
 | Problem | Solution |
 |---------|----------|
-| Agent tidak connect | Cek firewall port 8447, cek MASTER_HOST |
+| Agent tidak connect | Cek firewall port 447, cek MASTER_HOST |
 | Login gagal | Pastikan cookies enabled, cek JWT_SECRET |
 | Sync failed | Cek Network source credentials |
 | Target DB error | Pastikan target table otomatis dibuat |
