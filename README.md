@@ -67,47 +67,107 @@ Platform sinkronisasi data terpusat dengan arsitektur Master-Agent untuk kebutuh
 | **Audit Logs** | Track all user actions |
 | **Settings** | Configure target database |
 
-## 🚀 Quick Start
+## 🐳 Docker (Recommended)
 
-### 1. Clone & Build
+**Satu command untuk run Master Server:**
 
 ```bash
-git clone https://github.com/YOUR-REPO/dsp-platform.git
+# Clone dan jalankan
+git clone https://github.com/alfalaq12/dsp-platform.git
 cd dsp-platform
 
-# Build untuk semua platform
-./scripts/build-release.sh 1.0.0
-# atau Windows:
-.\scripts\build-release.ps1 -Version "1.0.0"
+# Start Master Server saja
+docker compose up -d
+
+# Lihat logs
+docker compose logs -f
 ```
 
-### 2. Jalankan Master Server
+🌐 Akses Dashboard: `http://localhost:441`  
+🔐 **Login**: `admin` / `admin`
 
+**Docker Commands:**
 ```bash
-# Buat .env dari template
-cp .env.example .env
-# Edit JWT_SECRET!
+# Master saja (default)
+docker compose up -d
 
-# Jalankan
-./dsp-master
+# Master + Agent (local testing)
+docker compose --profile all up -d
+
+# Agent saja (connect ke external Master)
+# Edit .env dulu: MASTER_HOST=192.168.1.100
+docker compose --profile agent up -d
+
+# Stop semua
+docker compose down
 ```
 
-Akses Dashboard: `http://localhost:441` atau `https://localhost:441` (jika TLS enabled)  
-**Login Default**: `admin` / `admin` (wajib ganti saat pertama login!)
+---
 
-### 3. Jalankan Agent
+## 🚀 Manual Build (Tanpa Docker)
 
 ```bash
-# Di server tenant
+# Clone repo
+git clone https://github.com/alfalaq12/dsp-platform.git
+cd dsp-platform
+
+# Linux/Mac - Satu command untuk build semua:
+./install.sh
+
+# Windows PowerShell - Satu command untuk build semua:
+.\install.ps1
+```
+
+**Itu saja!** Script akan otomatis:
+- ✅ Build Frontend (React)
+- ✅ Build Master & Agent untuk Linux
+- ✅ Build Master & Agent untuk Windows
+- ✅ Copy semua assets yang diperlukan
+
+Output ada di folder `bin/linux/` dan `bin/windows/`.
+
+### Options (Opsional)
+
+```bash
+# Linux/Mac
+./install.sh --linux-only       # Build Linux saja
+./install.sh --skip-frontend    # Skip frontend (pakai existing)
+
+# Windows PowerShell  
+.\install.ps1 -LinuxOnly        # Build Linux saja
+.\install.ps1 -SkipFrontend     # Skip frontend (pakai existing)
+```
+
+### Jalankan Master Server
+
+```bash
+# 1. Copy dan edit config
+cp .env.example .env
+# Edit JWT_SECRET di file .env!
+
+# 2. Jalankan
+./bin/linux/dsp-master         # Linux
+.\bin\windows\dsp-master.exe   # Windows
+```
+
+🌐 Akses Dashboard: `http://localhost:441`  
+🔐 **Login Default**: `admin` / `admin`
+
+### Jalankan Agent (di Server Tenant)
+
+```bash
+# 1. Copy dan edit config
 cp .env.example .env
 
-# Edit .env:
-# MASTER_HOST=192.168.1.100
-# MASTER_PORT=447
-# AGENT_NAME=kantor-a
-# AGENT_TOKEN=<dari dashboard>
+# 2. Edit .env:
+#    MASTER_HOST=192.168.1.100
+#    MASTER_PORT=447
+#    AGENT_NAME=kantor-a
+#    AGENT_TOKEN=<copy dari dashboard>
 
-./dsp-agent
+# 3. Jalankan
+./bin/linux/dsp-agent          # Linux
+.\bin\windows\dsp-agent.exe    # Windows
 ```
 
 ## 📦 Release Packages
@@ -133,25 +193,37 @@ releases/v1.0.0/
     └── install.sh
 ```
 
-## � Configuration
+## ⚙️ Configuration
 
-### Master `.env`
+Semua config ada di satu file `.env.example`. Copy ke `.env` dan edit sesuai kebutuhan:
+
 ```bash
-PORT=441
-TCP_PORT=447
-JWT_SECRET=your-secure-random-string
-TLS_ENABLED=false
-# Database settings configured via Web Console -> Settings
+cp .env.example .env
 ```
 
-### Agent `.env`
+### Master Server
 ```bash
-MASTER_HOST=192.168.1.100
-MASTER_PORT=447
-AGENT_NAME=tenant-name
-AGENT_TOKEN=paste-token-from-dashboard
-TLS_ENABLED=false
-# Source DB settings pushed from Master (Network config)
+JWT_SECRET=YourSuperSecretJWTKey    # WAJIB GANTI!
+HTTP_PORT=441                        # Web Console port
+TCP_PORT=447                         # Agent connection port
+TLS_ENABLED=false                    # Set true untuk HTTPS
+```
+
+### Agent (Tenant)
+```bash
+MASTER_HOST=192.168.1.100            # IP Master Server
+MASTER_PORT=447                      # TCP port Master
+AGENT_NAME=kantor-cabang-a           # Nama agent
+AGENT_TOKEN=paste-dari-dashboard     # Token dari dashboard Master
+TLS_ENABLED=false                    # Samakan dengan Master
+```
+
+### TLS/HTTPS (Optional)
+```bash
+TLS_ENABLED=true
+TLS_CERT_PATH=./certs/server.crt
+TLS_KEY_PATH=./certs/server.key
+TLS_CA_PATH=./certs/ca.crt
 ```
 
 ## 🔒 Security

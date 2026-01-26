@@ -56,7 +56,7 @@ package-all: ## Package binaries with frontend, certs, and config
 	@cp bin/linux/dsp-master bin/linux/master/
 	@cp -r frontend/dist bin/linux/master/frontend/
 	@cp -r certs/* bin/linux/master/certs/ 2>/dev/null || true
-	@cp .env.tls.example bin/linux/master/.env.example
+	@cp .env.example bin/linux/master/.env.example
 	@cp deployment/linux/dsp-master.service bin/linux/master/deployment/linux/
 	@cp deployment/linux/install-master.sh bin/linux/master/deployment/linux/
 	@cp deployment/certs/generate-certs.sh bin/linux/master/
@@ -64,7 +64,7 @@ package-all: ## Package binaries with frontend, certs, and config
 	@mkdir -p bin/linux/agent/certs bin/linux/agent/deployment/linux
 	@cp bin/linux/dsp-agent bin/linux/agent/
 	@cp certs/ca.crt bin/linux/agent/certs/ 2>/dev/null || true
-	@cp .env.tls.example bin/linux/agent/.env.example
+	@cp .env.example bin/linux/agent/.env.example
 	@cp deployment/linux/dsp-agent.service bin/linux/agent/deployment/linux/
 	@cp deployment/linux/install-agent.sh bin/linux/agent/deployment/linux/
 	@# Windows Master
@@ -72,14 +72,14 @@ package-all: ## Package binaries with frontend, certs, and config
 	@cp bin/windows/dsp-master.exe bin/windows/master/
 	@cp -r frontend/dist bin/windows/master/frontend/
 	@cp -r certs/* bin/windows/master/certs/ 2>/dev/null || true
-	@cp .env.tls.example bin/windows/master/.env.example
+	@cp .env.example bin/windows/master/.env.example
 	@cp deployment/windows/install-service.ps1 bin/windows/master/deployment/windows/ 2>/dev/null || true
 	@cp deployment/certs/generate-certs.ps1 bin/windows/master/
 	@# Windows Agent
 	@mkdir -p bin/windows/agent/certs bin/windows/agent/deployment/windows
 	@cp bin/windows/dsp-agent.exe bin/windows/agent/
 	@cp certs/ca.crt bin/windows/agent/certs/ 2>/dev/null || true
-	@cp .env.tls.example bin/windows/agent/.env.example
+	@cp .env.example bin/windows/agent/.env.example
 	@echo "✅ All packages ready"
 
 zip-all: package-all ## 📦 Create ZIP files for portable deployment (flashdisk)

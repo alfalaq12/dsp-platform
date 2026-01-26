@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"dsp-platform/internal/crypto"
 	"dsp-platform/internal/database"
 	"dsp-platform/internal/filesync"
 	"dsp-platform/internal/logger"
@@ -38,6 +39,9 @@ var (
 	TLSEnabled    bool
 	TLSCAPath     string
 	TLSSkipVerify bool
+
+	// Encryption
+	encryptor *crypto.Encryptor
 )
 
 // AgentMessage represents the message protocol
@@ -89,6 +93,14 @@ func init() {
 	TLSEnabled = getEnv("TLS_ENABLED", "false") == "true"
 	TLSCAPath = getEnv("TLS_CA_PATH", "./certs/ca.crt")
 	TLSSkipVerify = getEnv("TLS_SKIP_VERIFY", "false") == "true"
+
+	// Initialize encryption
+	encryptConfig := crypto.LoadConfigFromEnv()
+	var encErr error
+	encryptor, encErr = crypto.NewEncryptor(encryptConfig)
+	if encErr != nil {
+		panic("Failed to initialize encryption: " + encErr.Error())
+	}
 }
 
 func getEnv(key, defaultValue string) string {
@@ -386,8 +398,19 @@ func sendMessage(conn net.Conn, msg AgentMessage) error {
 		return err
 	}
 
-	data = append(data, '\n')
-	_, err = conn.Write(data)
+	// Encrypt data payload if encryption is enabled
+	var payload string
+	if encryptor != nil && encryptor.IsEnabled() {
+		payload, err = encryptor.EncryptString(string(data))
+		if err != nil {
+			logger.Logger.Error().Err(err).Msg("Failed to encrypt message")
+			return err
+		}
+	} else {
+		payload = string(data)
+	}
+
+	_, err = conn.Write([]byte(payload + "\n"))
 	return err
 }
 
@@ -678,9 +701,29 @@ func executeMongoDBSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, j
 		bsonFilter[k] = v
 	}
 
-	// Execute MongoDB find query
-	logger.Logger.Info().Str("job", jobName).Msg("Executing MongoDB find query")
-	records, err := mongoConn.ExecuteFind(mongoConfig.Collection, bsonFilter)
+	// Batch configuration
+	batchSize := 5000
+	totalRecords := 0
+
+	// Define callback function for partial batches
+	processBatch := func(batch []map[string]interface{}) error {
+		count := len(batch)
+		totalRecords += count
+
+		logger.Logger.Info().
+			Str("job", jobName).
+			Int("batch_size", count).
+			Int("total_so_far", totalRecords).
+			Msg("Sending MongoDB batch")
+
+		sendDataResponse(conn, jobID, logID, batch, count, "", true)
+		return nil
+	}
+
+	// Execute MongoDB find query with streaming batch processing
+	logger.Logger.Info().Str("job", jobName).Msg("Starting MongoDB streaming query")
+	err = mongoConn.ExecuteFindWithBatch(mongoConfig.Collection, bsonFilter, batchSize, processBatch)
+
 	if err != nil {
 		logger.Logger.Error().Err(err).Msg("Failed to execute MongoDB find")
 		sendDataResponse(conn, jobID, logID, nil, 0, err.Error(), false)
@@ -689,26 +732,11 @@ func executeMongoDBSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, j
 
 	logger.Logger.Info().
 		Str("job", jobName).
-		Int("total_records", len(records)).
-		Msg("MongoDB query completed")
+		Int("total_records", totalRecords).
+		Msg("MongoDB streaming query completed")
 
-	// Send records in batches
-	batchSize := 5000
-	for i := 0; i < len(records); i += batchSize {
-		end := i + batchSize
-		if end > len(records) {
-			end = len(records)
-		}
-		batch := records[i:end]
-		isPartial := end < len(records)
-
-		sendDataResponse(conn, jobID, logID, batch, len(batch), "", isPartial)
-	}
-
-	// Send final completion if we sent data or if no records
-	if len(records) == 0 || len(records)%batchSize == 0 {
-		sendDataResponse(conn, jobID, logID, nil, 0, "", false)
-	}
+	// Send final completion response
+	sendDataResponse(conn, jobID, logID, nil, 0, "", false)
 }
 
 // executeRedisSyncJob handles Redis-based sync jobs
@@ -776,9 +804,29 @@ func executeRedisSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, job
 	}
 	defer redisConn.Close()
 
-	// Scan keys matching pattern
-	logger.Logger.Info().Str("job", jobName).Str("pattern", redisConfig.Pattern).Msg("Scanning Redis keys")
-	records, err := redisConn.ScanKeys(redisConfig.Pattern)
+	// Batch configuration
+	batchSize := 5000
+	totalRecords := 0
+
+	// Define callback function for partial batches
+	processBatch := func(batch []map[string]interface{}) error {
+		count := len(batch)
+		totalRecords += count
+
+		logger.Logger.Info().
+			Str("job", jobName).
+			Int("batch_size", count).
+			Int("total_so_far", totalRecords).
+			Msg("Sending Redis batch")
+
+		sendDataResponse(conn, jobID, logID, batch, count, "", true)
+		return nil
+	}
+
+	// Scan keys with streaming batch processing
+	logger.Logger.Info().Str("job", jobName).Str("pattern", redisConfig.Pattern).Msg("Starting Redis streaming scan")
+	err = redisConn.ScanKeysWithBatch(redisConfig.Pattern, batchSize, processBatch)
+
 	if err != nil {
 		logger.Logger.Error().Err(err).Msg("Failed to scan Redis keys")
 		sendDataResponse(conn, jobID, logID, nil, 0, err.Error(), false)
@@ -787,26 +835,11 @@ func executeRedisSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, job
 
 	logger.Logger.Info().
 		Str("job", jobName).
-		Int("total_records", len(records)).
-		Msg("Redis scan completed")
+		Int("total_records", totalRecords).
+		Msg("Redis streaming scan completed")
 
-	// Send records in batches
-	batchSize := 5000
-	for i := 0; i < len(records); i += batchSize {
-		end := i + batchSize
-		if end > len(records) {
-			end = len(records)
-		}
-		batch := records[i:end]
-		isPartial := end < len(records)
-
-		sendDataResponse(conn, jobID, logID, batch, len(batch), "", isPartial)
-	}
-
-	// Send final completion if needed
-	if len(records) == 0 || len(records)%batchSize == 0 {
-		sendDataResponse(conn, jobID, logID, nil, 0, "", false)
-	}
+	// Send final completion response
+	sendDataResponse(conn, jobID, logID, nil, 0, "", false)
 }
 
 // executeMinIOSyncJob handles MinIO/S3 based sync jobs

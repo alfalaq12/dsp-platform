@@ -1,0 +1,41 @@
+# Build artifacts
+bin/
+dist/
+releases/
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Database files
+*.db
+*.sqlite
+
+# Environment files (keep examples)
+.env
+!.env.example
+
+# Logs
+logs/
+*.log
+
+# Certificates (keep examples)
+certs/
+!certs/.gitkeep
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backups
+backups/
+
+# Temporary
+tmp/
+temp/

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/tls"
 	"dsp-platform/internal/core"
+	"dsp-platform/internal/crypto"
 	"dsp-platform/internal/database"
 	"dsp-platform/internal/security"
 	"encoding/json"
@@ -36,15 +37,24 @@ type AgentListener struct {
 	mu              sync.RWMutex
 	pendingMu       sync.RWMutex
 	tlsConfig       *tls.Config
+	encryptor       *crypto.Encryptor
 }
 
 // NewAgentListener creates a new agent listener
 func NewAgentListener(handler *Handler, port string) *AgentListener {
+	// Initialize encryptor
+	encryptConfig := crypto.LoadConfigFromEnv()
+	enc, _ := crypto.NewEncryptor(encryptConfig)
+	if enc.IsEnabled() {
+		log.Printf("🔐 Payload encryption enabled for agent listener")
+	}
+
 	al := &AgentListener{
 		handler:         handler,
 		port:            port,
 		connections:     make(map[string]*AgentConnection),
 		pendingRequests: make(map[uint]*PendingRequest),
+		encryptor:       enc,
 	}
 	// Set reference in handler for bidirectional communication
 	handler.agentListener = al
@@ -53,11 +63,19 @@ func NewAgentListener(handler *Handler, port string) *AgentListener {
 
 // NewAgentListenerWithTLS creates a new agent listener with TLS support
 func NewAgentListenerWithTLS(handler *Handler, port string, tlsConfig security.TLSConfig) *AgentListener {
+	// Initialize encryptor
+	encryptConfig := crypto.LoadConfigFromEnv()
+	enc, _ := crypto.NewEncryptor(encryptConfig)
+	if enc.IsEnabled() {
+		log.Printf("🔐 Payload encryption enabled for agent listener")
+	}
+
 	al := &AgentListener{
 		handler:         handler,
 		port:            port,
 		connections:     make(map[string]*AgentConnection),
 		pendingRequests: make(map[uint]*PendingRequest),
+		encryptor:       enc,
 	}
 
 	// Load TLS config if enabled
@@ -124,7 +142,24 @@ func (al *AgentListener) handleConnection(conn net.Conn) {
 	scanner.Buffer(buf, 10*1024*1024) // 10MB max
 
 	for scanner.Scan() {
-		data := scanner.Bytes()
+		rawData := scanner.Text()
+
+		// Decrypt data if encrypted
+		var data []byte
+		if crypto.IsEncrypted(rawData) {
+			if al.encryptor == nil || !al.encryptor.IsEnabled() {
+				log.Printf("Received encrypted message but encryption not configured")
+				continue
+			}
+			decrypted, err := al.encryptor.Decrypt(rawData)
+			if err != nil {
+				log.Printf("Failed to decrypt agent message: %v", err)
+				continue
+			}
+			data = decrypted
+		} else {
+			data = []byte(rawData)
+		}
 
 		var msg core.AgentMessage
 		if err := json.Unmarshal(data, &msg); err != nil {

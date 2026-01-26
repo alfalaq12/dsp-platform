@@ -119,6 +119,61 @@ func (c *MongoConnection) ExecuteFind(collectionName string, filter bson.M) ([]m
 	return results, nil
 }
 
+// ExecuteFindWithBatch executes a find query and processes results in batches
+// This prevents high memory usage for large collections
+func (c *MongoConnection) ExecuteFindWithBatch(collectionName string, filter bson.M, batchSize int, callback func([]map[string]interface{}) error) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	collection := c.Database.Collection(collectionName)
+
+	// Set batch size option for cursor
+	opts := options.Find().SetBatchSize(int32(batchSize))
+	cursor, err := collection.Find(ctx, filter, opts)
+	if err != nil {
+		return fmt.Errorf("MongoDB find failed: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	batch := make([]map[string]interface{}, 0, batchSize)
+
+	for cursor.Next(ctx) {
+		var doc bson.M
+		if err := cursor.Decode(&doc); err != nil {
+			return fmt.Errorf("failed to decode document: %w", err)
+		}
+
+		// Convert bson.M to map[string]interface{}
+		row := make(map[string]interface{})
+		for k, v := range doc {
+			row[k] = v
+		}
+		batch = append(batch, row)
+
+		// If batch is full, process it
+		if len(batch) >= batchSize {
+			if err := callback(batch); err != nil {
+				return err
+			}
+			// Reset batch
+			batch = make([]map[string]interface{}, 0, batchSize)
+		}
+	}
+
+	// Process remaining records
+	if len(batch) > 0 {
+		if err := callback(batch); err != nil {
+			return err
+		}
+	}
+
+	if err := cursor.Err(); err != nil {
+		return fmt.Errorf("cursor error: %w", err)
+	}
+
+	return nil
+}
+
 // ExecuteAggregate runs an aggregation pipeline
 func (c *MongoConnection) ExecuteAggregate(collectionName string, pipeline []bson.M) ([]map[string]interface{}, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)

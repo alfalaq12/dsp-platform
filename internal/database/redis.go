@@ -145,6 +145,100 @@ func (c *RedisConnection) ScanKeys(pattern string) ([]map[string]interface{}, er
 	return results, nil
 }
 
+// ScanKeysWithBatch scans keys matching a pattern and processes them in batches
+// This prevents high memory usage for large key sets
+func (c *RedisConnection) ScanKeysWithBatch(pattern string, batchSize int, callback func([]map[string]interface{}) error) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	if pattern == "" {
+		pattern = "*"
+	}
+
+	var cursor uint64
+	batch := make([]map[string]interface{}, 0, batchSize)
+
+	for {
+		keys, nextCursor, err := c.Client.Scan(ctx, cursor, pattern, 1000).Result()
+		if err != nil {
+			return fmt.Errorf("Redis scan failed: %w", err)
+		}
+
+		// Get values for each key
+		for _, key := range keys {
+			keyType, err := c.Client.Type(ctx, key).Result()
+			if err != nil {
+				continue
+			}
+
+			row := map[string]interface{}{
+				"key":  key,
+				"type": keyType,
+			}
+
+			// Get value based on type
+			switch keyType {
+			case "string":
+				val, err := c.Client.Get(ctx, key).Result()
+				if err == nil {
+					row["value"] = val
+				}
+			case "hash":
+				val, err := c.Client.HGetAll(ctx, key).Result()
+				if err == nil {
+					row["value"] = val
+				}
+			case "list":
+				val, err := c.Client.LRange(ctx, key, 0, -1).Result()
+				if err == nil {
+					row["value"] = val
+				}
+			case "set":
+				val, err := c.Client.SMembers(ctx, key).Result()
+				if err == nil {
+					row["value"] = val
+				}
+			case "zset":
+				val, err := c.Client.ZRangeWithScores(ctx, key, 0, -1).Result()
+				if err == nil {
+					row["value"] = val
+				}
+			}
+
+			// Get TTL
+			ttl, err := c.Client.TTL(ctx, key).Result()
+			if err == nil {
+				row["ttl"] = ttl.Seconds()
+			}
+
+			batch = append(batch, row)
+
+			// If batch is full, process it
+			if len(batch) >= batchSize {
+				if err := callback(batch); err != nil {
+					return err
+				}
+				// Reset batch
+				batch = make([]map[string]interface{}, 0, batchSize)
+			}
+		}
+
+		cursor = nextCursor
+		if cursor == 0 {
+			break
+		}
+	}
+
+	// Process remaining records
+	if len(batch) > 0 {
+		if err := callback(batch); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // GetAllHashes gets all hash keys matching pattern as structured data
 func (c *RedisConnection) GetAllHashes(pattern string) ([]map[string]interface{}, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
