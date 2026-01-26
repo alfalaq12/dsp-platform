@@ -65,7 +65,7 @@ Platform sinkronisasi data terpusat dengan arsitektur Master-Agent untuk kebutuh
 | **Agent Tokens** | Manage agent authentication tokens |
 | **Users** | User management with RBAC (Admin/Viewer) |
 | **Audit Logs** | Track all user actions |
-| **Settings** | Configure target database |
+| **Settings** | Backup & restore configuration |
 
 ## 🐳 Docker (Recommended)
 
