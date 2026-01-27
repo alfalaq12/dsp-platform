@@ -18,10 +18,22 @@ import (
 	sqlite "github.com/glebarez/sqlite" // Pure Go SQLite driver for GORM
 )
 
-const (
-	WebPort   = "441"
-	AgentPort = "447"
-)
+// getEnvOrDefault returns environment variable value or default
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+// Port configuration - reads from environment variables
+func getWebPort() string {
+	return getEnvOrDefault("HTTP_PORT", "4410")
+}
+
+func getAgentPort() string {
+	return getEnvOrDefault("TCP_PORT", "4470")
+}
 
 func init() {
 	// Robust .env loading: Try loading from executable directory first
@@ -46,8 +58,8 @@ func main() {
 
 	// Log startup with TLS status
 	logger.Logger.Info().
-		Str("web_port", WebPort).
-		Str("agent_port", AgentPort).
+		Str("web_port", getWebPort()).
+		Str("agent_port", getAgentPort()).
 		Bool("tls_enabled", tlsConfig.Enabled).
 		Msg("Starting DSP Platform Master Server")
 
@@ -77,12 +89,12 @@ func main() {
 	// Start agent listener in goroutine (with TLS if enabled)
 	var agentListener *server.AgentListener
 	if tlsConfig.Enabled {
-		agentListener = server.NewAgentListenerWithTLS(handler, AgentPort, tlsConfig)
+		agentListener = server.NewAgentListenerWithTLS(handler, getAgentPort(), tlsConfig)
 	} else {
-		agentListener = server.NewAgentListener(handler, AgentPort)
+		agentListener = server.NewAgentListener(handler, getAgentPort())
 	}
 	go func() {
-		logger.Logger.Info().Str("port", AgentPort).Bool("tls", tlsConfig.Enabled).Msg("Starting agent listener")
+		logger.Logger.Info().Str("port", getAgentPort()).Bool("tls", tlsConfig.Enabled).Msg("Starting agent listener")
 		if err := agentListener.Start(); err != nil {
 			logger.Logger.Fatal().Err(err).Msg("Agent listener error")
 		}
@@ -102,18 +114,18 @@ func main() {
 	go func() {
 		if tlsConfig.Enabled {
 			logger.Logger.Info().
-				Str("port", WebPort).
+				Str("port", getWebPort()).
 				Str("protocol", "HTTPS").
 				Msg("🔒 Starting HTTPS server")
-			if err := router.RunTLS(":"+WebPort, tlsConfig.CertPath, tlsConfig.KeyPath); err != nil {
+			if err := router.RunTLS(":"+getWebPort(), tlsConfig.CertPath, tlsConfig.KeyPath); err != nil {
 				logger.Logger.Fatal().Err(err).Msg("Failed to start HTTPS server")
 			}
 		} else {
 			logger.Logger.Info().
-				Str("port", WebPort).
+				Str("port", getWebPort()).
 				Str("protocol", "HTTP").
 				Msg("⚠️ Starting HTTP server (NO TLS - INSECURE!)")
-			if err := router.Run(":" + WebPort); err != nil {
+			if err := router.Run(":" + getWebPort()); err != nil {
 				logger.Logger.Fatal().Err(err).Msg("Failed to start HTTP server")
 			}
 		}
