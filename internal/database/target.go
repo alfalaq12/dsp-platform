@@ -13,7 +13,8 @@ import (
 
 // DefaultBatchSize is the number of records to upsert in a single query
 // Higher values = faster, but too high may cause "too many parameters" errors
-const DefaultBatchSize = 100
+// PostgreSQL max parameters = 65535, so 500 rows × ~10 cols = ~5000 params (safe)
+const DefaultBatchSize = 500
 
 // TargetConfig holds target database connection configuration
 type TargetConfig struct {

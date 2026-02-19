@@ -50,14 +50,14 @@ function Sidebar({ isOpen, onClose }) {
 
     return (
         <aside className={`
-                hidden lg:flex lg:flex-col lg:w-64
+                hidden lg:flex lg:flex-col lg:w-64 backdrop-blur-md transition-all duration-300
                 ${isDark
-                ? 'bg-panda-dark-100 border-r border-panda-dark-300'
-                : 'bg-gov-blue-900 border-r border-gov-blue-800 shadow-xl'
+                ? 'bg-panda-dark-100/90 border-r border-panda-dark-300'
+                : 'bg-gov-blue-900/95 border-r border-gov-blue-800 shadow-xl'
             }
             `}>
             <div className={`p-6 ${isDark ? 'border-b border-panda-dark-300' : 'border-b border-gov-blue-800'}`}>
-                <h1 className={`text-2xl font-bold ${isDark ? 'text-blue-500' : 'text-white'}`}>DSP Platform</h1>
+                <h1 className={`text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r ${isDark ? 'from-blue-400 to-purple-400' : 'from-white to-blue-200'}`}>DSP Platform</h1>
                 <p className={`text-sm mt-1 ${isDark ? 'text-panda-text-muted' : 'text-blue-200'}`}>Data Sync</p>
             </div>
 
@@ -88,21 +88,21 @@ function Sidebar({ isOpen, onClose }) {
                                     end
                                     onClick={onClose}
                                     className={({ isActive }) =>
-                                        `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${isActive
+                                        `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group ${isActive
                                             ? item.highlight
                                                 ? 'bg-amber-500 text-white font-semibold shadow-lg shadow-amber-500/30'
                                                 : 'bg-blue-500 text-white font-semibold shadow-lg shadow-blue-500/30'
                                             : item.highlight
                                                 ? isDark
-                                                    ? 'text-amber-400 hover:bg-amber-500/20 hover:text-amber-300 animate-pulse'
-                                                    : 'text-amber-200 hover:bg-amber-500/20 hover:text-white animate-pulse'
+                                                    ? 'text-amber-400 hover:bg-amber-500/20 hover:text-amber-300 animate-pulse hover:pl-5'
+                                                    : 'text-amber-200 hover:bg-amber-500/20 hover:text-white animate-pulse hover:pl-5'
                                                 : isDark
-                                                    ? 'text-panda-text-muted hover:bg-panda-dark-300 hover:text-blue-500'
-                                                    : 'text-blue-100 hover:bg-gov-blue-800 hover:text-white'
+                                                    ? 'text-panda-text-muted hover:bg-panda-dark-300 hover:text-blue-400 hover:pl-5'
+                                                    : 'text-blue-100 hover:bg-gov-blue-800 hover:text-white hover:pl-5'
                                         }`
                                     }
                                 >
-                                    <Icon className="w-5 h-5" />
+                                    <Icon className="w-5 h-5 transition-transform group-hover:scale-110" />
                                     <span className="font-medium">{item.label}</span>
                                 </NavLink>
                             </li>

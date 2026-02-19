@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -9,6 +11,7 @@ import (
 	"dsp-platform/internal/database"
 	"dsp-platform/internal/filesync"
 	"dsp-platform/internal/logger"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -398,20 +401,54 @@ func sendMessage(conn net.Conn, msg AgentMessage) error {
 		return err
 	}
 
-	// Encrypt data payload if encryption is enabled
+	// Compress large payloads (> 1KB) with gzip for wire efficiency
 	var payload string
-	if encryptor != nil && encryptor.IsEnabled() {
-		payload, err = encryptor.EncryptString(string(data))
-		if err != nil {
-			logger.Logger.Error().Err(err).Msg("Failed to encrypt message")
-			return err
+	if len(data) > 1024 {
+		compressed, err := compressGzip(data)
+		if err == nil && len(compressed) < len(data) {
+			// Use GZ: prefix for compressed payloads (base64 to stay line-safe)
+			payload = "GZ:" + base64.StdEncoding.EncodeToString(compressed)
+			logger.Logger.Debug().
+				Int("original", len(data)).
+				Int("compressed", len(compressed)).
+				Float64("ratio", float64(len(compressed))/float64(len(data))*100).
+				Msg("Compressed message payload")
+		} else {
+			payload = string(data)
 		}
 	} else {
 		payload = string(data)
 	}
 
+	// Encrypt data payload if encryption is enabled
+	if encryptor != nil && encryptor.IsEnabled() {
+		payload, err = encryptor.EncryptString(payload)
+		if err != nil {
+			logger.Logger.Error().Err(err).Msg("Failed to encrypt message")
+			return err
+		}
+	}
+
 	_, err = conn.Write([]byte(payload + "\n"))
 	return err
+}
+
+// compressGzip compresses data using gzip
+func compressGzip(data []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	gzWriter, err := gzip.NewWriterLevel(&buf, gzip.BestSpeed)
+	if err != nil {
+		return nil, err
+	}
+	_, err = gzWriter.Write(data)
+	if err != nil {
+		gzWriter.Close()
+		return nil, err
+	}
+	if err := gzWriter.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 // Global connection for sending responses

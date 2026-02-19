@@ -143,9 +143,17 @@ func main() {
 func initDatabase() (*gorm.DB, error) {
 	// Using pure Go SQLite driver (glebarez/sqlite wraps modernc.org/sqlite)
 	// No CGO required - works on Windows without gcc
-	logger.Logger.Info().Str("database", "dsp.db").Msg("Initializing database")
+	// Use data directory for persistence (mounted in docker-compose)
+	dbPath := "data/dsp.db"
+	// Ensure data directory exists
+	if err := os.MkdirAll("data", 0755); err != nil {
+		logger.Logger.Error().Err(err).Msg("Failed to create data directory")
+		return nil, err
+	}
 
-	db, err := gorm.Open(sqlite.Open("dsp.db"), &gorm.Config{})
+	logger.Logger.Info().Str("database", dbPath).Msg("Initializing database")
+
+	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	if err != nil {
 		logger.Logger.Error().Err(err).Msg("Failed to open database")
 		return nil, err
@@ -305,6 +313,12 @@ func setupRouter(handler *server.Handler) *gin.Engine {
 		api.POST("/agents/:name/exec", auth.RequireRole("admin"), handler.ExecuteAgentCommand)
 		api.GET("/agents/:name/terminal-history", auth.RequireRole("admin"), handler.GetAgentTerminalHistory)
 		api.GET("/agents/connected", auth.RequireRole("admin"), handler.GetConnectedAgents)
+
+		// System Status
+		api.GET("/system-status", handler.GetSystemStatus)
+
+		// Analytics
+		api.GET("/analytics/jobs", handler.GetJobAnalytics)
 
 		// Backup & Restore (Admin only)
 		api.POST("/backup", auth.RequireRole("admin"), handler.CreateBackup)

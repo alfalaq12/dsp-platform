@@ -31,7 +31,7 @@ services:
       - HTTP_PORT=441
       - TCP_PORT=447
       - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
-      - TLS_ENABLED=${TLS_ENABLED:-false}
+      - TLS_ENABLED=${TLS_ENABLED:-true}
       - TLS_CERT_PATH=/app/certs/server.crt
       - TLS_KEY_PATH=/app/certs/server.key
       - PAYLOAD_ENCRYPTION=${PAYLOAD_ENCRYPTION:-false}

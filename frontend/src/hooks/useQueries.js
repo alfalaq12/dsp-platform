@@ -19,6 +19,7 @@ export const queryKeys = {
   licenseStatus: ['licenseStatus'],
   licenseMachineId: ['licenseMachineId'],
   backups: ['backups'],
+  systemStatus: ['systemStatus'],
 };
 
 // ============================================
@@ -509,5 +510,35 @@ export const useDeleteBackup = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.backups });
     },
+  });
+};
+
+// ============================================
+// System Status Hooks
+// ============================================
+export const useSystemStatus = () => {
+  return useQuery({
+    queryKey: queryKeys.systemStatus,
+    queryFn: async () => {
+      const { data } = await api.getSystemStatus();
+      return data;
+    },
+    staleTime: STALE_TIME.frequent,
+    refetchInterval: 30 * 1000, // Auto refetch every 30 seconds
+  });
+};
+
+// ============================================
+// Analytics Hooks
+// ============================================
+export const useJobAnalytics = (range = '7d') => {
+  return useQuery({
+    queryKey: ['jobAnalytics', range],
+    queryFn: async () => {
+      const { data } = await api.getJobAnalytics({ range });
+      return data;
+    },
+    staleTime: STALE_TIME.frequent,
+    refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
   });
 };

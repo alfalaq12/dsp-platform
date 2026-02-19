@@ -7,29 +7,8 @@ import useSessionTimeout from './hooks/useSessionTimeout';
 import { ConfirmModal } from './components/Toast';
 import PageLoader from './components/ui/PageLoader';
 
-// Helper function to add minimum delay to lazy loading (3 seconds)
-const lazyWithDelay = (importFunc, minDelay = 1500) => {
-    return lazy(() => {
-        return Promise.all([
-            importFunc(),
-            new Promise(resolve => setTimeout(resolve, minDelay))
-        ]).then(([moduleExports]) => moduleExports);
-    });
-};
-
-// Lazy load all pages with minimum 3 second delay for smooth loading experience
-const Login = lazyWithDelay(() => import('./pages/Login'));
-const Dashboard = lazyWithDelay(() => import('./pages/Dashboard'));
-const Schema = lazyWithDelay(() => import('./pages/Schema'));
-const Network = lazyWithDelay(() => import('./pages/Network'));
-const Jobs = lazyWithDelay(() => import('./pages/Jobs'));
-const Users = lazyWithDelay(() => import('./pages/Users'));
-const Settings = lazyWithDelay(() => import('./pages/Settings'));
-const AuditLogs = lazyWithDelay(() => import('./pages/AuditLogs'));
-const TokenManagement = lazyWithDelay(() => import('./pages/TokenManagement'));
-const Activation = lazyWithDelay(() => import('./pages/Activation'));
-const Terminal = lazyWithDelay(() => import('./pages/Terminal'));
-const NotFound = lazyWithDelay(() => import('./pages/NotFound'));
+// Logical pages only needed for top-level routing
+const Login = lazy(() => import('./pages/Login'));
 
 // Create a QueryClient instance with default options
 const queryClient = new QueryClient({
@@ -50,9 +29,14 @@ const ProtectedRoute = ({ children }) => {
     // Use session timeout hook (30 minutes = 1800000ms)
     const { isWarningOpen, isExpiredOpen, remainActive, confirmLogout } = useSessionTimeout(30 * 60 * 1000);
 
+    // If not authenticated, redirect to login
+    if (!isAuthenticated) {
+        return <Navigate to="/login" replace />;
+    }
+
     return (
         <>
-            {isAuthenticated ? children : <Navigate to="/login" />}
+            {children}
 
             {/* Session Warning Modal */}
             <ConfirmModal
@@ -89,25 +73,12 @@ function App() {
                         <Routes>
                             <Route path="/login" element={<Login />} />
 
-                            <Route path="/" element={
+                            {/* Main Layout handles all other routes via TabContext */}
+                            <Route path="/*" element={
                                 <ProtectedRoute>
                                     <MainLayout />
                                 </ProtectedRoute>
-                            }>
-                                <Route index element={<Dashboard />} />
-                                <Route path="schema" element={<Schema />} />
-                                <Route path="network" element={<Network />} />
-                                <Route path="jobs" element={<Jobs />} />
-                                <Route path="users" element={<Users />} />
-                                <Route path="audit-logs" element={<AuditLogs />} />
-                                <Route path="tokens" element={<TokenManagement />} />
-                                <Route path="activation" element={<Activation />} />
-                                <Route path="terminal" element={<Terminal />} />
-                                <Route path="settings" element={<Settings />} />
-                            </Route>
-
-                            {/* Catch-all 404 route */}
-                            <Route path="*" element={<NotFound />} />
+                            } />
                         </Routes>
                     </Suspense>
                 </BrowserRouter>
@@ -117,4 +88,5 @@ function App() {
 }
 
 export default App;
+
 

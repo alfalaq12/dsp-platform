@@ -104,5 +104,11 @@ export const restoreBackup = (formData) => api.post('/backup/restore', formData,
 });
 export const deleteBackup = (filename) => api.delete(`/backups/${encodeURIComponent(filename)}`);
 
+// System Status
+export const getSystemStatus = () => api.get('/system-status');
+
+// Analytics
+export const getJobAnalytics = (params) => api.get('/analytics/jobs', { params });
+
 export default api;
 

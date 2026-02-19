@@ -2,15 +2,20 @@ package server
 
 import (
 	"bufio"
+	"bytes"
+	"compress/gzip"
 	"crypto/tls"
 	"dsp-platform/internal/core"
 	"dsp-platform/internal/crypto"
 	"dsp-platform/internal/database"
 	"dsp-platform/internal/security"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net"
+	"strings"
 	"sync"
 	"time"
 )
@@ -28,6 +33,32 @@ type PendingRequest struct {
 	CreatedAt    time.Time
 }
 
+// cachedTargetConn wraps a target DB connection with metadata for cache management
+type cachedTargetConn struct {
+	conn     *database.TargetConnection
+	lastUsed time.Time
+}
+
+// insertWork represents a unit of insert work for the worker pool
+type insertWork struct {
+	tableName       string
+	records         []interface{}
+	uniqueKeyColumn string
+	networkID       uint
+	jobID           uint
+	logID           float64
+	isPartial       bool
+	status          string
+	recordCount     int
+	sampleData      string
+	errorMsg        string
+	agentName       string
+	clientAddr      string
+}
+
+// workerPoolSize is the number of concurrent insert workers
+const workerPoolSize = 4
+
 // AgentListener handles TCP connections from Tenant Agents on port 447
 type AgentListener struct {
 	handler         *Handler
@@ -38,6 +69,17 @@ type AgentListener struct {
 	pendingMu       sync.RWMutex
 	tlsConfig       *tls.Config
 	encryptor       *crypto.Encryptor
+
+	// Performance: Target DB connection cache (keyed by networkID)
+	targetDBCache map[uint]*cachedTargetConn
+	targetDBMu    sync.RWMutex
+
+	// Performance: EnsureTable cache (skip redundant information_schema queries)
+	ensuredTables map[string]bool
+	ensuredMu     sync.RWMutex
+
+	// Performance: Worker pool for parallel batch inserts
+	insertWorkChan chan insertWork
 }
 
 // NewAgentListener creates a new agent listener
@@ -55,9 +97,22 @@ func NewAgentListener(handler *Handler, port string) *AgentListener {
 		connections:     make(map[string]*AgentConnection),
 		pendingRequests: make(map[uint]*PendingRequest),
 		encryptor:       enc,
+		targetDBCache:   make(map[uint]*cachedTargetConn),
+		ensuredTables:   make(map[string]bool),
+		insertWorkChan:  make(chan insertWork, 32),
 	}
 	// Set reference in handler for bidirectional communication
 	handler.agentListener = al
+
+	// Start background cleanup for stale target DB connections
+	go al.cleanupStaleTargetConns()
+
+	// Start insert worker pool
+	for i := 0; i < workerPoolSize; i++ {
+		go al.insertWorker(i)
+	}
+	log.Printf("⚡ Started %d parallel insert workers", workerPoolSize)
+
 	return al
 }
 
@@ -76,6 +131,9 @@ func NewAgentListenerWithTLS(handler *Handler, port string, tlsConfig security.T
 		connections:     make(map[string]*AgentConnection),
 		pendingRequests: make(map[uint]*PendingRequest),
 		encryptor:       enc,
+		targetDBCache:   make(map[uint]*cachedTargetConn),
+		ensuredTables:   make(map[string]bool),
+		insertWorkChan:  make(chan insertWork, 32),
 	}
 
 	// Load TLS config if enabled
@@ -92,6 +150,16 @@ func NewAgentListenerWithTLS(handler *Handler, port string, tlsConfig security.T
 
 	// Set reference in handler for bidirectional communication
 	handler.agentListener = al
+
+	// Start background cleanup for stale target DB connections
+	go al.cleanupStaleTargetConns()
+
+	// Start insert worker pool
+	for i := 0; i < workerPoolSize; i++ {
+		go al.insertWorker(i)
+	}
+	log.Printf("⚡ Started %d parallel insert workers", workerPoolSize)
+
 	return al
 }
 
@@ -145,7 +213,7 @@ func (al *AgentListener) handleConnection(conn net.Conn) {
 		rawData := scanner.Text()
 
 		// Decrypt data if encrypted
-		var data []byte
+		var dataStr string
 		if crypto.IsEncrypted(rawData) {
 			if al.encryptor == nil || !al.encryptor.IsEnabled() {
 				log.Printf("Received encrypted message but encryption not configured")
@@ -156,9 +224,22 @@ func (al *AgentListener) handleConnection(conn net.Conn) {
 				log.Printf("Failed to decrypt agent message: %v", err)
 				continue
 			}
-			data = decrypted
+			dataStr = string(decrypted)
 		} else {
-			data = []byte(rawData)
+			dataStr = rawData
+		}
+
+		// Decompress gzip-compressed payloads (GZ: prefix)
+		var data []byte
+		if strings.HasPrefix(dataStr, "GZ:") {
+			decompressed, err := decompressGzip(dataStr[3:])
+			if err != nil {
+				log.Printf("Failed to decompress gzip message: %v", err)
+				continue
+			}
+			data = decompressed
+		} else {
+			data = []byte(dataStr)
 		}
 
 		var msg core.AgentMessage
@@ -385,6 +466,7 @@ func (al *AgentListener) handleDataSync(msg core.AgentMessage, clientAddr string
 }
 
 // handleDataResponse processes data responses from run job commands
+// Dispatches insert work to the worker pool for parallel processing
 func (al *AgentListener) handleDataResponse(msg core.AgentMessage, clientAddr string) {
 	log.Printf("DATA_RESPONSE received from %s", msg.AgentName)
 
@@ -447,65 +529,117 @@ func (al *AgentListener) handleDataResponse(msg core.AgentMessage, clientAddr st
 		}
 	}
 
-	// Insert/Upsert data into target database
-	insertedCount := 0
+	// Get log_id for worker
+	logID := float64(0)
+	if lid, ok := msg.Data["log_id"].(float64); ok {
+		logID = lid
+	}
+
+	// Dispatch insert work to worker pool (async, non-blocking)
 	if records, ok := msg.Data["records"].([]interface{}); ok && len(records) > 0 && targetTable != "" {
-		insertedCount = al.upsertToTargetDBWithNetwork(targetTable, records, uniqueKeyColumn, networkID)
-		if uniqueKeyColumn != "" {
-			log.Printf("Upserted %d records into target table '%s' (key: %s)", insertedCount, targetTable, uniqueKeyColumn)
-		} else {
-			log.Printf("Inserted %d records into target table '%s'", insertedCount, targetTable)
+		work := insertWork{
+			tableName:       targetTable,
+			records:         records,
+			uniqueKeyColumn: uniqueKeyColumn,
+			networkID:       networkID,
+			jobID:           jobID,
+			logID:           logID,
+			isPartial:       isPartial,
+			status:          status,
+			recordCount:     recordCount,
+			sampleData:      sampleData,
+			errorMsg:        errorMsg,
+			agentName:       msg.AgentName,
+			clientAddr:      clientAddr,
 		}
+
+		select {
+		case al.insertWorkChan <- work:
+			log.Printf("⚡ Dispatched batch (%d records) to worker pool for job %d", recordCount, jobID)
+		default:
+			// Channel full — fallback to synchronous insert to avoid data loss
+			log.Printf("⚠️ Worker pool full, executing insert synchronously for job %d", jobID)
+			al.executeInsertWork(work)
+		}
+	} else {
+		// No records to insert — just update job log/status inline (cheap operation)
+		al.updateJobLog(logID, isPartial, status, recordCount, 0, sampleData, errorMsg)
+		al.updateJobStatus(jobID, isPartial, status)
 	}
 
-	// Update job log if we have a log_id
-	if logID, ok := msg.Data["log_id"].(float64); ok {
-		var jobLog core.JobLog
-		if err := al.handler.db.First(&jobLog, uint(logID)).Error; err == nil {
-			// Update status
-			if isPartial {
-				jobLog.Status = "running"
-			} else {
-				jobLog.Status = status
-				jobLog.CompletedAt = time.Now()
-				jobLog.Duration = time.Since(jobLog.StartedAt).Milliseconds()
-			}
+	al.handler.UpdateAgentStatus(msg.AgentName, "online", clientAddr)
+}
 
-			// Accumulate record count
-			// If partial, add the batch count. If final, it might be 0 or the last batch.
-			// Assumption: Agent sends batch count in record_count for each message.
-			jobLog.RecordCount += recordCount
+// insertWorker is a goroutine that processes insert work from the channel
+func (al *AgentListener) insertWorker(workerID int) {
+	log.Printf("Insert worker %d started", workerID)
+	for work := range al.insertWorkChan {
+		al.executeInsertWork(work)
+	}
+}
 
-			// Update other fields
-			if sampleData != "" {
-				jobLog.SampleData = sampleData
-			}
-			if errorMsg != "" {
-				jobLog.ErrorMessage = errorMsg
-			}
-
-			al.handler.db.Save(&jobLog)
-			log.Printf("Updated job log %d: status=%s, total_records=%d, batch_inserted=%d, partial=%v",
-				uint(logID), jobLog.Status, jobLog.RecordCount, insertedCount, isPartial)
-		}
+// executeInsertWork performs the actual insert and updates job log/status
+func (al *AgentListener) executeInsertWork(work insertWork) {
+	// Insert/Upsert data into target database
+	insertedCount := al.upsertToTargetDBWithNetwork(work.tableName, work.records, work.uniqueKeyColumn, work.networkID)
+	if work.uniqueKeyColumn != "" {
+		log.Printf("Upserted %d records into target table '%s' (key: %s)", insertedCount, work.tableName, work.uniqueKeyColumn)
+	} else {
+		log.Printf("Inserted %d records into target table '%s'", insertedCount, work.tableName)
 	}
 
-	// Update job status
-	if jobID > 0 {
-		var job core.Job
-		if err := al.handler.db.First(&job, jobID).Error; err == nil {
-			if isPartial {
-				job.Status = "running"
-			} else {
-				job.Status = status
-			}
-			al.handler.db.Save(&job)
-		}
-	}
+	// Update job log and status
+	al.updateJobLog(work.logID, work.isPartial, work.status, work.recordCount, insertedCount, work.sampleData, work.errorMsg)
+	al.updateJobStatus(work.jobID, work.isPartial, work.status)
 
 	log.Printf("Job %d response: status=%s, batch_records=%d, inserted=%d, partial=%v",
-		jobID, status, recordCount, insertedCount, isPartial)
-	al.handler.UpdateAgentStatus(msg.AgentName, "online", clientAddr)
+		work.jobID, work.status, work.recordCount, insertedCount, work.isPartial)
+}
+
+// updateJobLog updates the job log record with batch results
+func (al *AgentListener) updateJobLog(logID float64, isPartial bool, status string, recordCount, insertedCount int, sampleData, errorMsg string) {
+	if logID == 0 {
+		return
+	}
+	var jobLog core.JobLog
+	if err := al.handler.db.First(&jobLog, uint(logID)).Error; err == nil {
+		if isPartial {
+			jobLog.Status = "running"
+		} else {
+			jobLog.Status = status
+			jobLog.CompletedAt = time.Now()
+			jobLog.Duration = time.Since(jobLog.StartedAt).Milliseconds()
+		}
+
+		jobLog.RecordCount += recordCount
+
+		if sampleData != "" {
+			jobLog.SampleData = sampleData
+		}
+		if errorMsg != "" {
+			jobLog.ErrorMessage = errorMsg
+		}
+
+		al.handler.db.Save(&jobLog)
+		log.Printf("Updated job log %d: status=%s, total_records=%d, batch_inserted=%d, partial=%v",
+			uint(logID), jobLog.Status, jobLog.RecordCount, insertedCount, isPartial)
+	}
+}
+
+// updateJobStatus updates the job status
+func (al *AgentListener) updateJobStatus(jobID uint, isPartial bool, status string) {
+	if jobID == 0 {
+		return
+	}
+	var job core.Job
+	if err := al.handler.db.First(&job, jobID).Error; err == nil {
+		if isPartial {
+			job.Status = "running"
+		} else {
+			job.Status = status
+		}
+		al.handler.db.Save(&job)
+	}
 }
 
 // insertToTargetDB connects to target database and inserts records
@@ -514,6 +648,7 @@ func (al *AgentListener) insertToTargetDB(tableName string, records []interface{
 }
 
 // upsertToTargetDBWithNetwork connects to target database using Network config and inserts or updates records
+// Uses connection cache and EnsureTable cache for performance
 func (al *AgentListener) upsertToTargetDBWithNetwork(tableName string, records []interface{}, uniqueKeyColumn string, networkID uint) int {
 	// Try to load target database config from Network first
 	config := al.loadTargetDBConfigFromNetwork(networkID)
@@ -529,16 +664,13 @@ func (al *AgentListener) upsertToTargetDBWithNetwork(tableName string, records [
 		return 0
 	}
 
-	log.Printf("Connecting to target DB: %s@%s:%s/%s (driver: %s)",
-		config.User, config.Host, config.Port, config.DBName, config.Driver)
-
-	// Connect to target database
-	targetConn, err := database.ConnectTarget(config)
+	// Use cached connection or create new one
+	targetConn, err := al.getOrCreateTargetConn(networkID, config)
 	if err != nil {
-		log.Printf("Failed to connect to target database: %v", err)
+		log.Printf("Failed to get target database connection: %v", err)
 		return 0
 	}
-	defer targetConn.Close()
+	// NOTE: Don't close here — connection is cached and reused across batches
 
 	// Convert records to map format
 	var recordMaps []map[string]interface{}
@@ -553,10 +685,13 @@ func (al *AgentListener) upsertToTargetDBWithNetwork(tableName string, records [
 		return 0
 	}
 
-	// Ensure table exists
-	if err := targetConn.EnsureTable(tableName, recordMaps[0]); err != nil {
-		log.Printf("Failed to ensure table: %v", err)
-		return 0
+	// Ensure table exists (cached — only checks once per table)
+	if !al.isTableEnsured(tableName) {
+		if err := targetConn.EnsureTable(tableName, recordMaps[0]); err != nil {
+			log.Printf("Failed to ensure table: %v", err)
+			return 0
+		}
+		al.markTableEnsured(tableName)
 	}
 
 	// Upsert or Insert records based on unique key
@@ -569,6 +704,8 @@ func (al *AgentListener) upsertToTargetDBWithNetwork(tableName string, records [
 	}
 	if err != nil {
 		log.Printf("Batch operation error: %v", err)
+		// Connection might be stale — evict from cache so next batch reconnects
+		al.evictTargetConn(networkID)
 	}
 
 	// Reset sequence to prevent unique constraint violations when app inserts new records
@@ -581,6 +718,112 @@ func (al *AgentListener) upsertToTargetDBWithNetwork(tableName string, records [
 	}
 
 	return count
+}
+
+// getOrCreateTargetConn returns a cached target DB connection or creates a new one
+func (al *AgentListener) getOrCreateTargetConn(networkID uint, config database.TargetConfig) (*database.TargetConnection, error) {
+	al.targetDBMu.RLock()
+	if cached, ok := al.targetDBCache[networkID]; ok {
+		cached.lastUsed = time.Now()
+		al.targetDBMu.RUnlock()
+
+		// Verify connection is still alive
+		if err := cached.conn.DB.Ping(); err == nil {
+			return cached.conn, nil
+		}
+		// Connection is dead — evict and reconnect
+		log.Printf("Cached target DB connection for network %d is stale, reconnecting", networkID)
+		al.evictTargetConn(networkID)
+	} else {
+		al.targetDBMu.RUnlock()
+	}
+
+	// Create new connection
+	log.Printf("Connecting to target DB: %s@%s:%s/%s (driver: %s)",
+		config.User, config.Host, config.Port, config.DBName, config.Driver)
+
+	targetConn, err := database.ConnectTarget(config)
+	if err != nil {
+		return nil, err
+	}
+
+	// Cache the connection
+	al.targetDBMu.Lock()
+	al.targetDBCache[networkID] = &cachedTargetConn{
+		conn:     targetConn,
+		lastUsed: time.Now(),
+	}
+	al.targetDBMu.Unlock()
+
+	log.Printf("⚡ Cached target DB connection for network %d", networkID)
+	return targetConn, nil
+}
+
+// evictTargetConn removes and closes a cached target DB connection
+func (al *AgentListener) evictTargetConn(networkID uint) {
+	al.targetDBMu.Lock()
+	defer al.targetDBMu.Unlock()
+
+	if cached, ok := al.targetDBCache[networkID]; ok {
+		cached.conn.Close()
+		delete(al.targetDBCache, networkID)
+	}
+}
+
+// isTableEnsured checks if a table has already been verified to exist
+func (al *AgentListener) isTableEnsured(tableName string) bool {
+	al.ensuredMu.RLock()
+	defer al.ensuredMu.RUnlock()
+	return al.ensuredTables[tableName]
+}
+
+// markTableEnsured marks a table as verified
+func (al *AgentListener) markTableEnsured(tableName string) {
+	al.ensuredMu.Lock()
+	defer al.ensuredMu.Unlock()
+	al.ensuredTables[tableName] = true
+}
+
+// cleanupStaleTargetConns periodically closes target DB connections unused for 10 minutes
+func (al *AgentListener) cleanupStaleTargetConns() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		al.targetDBMu.Lock()
+		now := time.Now()
+		for networkID, cached := range al.targetDBCache {
+			if now.Sub(cached.lastUsed) > 10*time.Minute {
+				log.Printf("Closing stale target DB connection for network %d (idle %.0f min)",
+					networkID, now.Sub(cached.lastUsed).Minutes())
+				cached.conn.Close()
+				delete(al.targetDBCache, networkID)
+			}
+		}
+		al.targetDBMu.Unlock()
+	}
+}
+
+// decompressGzip decodes base64 and decompresses gzip data
+func decompressGzip(base64Data string) ([]byte, error) {
+	compressed, err := base64.StdEncoding.DecodeString(base64Data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode base64: %w", err)
+	}
+
+	reader, err := gzip.NewReader(bytes.NewReader(compressed))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+	defer reader.Close()
+
+	decompressed, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decompress: %w", err)
+	}
+
+	log.Printf("⚡ Decompressed message: %d bytes → %d bytes", len(compressed), len(decompressed))
+	return decompressed, nil
 }
 
 // loadTargetDBConfigFromNetwork loads target database config from Network
@@ -629,64 +872,9 @@ func (al *AgentListener) loadTargetDBConfigFromNetwork(networkID uint) database.
 }
 
 // upsertToTargetDB connects to target database and inserts or updates records
+// Delegates to upsertToTargetDBWithNetwork with networkID=0 to benefit from connection caching
 func (al *AgentListener) upsertToTargetDB(tableName string, records []interface{}, uniqueKeyColumn string) int {
-	// Load target database config from database settings
-	config := al.loadTargetDBConfig()
-
-	// Check if target DB is configured
-	if config.Password == "" && config.Host == "" {
-		log.Printf("Target database not configured, skipping insert")
-		return 0
-	}
-
-	// Connect to target database
-	targetConn, err := database.ConnectTarget(config)
-	if err != nil {
-		log.Printf("Failed to connect to target database: %v", err)
-		return 0
-	}
-	defer targetConn.Close()
-
-	// Convert records to map format
-	var recordMaps []map[string]interface{}
-	for _, r := range records {
-		if rec, ok := r.(map[string]interface{}); ok {
-			recordMaps = append(recordMaps, rec)
-		}
-	}
-
-	if len(recordMaps) == 0 {
-		log.Printf("No valid records to insert")
-		return 0
-	}
-
-	// Ensure table exists
-	if err := targetConn.EnsureTable(tableName, recordMaps[0]); err != nil {
-		log.Printf("Failed to ensure table: %v", err)
-		return 0
-	}
-
-	// Upsert or Insert records based on unique key
-	var count int
-	if uniqueKeyColumn != "" {
-		count, err = targetConn.UpsertBatch(tableName, recordMaps, uniqueKeyColumn)
-	} else {
-		count, err = targetConn.InsertBatch(tableName, recordMaps)
-	}
-	if err != nil {
-		log.Printf("Batch operation error: %v", err)
-	}
-
-	// Reset sequence to prevent unique constraint violations when app inserts new records
-	primaryKeyCol := uniqueKeyColumn
-	if primaryKeyCol == "" {
-		primaryKeyCol = "id" // Default to 'id' if no unique key specified
-	}
-	if err := targetConn.ResetSequence(tableName, primaryKeyCol); err != nil {
-		log.Printf("Warning: Failed to reset sequence for %s: %v", tableName, err)
-	}
-
-	return count
+	return al.upsertToTargetDBWithNetwork(tableName, records, uniqueKeyColumn, 0)
 }
 
 // loadTargetDBConfig loads target database config from Settings table

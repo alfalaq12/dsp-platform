@@ -4,12 +4,14 @@ import {
     CheckCircle, AlertTriangle, Play, FileText, Zap, Shield, Server,
     ArrowUpRight, ArrowDownRight, RefreshCw, Sparkles
 } from 'lucide-react';
-import { useSchemas, useNetworks, useJobs, useAuditLogs } from '../hooks/useQueries';
+import { useSchemas, useNetworks, useJobs, useAuditLogs, useSystemStatus, useJobAnalytics } from '../hooks/useQueries';
+import AnalyticsCharts from '../components/dashboard/AnalyticsCharts';
 import { AnimatedList } from '../components/ui/AnimatedList';
 import { useTheme } from '../contexts/ThemeContext';
 
 function Dashboard() {
     const { isDark } = useTheme();
+    const [timeRange, setTimeRange] = useState('7d');
     const [currentTime, setCurrentTime] = useState(new Date());
     const username = localStorage.getItem('username') || 'User';
     const userRole = localStorage.getItem('role') || 'viewer';
@@ -21,6 +23,8 @@ function Dashboard() {
     const { data: auditLogsData, isLoading: auditLogsLoading } = useAuditLogs(
         userRole === 'admin' ? { limit: 10 } : undefined
     );
+    const { data: systemStatusData } = useSystemStatus();
+    const { data: analyticsData, isLoading: analyticsLoading } = useJobAnalytics(timeRange);
 
     const loading = schemasLoading || networksLoading || jobsLoading;
 
@@ -124,8 +128,8 @@ function Dashboard() {
             icon: Database,
             gradient: 'from-blue-500 to-cyan-400',
             glowClass: 'glow-blue',
-            trend: '+2',
-            trendUp: true,
+            trend: '0',
+            trendUp: null,
             description: 'Struktur data aktif'
         },
         {
@@ -134,8 +138,8 @@ function Dashboard() {
             icon: NetworkIcon,
             gradient: 'from-violet-500 to-purple-400',
             glowClass: 'glow-purple',
-            trend: '+1',
-            trendUp: true,
+            trend: '0',
+            trendUp: null,
             description: 'Koneksi terdaftar'
         },
         {
@@ -160,11 +164,17 @@ function Dashboard() {
         },
     ];
 
-    const systemStatus = [
-        { name: 'Server Master', status: 'Aktif', ok: true, icon: Server, health: 100 },
-        { name: 'Agent Listener', status: 'Port 447', ok: true, icon: NetworkIcon, health: 100 },
-        { name: 'Database', status: 'Terhubung', ok: true, icon: Shield, health: 100 },
-    ];
+    const systemStatus = systemStatusData
+        ? [
+            { name: systemStatusData.server?.name || 'Server Master', status: systemStatusData.server?.uptime ? `Uptime: ${systemStatusData.server.uptime}` : systemStatusData.server?.status || '-', ok: systemStatusData.server?.ok ?? false, icon: Server, health: systemStatusData.server?.health ?? 0 },
+            { name: systemStatusData.agent_listener?.name || 'Agent Listener', status: `${systemStatusData.agent_listener?.status || '-'} (${systemStatusData.agent_listener?.connected_agents ?? 0} agent)`, ok: systemStatusData.agent_listener?.ok ?? false, icon: NetworkIcon, health: systemStatusData.agent_listener?.health ?? 0 },
+            { name: systemStatusData.database?.name || 'Database', status: `${systemStatusData.database?.status || '-'} (${systemStatusData.database?.tables ?? 0} tables)`, ok: systemStatusData.database?.ok ?? false, icon: Shield, health: systemStatusData.database?.health ?? 0 },
+        ]
+        : [
+            { name: 'Server Master', status: 'Loading...', ok: false, icon: Server, health: 0 },
+            { name: 'Agent Listener', status: 'Loading...', ok: false, icon: NetworkIcon, health: 0 },
+            { name: 'Database', status: 'Loading...', ok: false, icon: Shield, health: 0 },
+        ];
 
     const getStatusBadge = (statusType) => {
         const badges = {
@@ -284,6 +294,16 @@ function Dashboard() {
                         );
                     })}
                 </AnimatedList>
+            </div>
+
+            {/* Analytics Charts */}
+            <div className="mb-6">
+                <AnalyticsCharts
+                    data={analyticsData}
+                    isLoading={analyticsLoading}
+                    timeRange={timeRange}
+                    onRangeChange={setTimeRange}
+                />
             </div>
 
             {/* Main Content Grid */}

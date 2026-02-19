@@ -29,13 +29,15 @@ type Handler struct {
 	db            *gorm.DB
 	agents        map[string]*core.Network // In-memory agent tracking
 	agentListener *AgentListener           // Reference to agent listener for commands
+	startTime     time.Time                // Server start time for uptime tracking
 }
 
 // NewHandler creates a new handler instance
 func NewHandler(db *gorm.DB) *Handler {
 	return &Handler{
-		db:     db,
-		agents: make(map[string]*core.Network),
+		db:        db,
+		agents:    make(map[string]*core.Network),
+		startTime: time.Now(),
 	}
 }
 
@@ -1038,6 +1040,239 @@ func (h *Handler) GetConnectedAgents(c *gin.Context) {
 	}
 	agents := h.agentListener.GetConnectedAgents()
 	c.JSON(http.StatusOK, gin.H{"connected_agents": agents})
+}
+
+// GetSystemStatus returns real-time system health information
+// @Summary Get system status
+// @Description Returns health status of server, agent listener, and database
+// @Tags System
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Router /system-status [get]
+func (h *Handler) GetSystemStatus(c *gin.Context) {
+	// --- Server Master ---
+	uptime := time.Since(h.startTime)
+	uptimeStr := formatUptime(uptime)
+
+	serverStatus := gin.H{
+		"name":   "Server Master",
+		"status": "Aktif",
+		"ok":     true,
+		"health": 100,
+		"uptime": uptimeStr,
+	}
+
+	// --- Agent Listener ---
+	agentOk := h.agentListener != nil
+	connectedCount := 0
+	listenerPort := "-"
+	if agentOk {
+		connectedCount = len(h.agentListener.GetConnectedAgents())
+		listenerPort = h.agentListener.port
+	}
+	agentHealth := 100
+	if !agentOk {
+		agentHealth = 0
+	}
+	agentStatus := gin.H{
+		"name":             "Agent Listener",
+		"status":           fmt.Sprintf("Port %s", listenerPort),
+		"ok":               agentOk,
+		"health":           agentHealth,
+		"connected_agents": connectedCount,
+	}
+
+	// --- Database ---
+	dbOk := false
+	dbStatusText := "Terputus"
+	dbHealth := 0
+	dbTables := 0
+	sqlDB, err := h.db.DB()
+	if err == nil {
+		if err := sqlDB.Ping(); err == nil {
+			dbOk = true
+			dbStatusText = "Terhubung"
+			dbHealth = 100
+
+			// Count tables
+			var count int64
+			h.db.Raw("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").Scan(&count)
+			dbTables = int(count)
+		}
+	}
+	dbStatus := gin.H{
+		"name":   "Database",
+		"status": dbStatusText,
+		"ok":     dbOk,
+		"health": dbHealth,
+		"tables": dbTables,
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"server":         serverStatus,
+		"agent_listener": agentStatus,
+		"database":       dbStatus,
+	})
+}
+
+// GetJobAnalytics returns aggregated job statistics based on time range
+// @Summary Get job analytics
+// @Description Returns job success/failure counts for a specific range
+// @Tags Analytics
+// @Produce json
+// @Security BearerAuth
+// @Param range query string false "Time range (5m, 1h, 24h, 7d, 30d, 3m)"
+// @Success 200 {object} []map[string]interface{}
+// @Router /analytics/jobs [get]
+func (h *Handler) GetJobAnalytics(c *gin.Context) {
+	timeRange := c.DefaultQuery("range", "7d")
+
+	type Result struct {
+		Date   string `json:"date"`
+		Status string `json:"status"`
+		Count  int    `json:"count"`
+	}
+
+	var results []Result
+	var timeFilter string
+	var groupBy string
+	var timeFormat string // Go format for initialization loop
+	var interval time.Duration
+	var steps int
+
+	// Determine query parameters based on range
+	switch timeRange {
+	case "5m":
+		timeFilter = "datetime('now', '-5 minutes')"
+		groupBy = "strftime('%H:%M', created_at)"
+		timeFormat = "15:04"
+		interval = time.Minute
+		steps = 5
+	case "1h":
+		timeFilter = "datetime('now', '-1 hour')"
+		groupBy = "strftime('%H:%M', created_at)"
+		timeFormat = "15:04"
+		interval = time.Minute
+		steps = 60
+	case "24h":
+		timeFilter = "datetime('now', '-24 hours')"
+		groupBy = "strftime('%Y-%m-%d %H:00', created_at)"
+		timeFormat = "2006-01-02 15:00"
+		interval = time.Hour
+		steps = 24
+	case "30d":
+		timeFilter = "date('now', '-30 days')"
+		groupBy = "date(created_at)"
+		timeFormat = "2006-01-02"
+		interval = 24 * time.Hour
+		steps = 30
+	case "3m":
+		timeFilter = "date('now', '-90 days')"
+		groupBy = "date(created_at)"
+		timeFormat = "2006-01-02"
+		interval = 24 * time.Hour
+		steps = 90
+	case "7d":
+		fallthrough
+	default:
+		timeFilter = "date('now', '-7 days')"
+		groupBy = "date(created_at)"
+		timeFormat = "2006-01-02"
+		interval = 24 * time.Hour
+		steps = 7
+	}
+
+	// SQLite specific date truncation
+	err := h.db.Model(&core.JobLog{}).
+		Select(fmt.Sprintf("%s as date, status, count(*) as count", groupBy)).
+		Where(fmt.Sprintf("created_at >= %s", timeFilter)).
+		Group(fmt.Sprintf("%s, status", groupBy)).
+		Order(fmt.Sprintf("%s asc", groupBy)).
+		Scan(&results).Error
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch analytics data"})
+		return
+	}
+
+	type DailyStats struct {
+		Date    string `json:"date"`
+		Success int    `json:"success"`
+		Failed  int    `json:"failed"`
+		Running int    `json:"running"`
+		Total   int    `json:"total"`
+	}
+
+	statsMap := make(map[string]*DailyStats)
+
+	// Initialize time buckets with 0 values
+	now := time.Now()
+	// Round down start time based on interval to match database grouping
+	var current time.Time
+	if interval >= 24*time.Hour {
+		current = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	} else if interval == time.Hour {
+		current = time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), 0, 0, 0, now.Location())
+	} else {
+		current = time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), 0, 0, now.Location())
+	}
+
+	// For 5m and 1h and 24h, we want to show the last N intervals ending at NOW
+	// But the loop below goes backwards from 0 to steps.
+	for i := steps - 1; i >= 0; i-- {
+		dateStr := current.Add(-time.Duration(i) * interval).Format(timeFormat)
+		// For 5m/1h, format matches %H:%M. For 24h, %Y-%m-%d %H:00. For others %Y-%m-%d.
+		// However, 5m/1h might cross midnight, so %H:%M is ambiguous if not careful,
+		// but typically for 1h chart we just show time.
+		// If range is 5m or 1h, SQLite strftime('%H:%M') returns just time.
+		// Go format "15:04" returns just time.
+		// Use just time for map key for 5m/1h to match DB result.
+		statsMap[dateStr] = &DailyStats{Date: dateStr}
+	}
+
+	for _, r := range results {
+		// Ensure entry exists (might be outside range if server time differs slightly, just ignore or add)
+		if _, ok := statsMap[r.Date]; !ok {
+			// If not pre-filled, we add it if it's within reason, or just add it.
+			statsMap[r.Date] = &DailyStats{Date: r.Date}
+		}
+
+		switch r.Status {
+		case "completed", "success":
+			statsMap[r.Date].Success += r.Count
+		case "failed", "error":
+			statsMap[r.Date].Failed += r.Count
+		case "running":
+			statsMap[r.Date].Running += r.Count
+		}
+		statsMap[r.Date].Total += r.Count
+	}
+
+	// Convert map to slice sorted by date
+	var finalStats []DailyStats
+	for i := steps - 1; i >= 0; i-- {
+		dateStr := current.Add(-time.Duration(i) * interval).Format(timeFormat)
+		if stat, ok := statsMap[dateStr]; ok {
+			finalStats = append(finalStats, *stat)
+		}
+	}
+
+	c.JSON(http.StatusOK, finalStats)
+}
+
+// formatUptime formats a duration into a human-readable string
+func formatUptime(d time.Duration) string {
+	days := int(d.Hours()) / 24
+	hours := int(d.Hours()) % 24
+	minutes := int(d.Minutes()) % 60
+	if days > 0 {
+		return fmt.Sprintf("%dd %dh %dm", days, hours, minutes)
+	}
+	if hours > 0 {
+		return fmt.Sprintf("%dh %dm", hours, minutes)
+	}
+	return fmt.Sprintf("%dm", minutes)
 }
 
 // GetSettings returns all settings
