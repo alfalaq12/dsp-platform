@@ -2,8 +2,9 @@ import { useEffect, useState, useMemo } from 'react';
 import {
     Activity, Database, Network as NetworkIcon, TrendingUp, Clock, Calendar,
     CheckCircle, AlertTriangle, Play, FileText, Zap, Shield, Server,
-    ArrowUpRight, ArrowDownRight, RefreshCw, Sparkles
+    ArrowUpRight, ArrowDownRight, RefreshCw, Sparkles, Navigation
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useSchemas, useNetworks, useJobs, useAuditLogs, useSystemStatus, useJobAnalytics } from '../hooks/useQueries';
 import AnalyticsCharts from '../components/dashboard/AnalyticsCharts';
 import { AnimatedList } from '../components/ui/AnimatedList';
@@ -17,16 +18,26 @@ function Dashboard() {
     const userRole = localStorage.getItem('role') || 'viewer';
 
     // React Query hooks - auto caching & refetch
-    const { data: schemasData, isLoading: schemasLoading } = useSchemas();
-    const { data: networksData, isLoading: networksLoading } = useNetworks();
-    const { data: jobsData, isLoading: jobsLoading } = useJobs();
-    const { data: auditLogsData, isLoading: auditLogsLoading } = useAuditLogs(
+    const { data: schemasData, isLoading: schemasLoading, isError: schemasError, refetch: refetchSchemas } = useSchemas();
+    const { data: networksData, isLoading: networksLoading, isError: networksError, refetch: refetchNetworks } = useNetworks();
+    const { data: jobsData, isLoading: jobsLoading, isError: jobsError, refetch: refetchJobs } = useJobs();
+    const { data: auditLogsData, isLoading: auditLogsLoading, isError: auditLogsError, refetch: refetchAuditLogs } = useAuditLogs(
         userRole === 'admin' ? { limit: 10 } : undefined
     );
-    const { data: systemStatusData } = useSystemStatus();
-    const { data: analyticsData, isLoading: analyticsLoading } = useJobAnalytics(timeRange);
+    const { data: systemStatusData, refetch: refetchSystemStatus } = useSystemStatus();
+    const { data: analyticsData, isLoading: analyticsLoading, refetch: refetchAnalytics } = useJobAnalytics(timeRange);
 
     const loading = schemasLoading || networksLoading || jobsLoading;
+    const hasError = schemasError || networksError || jobsError || auditLogsError;
+
+    const handleRefresh = () => {
+        refetchSchemas();
+        refetchNetworks();
+        refetchJobs();
+        refetchAuditLogs();
+        refetchSystemStatus();
+        refetchAnalytics();
+    };
 
     useEffect(() => {
         const timer = setInterval(() => setCurrentTime(new Date()), 60000);
@@ -130,7 +141,8 @@ function Dashboard() {
             glowClass: 'glow-blue',
             trend: '0',
             trendUp: null,
-            description: 'Struktur data aktif'
+            description: 'Struktur data aktif',
+            path: '/schemas'
         },
         {
             title: 'Sumber Data',
@@ -140,7 +152,8 @@ function Dashboard() {
             glowClass: 'glow-purple',
             trend: '0',
             trendUp: null,
-            description: 'Koneksi terdaftar'
+            description: 'Koneksi terdaftar',
+            path: '/networks'
         },
         {
             title: 'Total Job',
@@ -150,7 +163,8 @@ function Dashboard() {
             glowClass: 'glow-orange',
             trend: '0',
             trendUp: null,
-            description: 'Tugas sinkronisasi'
+            description: 'Tugas sinkronisasi',
+            path: '/jobs'
         },
         {
             title: 'Agent Online',
@@ -160,7 +174,8 @@ function Dashboard() {
             glowClass: 'glow-emerald',
             trend: stats.activeAgents > 0 ? '100%' : '0%',
             trendUp: stats.activeAgents > 0,
-            description: 'Status koneksi'
+            description: 'Status koneksi',
+            path: '/networks' // Assuming agent status relates to networks view
         },
     ];
 
@@ -191,6 +206,30 @@ function Dashboard() {
         };
         return badges[statusType] || badges.info;
     };
+
+    if (hasError) {
+        return (
+            <div className="flex flex-col items-center justify-center p-8 text-center space-y-4 h-[50vh]">
+                <div className={`p-4 rounded-full ${isDark ? 'bg-red-500/10' : 'bg-red-50'}`}>
+                    <AlertTriangle className={`w-12 h-12 ${isDark ? 'text-red-400' : 'text-red-500'}`} />
+                </div>
+                <h3 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Gagal Memuat Data</h3>
+                <p className={`${isDark ? 'text-slate-400' : 'text-slate-600'} max-w-md`}>
+                    Terjadi kesalahan saat memuat data dari server. Silakan coba periksa koneksi Anda dan muat ulang halaman.
+                </p>
+                <button
+                    onClick={handleRefresh}
+                    className={`px-4 py-2 mt-4 rounded-lg font-medium transition-colors ${isDark
+                        ? 'bg-slate-800 hover:bg-slate-700 text-white'
+                        : 'bg-white hover:bg-slate-50 text-slate-900 border border-slate-200'
+                        }`}
+                >
+                    <RefreshCw className="inline w-4 h-4 mr-2" />
+                    Coba Lagi
+                </button>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6 pb-8">
@@ -252,9 +291,10 @@ function Dashboard() {
                     {statCards.map((card, index) => {
                         const Icon = card.icon;
                         return (
-                            <div
+                            <Link
+                                to={card.path}
                                 key={card.title}
-                                className={`group relative overflow-hidden rounded-2xl p-6 hover-lift card-shine ${isDark ? 'glass-dark' : 'glass shadow-lg'}`}
+                                className={`group relative overflow-hidden rounded-2xl p-6 hover-lift card-shine ${isDark ? 'glass-dark' : 'glass shadow-lg'} block`}
                                 style={{ animationDelay: `${index * 100}ms` }}
                             >
                                 {/* Gradient Border Glow on Hover */}
@@ -295,7 +335,7 @@ function Dashboard() {
                                         {card.description}
                                     </p>
                                 </div>
-                            </div>
+                            </Link>
                         );
                     })}
                 </AnimatedList>
@@ -342,129 +382,148 @@ function Dashboard() {
 
                     {/* Activity Timeline */}
                     <div className="p-6">
-                        <AnimatedList delay={150}>
-                            {recentActivity.length > 0 ? recentActivity.map((item, index) => {
-                                const badge = getStatusBadge(item.statusType);
-                                return (
-                                    <div
-                                        key={item.id}
-                                        className={`timeline-item group flex items-start gap-4 p-4 rounded-xl transition-all duration-200 hover:scale-[1.01] mb-3 ${isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}`}
-                                    >
-                                        {/* Timeline Dot */}
-                                        <div className={`relative flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${item.statusType === 'success' ? 'bg-emerald-500/20' : item.statusType === 'error' ? 'bg-red-500/20' : item.statusType === 'running' ? 'bg-blue-500/20' : 'bg-slate-500/20'}`}>
-                                            {item.type === 'job' ? (
-                                                item.statusType === 'success' ? (
-                                                    <CheckCircle className="w-5 h-5 text-emerald-400" />
-                                                ) : item.statusType === 'error' ? (
-                                                    <AlertTriangle className="w-5 h-5 text-red-400" />
-                                                ) : item.statusType === 'running' ? (
-                                                    <RefreshCw className="w-5 h-5 text-blue-400 animate-spin" />
+                        {jobsLoading || auditLogsLoading ? (
+                            <div className="space-y-4">
+                                {[1, 2, 3, 4].map((i) => (
+                                    <div key={i} className={`flex items-start gap-4 p-4 rounded-xl ${isDark ? 'bg-slate-800/20' : 'bg-slate-50'}`}>
+                                        <div className="w-10 h-10 rounded-xl skeleton flex-shrink-0"></div>
+                                        <div className="flex-1 space-y-2">
+                                            <div className="w-32 h-4 skeleton rounded"></div>
+                                            <div className="w-48 h-3 skeleton rounded"></div>
+                                        </div>
+                                        <div className="w-16 h-6 skeleton rounded-lg"></div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <AnimatedList delay={150}>
+                                {recentActivity.length > 0 ? recentActivity.map((item, index) => {
+                                    const badge = getStatusBadge(item.statusType);
+                                    return (
+                                        <Link
+                                            to={item.type === 'job' ? '/jobs' : '/settings?tab=logs'}
+                                            key={item.id}
+                                            className={`timeline-item group flex items-start gap-4 p-4 rounded-xl transition-all duration-200 hover:scale-[1.01] mb-3 block ${isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}`}
+                                        >
+                                            {/* Timeline Dot */}
+                                            <div className={`relative flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${item.statusType === 'success' ? 'bg-emerald-500/20' : item.statusType === 'error' ? 'bg-red-500/20' : item.statusType === 'running' ? 'bg-blue-500/20' : 'bg-slate-500/20'}`}>
+                                                {item.type === 'job' ? (
+                                                    item.statusType === 'success' ? (
+                                                        <CheckCircle className="w-5 h-5 text-emerald-400" />
+                                                    ) : item.statusType === 'error' ? (
+                                                        <AlertTriangle className="w-5 h-5 text-red-400" />
+                                                    ) : item.statusType === 'running' ? (
+                                                        <RefreshCw className="w-5 h-5 text-blue-400 animate-spin" />
+                                                    ) : (
+                                                        <Play className="w-5 h-5 text-yellow-400" />
+                                                    )
                                                 ) : (
-                                                    <Play className="w-5 h-5 text-yellow-400" />
-                                                )
-                                            ) : (
-                                                <FileText className="w-5 h-5 text-slate-400" />
-                                            )}
-                                        </div>
-
-                                        {/* Content */}
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <p className={`font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                                    {item.action}
-                                                </p>
-                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${badge.bg} ${badge.text}`}>
-                                                    {badge.label}
-                                                </span>
+                                                    <FileText className="w-5 h-5 text-slate-400" />
+                                                )}
                                             </div>
-                                            <p className={`text-sm truncate ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                                                {item.target}
-                                            </p>
-                                        </div>
 
-                                        {/* Time */}
-                                        <span className={`text-xs font-medium px-3 py-1.5 rounded-lg flex-shrink-0 ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600'}`}>
-                                            {item.time}
-                                        </span>
+                                            {/* Content */}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <p className={`font-semibold ${isDark ? 'text-white' : 'text-slate-900'} group-hover:text-blue-500 transition-colors`}>
+                                                        {item.action}
+                                                    </p>
+                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${badge.bg} ${badge.text}`}>
+                                                        {badge.label}
+                                                    </span>
+                                                </div>
+                                                <p className={`text-sm truncate ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                                                    {item.target}
+                                                </p>
+                                            </div>
+
+                                            {/* Time */}
+                                            <span className={`text-xs font-medium px-3 py-1.5 rounded-lg flex-shrink-0 ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600'}`}>
+                                                {item.time}
+                                            </span>
+                                        </Link>
+                                    );
+                                }) : (
+                                    <div className={`text-center py-12 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                        <div className={`inline-flex p-4 rounded-2xl mb-3 ${isDark ? 'bg-slate-800/50' : 'bg-slate-100'}`}>
+                                            <FileText className="w-8 h-8 opacity-50" />
+                                        </div>
+                                        <p className="text-sm font-medium">Belum ada aktivitas</p>
+                                        <p className="text-xs mt-1 opacity-70">Aktivitas sinkronisasi akan muncul di sini</p>
                                     </div>
-                                );
-                            }) : (
-                                <div className={`text-center py-12 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                                    <div className={`inline-flex p-4 rounded-2xl mb-3 ${isDark ? 'bg-slate-800/50' : 'bg-slate-100'}`}>
-                                        <FileText className="w-8 h-8 opacity-50" />
-                                    </div>
-                                    <p className="text-sm font-medium">Belum ada aktivitas</p>
-                                    <p className="text-xs mt-1 opacity-70">Aktivitas sinkronisasi akan muncul di sini</p>
-                                </div>
-                            )}
-                        </AnimatedList>
+                                )}
+                            </AnimatedList>
+                        )}
                     </div>
                 </div>
 
-                {/* System Status - Health Bars */}
-                <div className={`rounded-2xl overflow-hidden ${isDark ? 'glass-dark' : 'glass shadow-lg'}`}>
-                    {/* Header */}
-                    <div className={`px-6 py-4 border-b ${isDark ? 'border-slate-700/50' : 'border-slate-200/50'}`}>
-                        <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-lg ${isDark ? 'bg-emerald-500/20' : 'bg-emerald-100'}`}>
-                                <Zap className={`w-5 h-5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
-                            </div>
-                            <div>
-                                <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                    Status Sistem
-                                </h2>
-                                <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
-                                    Kesehatan infrastruktur
-                                </p>
+                {/* Right Column Grid: System Status & Quick Actions */}
+                <div className="space-y-6">
+                    {/* System Status - Health Bars */}
+                    <div className={`rounded-2xl overflow-hidden ${isDark ? 'glass-dark' : 'glass shadow-lg'}`}>
+                        {/* Header */}
+                        <div className={`px-6 py-4 border-b ${isDark ? 'border-slate-700/50' : 'border-slate-200/50'}`}>
+                            <div className="flex items-center gap-3">
+                                <div className={`p-2 rounded-lg ${isDark ? 'bg-emerald-500/20' : 'bg-emerald-100'}`}>
+                                    <Zap className={`w-5 h-5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                                </div>
+                                <div>
+                                    <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                        Status Sistem
+                                    </h2>
+                                    <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+                                        Kesehatan infrastruktur
+                                    </p>
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    {/* Status Items */}
-                    <div className="p-6 space-y-4">
-                        <AnimatedList delay={200}>
-                            {systemStatus.map((item) => {
-                                const StatusIcon = item.icon;
-                                return (
-                                    <div
-                                        key={item.name}
-                                        className={`group p-4 rounded-xl transition-all duration-200 ${isDark ? 'bg-slate-800/30 hover:bg-slate-800/50' : 'bg-slate-50/80 hover:bg-slate-100'}`}
-                                    >
-                                        <div className="flex items-center justify-between mb-3">
-                                            <div className="flex items-center gap-3">
-                                                <div className={`p-2 rounded-lg ${item.ok ? isDark ? 'bg-emerald-500/20' : 'bg-emerald-100' : isDark ? 'bg-red-500/20' : 'bg-red-100'}`}>
-                                                    <StatusIcon className={`w-4 h-4 ${item.ok ? isDark ? 'text-emerald-400' : 'text-emerald-600' : isDark ? 'text-red-400' : 'text-red-600'}`} />
+                        {/* Status Items */}
+                        <div className="p-6 space-y-4">
+                            <AnimatedList delay={200}>
+                                {systemStatus.map((item) => {
+                                    const StatusIcon = item.icon;
+                                    return (
+                                        <div
+                                            key={item.name}
+                                            className={`group p-4 rounded-xl transition-all duration-200 ${isDark ? 'bg-slate-800/30 hover:bg-slate-800/50' : 'bg-slate-50/80 hover:bg-slate-100'}`}
+                                        >
+                                            <div className="flex items-center justify-between mb-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`p-2 rounded-lg ${item.ok ? isDark ? 'bg-emerald-500/20' : 'bg-emerald-100' : isDark ? 'bg-red-500/20' : 'bg-red-100'}`}>
+                                                        <StatusIcon className={`w-4 h-4 ${item.ok ? isDark ? 'text-emerald-400' : 'text-emerald-600' : isDark ? 'text-red-400' : 'text-red-600'}`} />
+                                                    </div>
+                                                    <div>
+                                                        <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                                            {item.name}
+                                                        </p>
+                                                        <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+                                                            {item.status}
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                                        {item.name}
-                                                    </p>
-                                                    <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
-                                                        {item.status}
-                                                    </p>
+                                                <div className={`relative w-3 h-3 rounded-full ${item.ok ? 'bg-emerald-500' : 'bg-red-500'}`}>
+                                                    <div className={`absolute inset-0 rounded-full ${item.ok ? 'bg-emerald-500' : 'bg-red-500'} animate-ping opacity-75`}></div>
                                                 </div>
                                             </div>
-                                            <div className={`relative w-3 h-3 rounded-full ${item.ok ? 'bg-emerald-500' : 'bg-red-500'}`}>
-                                                <div className={`absolute inset-0 rounded-full ${item.ok ? 'bg-emerald-500' : 'bg-red-500'} animate-ping opacity-75`}></div>
+
+                                            {/* Health Bar */}
+                                            <div className={`h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`}>
+                                                <div
+                                                    className={`h-full rounded-full progress-animated ${item.ok ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-red-500 to-orange-400'}`}
+                                                    style={{ width: `${item.health}%` }}
+                                                ></div>
                                             </div>
                                         </div>
+                                    );
+                                })}
+                            </AnimatedList>
 
-                                        {/* Health Bar */}
-                                        <div className={`h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`}>
-                                            <div
-                                                className={`h-full rounded-full progress-animated ${item.ok ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-red-500 to-orange-400'}`}
-                                                style={{ width: `${item.health}%` }}
-                                            ></div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </AnimatedList>
-
-                        {/* Last Updated */}
-                        <div className={`flex items-center justify-center gap-2 pt-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                            <RefreshCw className="w-3 h-3" />
-                            <span className="text-xs">Update setiap 10 detik</span>
+                            {/* Last Updated */}
+                            <div className={`flex items-center justify-center gap-2 pt-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                <RefreshCw className="w-3 h-3" />
+                                <span className="text-xs">Update setiap 10 detik</span>
+                            </div>
                         </div>
                     </div>
                 </div>
