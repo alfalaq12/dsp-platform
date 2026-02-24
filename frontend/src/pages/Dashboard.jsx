@@ -164,11 +164,16 @@ function Dashboard() {
         },
     ];
 
+    const connectedAgents = systemStatusData?.agent_listener?.connected_agents ?? 0;
+    const hasAgents = connectedAgents > 0;
+    const networks = networksData || [];
+    const hasNetworks = networks.length > 0;
+
     const systemStatus = systemStatusData
         ? [
             { name: systemStatusData.server?.name || 'Server Master', status: systemStatusData.server?.uptime ? `Uptime: ${systemStatusData.server.uptime}` : systemStatusData.server?.status || '-', ok: systemStatusData.server?.ok ?? false, icon: Server, health: systemStatusData.server?.health ?? 0 },
-            { name: systemStatusData.agent_listener?.name || 'Agent Listener', status: `${systemStatusData.agent_listener?.status || '-'} (${systemStatusData.agent_listener?.connected_agents ?? 0} agent)`, ok: systemStatusData.agent_listener?.ok ?? false, icon: NetworkIcon, health: systemStatusData.agent_listener?.health ?? 0 },
-            { name: systemStatusData.database?.name || 'Database', status: `${systemStatusData.database?.status || '-'} (${systemStatusData.database?.tables ?? 0} tables)`, ok: systemStatusData.database?.ok ?? false, icon: Shield, health: systemStatusData.database?.health ?? 0 },
+            { name: systemStatusData.agent_listener?.name || 'Agent Listener', status: `${systemStatusData.agent_listener?.status || '-'} (${connectedAgents} agent)`, ok: hasAgents, icon: NetworkIcon, health: hasAgents ? 100 : 0 },
+            { name: 'Database', status: hasNetworks ? `Terhubung (${networks.length} sumber)` : 'Belum ada koneksi', ok: hasNetworks, icon: Shield, health: hasNetworks ? 100 : 0 },
         ]
         : [
             { name: 'Server Master', status: 'Loading...', ok: false, icon: Server, health: 0 },
@@ -427,8 +432,8 @@ function Dashboard() {
                                     >
                                         <div className="flex items-center justify-between mb-3">
                                             <div className="flex items-center gap-3">
-                                                <div className={`p-2 rounded-lg ${item.ok ? isDark ? 'bg-emerald-500/20' : 'bg-emerald-100' : isDark ? 'bg-yellow-500/20' : 'bg-yellow-100'}`}>
-                                                    <StatusIcon className={`w-4 h-4 ${item.ok ? isDark ? 'text-emerald-400' : 'text-emerald-600' : isDark ? 'text-yellow-400' : 'text-yellow-600'}`} />
+                                                <div className={`p-2 rounded-lg ${item.ok ? isDark ? 'bg-emerald-500/20' : 'bg-emerald-100' : isDark ? 'bg-red-500/20' : 'bg-red-100'}`}>
+                                                    <StatusIcon className={`w-4 h-4 ${item.ok ? isDark ? 'text-emerald-400' : 'text-emerald-600' : isDark ? 'text-red-400' : 'text-red-600'}`} />
                                                 </div>
                                                 <div>
                                                     <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
@@ -439,15 +444,15 @@ function Dashboard() {
                                                     </p>
                                                 </div>
                                             </div>
-                                            <div className={`relative w-3 h-3 rounded-full ${item.ok ? 'bg-emerald-500' : 'bg-yellow-500'}`}>
-                                                <div className={`absolute inset-0 rounded-full ${item.ok ? 'bg-emerald-500' : 'bg-yellow-500'} animate-ping opacity-75`}></div>
+                                            <div className={`relative w-3 h-3 rounded-full ${item.ok ? 'bg-emerald-500' : 'bg-red-500'}`}>
+                                                <div className={`absolute inset-0 rounded-full ${item.ok ? 'bg-emerald-500' : 'bg-red-500'} animate-ping opacity-75`}></div>
                                             </div>
                                         </div>
 
                                         {/* Health Bar */}
                                         <div className={`h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`}>
                                             <div
-                                                className={`h-full rounded-full progress-animated ${item.ok ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-yellow-500 to-orange-400'}`}
+                                                className={`h-full rounded-full progress-animated ${item.ok ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-red-500 to-orange-400'}`}
                                                 style={{ width: `${item.health}%` }}
                                             ></div>
                                         </div>
