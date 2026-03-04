@@ -21,15 +21,15 @@ services:
     container_name: dsp-master
     restart: unless-stopped
     ports:
-      - "${HTTP_PORT:-441}:441" # Web Console
-      - "${TCP_PORT:-447}:447" # Agent TCP
+      - "${HOST_HTTP_PORT:-4410}:4410" # Web Console
+      - "${HOST_TCP_PORT:-4470}:4470" # Agent TCP
     volumes:
       - dsp-master-data:/app/data
       - dsp-master-logs:/app/logs
       - ./certs:/app/certs
     environment:
-      - HTTP_PORT=441
-      - TCP_PORT=447
+      - HTTP_PORT=4410
+      - TCP_PORT=4470
       - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
       - TLS_ENABLED=${TLS_ENABLED:-true}
       - TLS_CERT_PATH=/app/certs/server.crt
@@ -37,7 +37,7 @@ services:
       - PAYLOAD_ENCRYPTION=${PAYLOAD_ENCRYPTION:-false}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
     healthcheck:
-      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "--no-check-certificate", "https://localhost:441/health" ]
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "--no-check-certificate", "https://localhost:4410/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -69,7 +69,7 @@ services:
       - ./certs:/app/certs:ro
     environment:
       - MASTER_HOST=master # Connect to Master container
-      - MASTER_PORT=447
+      - MASTER_PORT=4470
       - AGENT_NAME=${AGENT_NAME:-docker-agent}
       - AGENT_TOKEN=${AGENT_TOKEN:-}
       - TLS_ENABLED=${TLS_ENABLED:-false}
@@ -98,7 +98,7 @@ services:
       - ./certs:/app/certs:ro
     environment:
       - MASTER_HOST=${MASTER_HOST:-localhost} # External Master IP
-      - MASTER_PORT=${MASTER_PORT:-447}
+      - MASTER_PORT=${MASTER_PORT:-4470}
       - AGENT_NAME=${AGENT_NAME:-docker-agent}
       - AGENT_TOKEN=${AGENT_TOKEN:-}
       - TLS_ENABLED=${TLS_ENABLED:-false}
