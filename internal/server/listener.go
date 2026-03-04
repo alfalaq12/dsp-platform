@@ -622,8 +622,13 @@ func (al *AgentListener) updateJobLog(logID float64, isPartial bool, status stri
 	}
 	var jobLog core.JobLog
 	if err := al.handler.db.First(&jobLog, uint(logID)).Error; err == nil {
+		// Prevent partial batches from overwriting a 'completed' or 'failed' status
+		// This happens due to network race conditions where the final data pulse (partial=false)
+		// is processed before the worker pool finishes processing the last data batch.
 		if isPartial {
-			jobLog.Status = "running"
+			if jobLog.Status != "completed" && jobLog.Status != "failed" {
+				jobLog.Status = "running"
+			}
 		} else {
 			jobLog.Status = status
 			jobLog.CompletedAt = time.Now()
@@ -637,6 +642,7 @@ func (al *AgentListener) updateJobLog(logID float64, isPartial bool, status stri
 		}
 		if errorMsg != "" {
 			jobLog.ErrorMessage = errorMsg
+			jobLog.Status = "failed" // Ensure status is marked failed on error even for partial
 		}
 
 		al.handler.db.Save(&jobLog)
@@ -653,7 +659,10 @@ func (al *AgentListener) updateJobStatus(jobID uint, isPartial bool, status stri
 	var job core.Job
 	if err := al.handler.db.First(&job, jobID).Error; err == nil {
 		if isPartial {
-			job.Status = "running"
+			// Protect against race conditions overriding final statuses
+			if job.Status != "completed" && job.Status != "failed" {
+				job.Status = "running"
+			}
 		} else {
 			job.Status = status
 		}
