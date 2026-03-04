@@ -161,6 +161,26 @@ func (s *Scheduler) runJob(job core.Job) {
 	}
 	s.db.Create(&jobLog)
 
+	// Handle incremental sync ca_pointer replacement
+	sqlCommand := job.Schema.SQLCommand
+	if job.Incremental && job.CheckpointColumn != "" && sqlCommand != "" {
+		// Replace {{ca_pointer}} case-insensitively
+		// Default to 0 or '' if LastCheckpoint is empty, depending on context (can't easily infer so we just put the exact string or 0)
+		checkpointVal := job.LastCheckpoint
+		if checkpointVal == "" {
+			checkpointVal = "0"
+		}
+
+		// Case-insensitive replacement
+		lowerQuery := strings.ToLower(sqlCommand)
+		if strings.Contains(lowerQuery, "{{ca_pointer}}") {
+			// Find actual casing in the query to replace it properly
+			sqlCommand = strings.ReplaceAll(sqlCommand, "{{ca_pointer}}", checkpointVal)
+			sqlCommand = strings.ReplaceAll(sqlCommand, "{{CA_POINTER}}", checkpointVal)
+			sqlCommand = strings.ReplaceAll(sqlCommand, "{{Ca_Pointer}}", checkpointVal)
+		}
+	}
+
 	// Send command to agent
 	command := core.AgentMessage{
 		Type:      "RUN_JOB",
@@ -171,7 +191,7 @@ func (s *Scheduler) runJob(job core.Job) {
 			"schema": map[string]interface{}{
 				"id":           job.Schema.ID,
 				"name":         job.Schema.Name,
-				"sql_command":  job.Schema.SQLCommand,
+				"sql_command":  sqlCommand,
 				"target_table": job.Schema.TargetTable,
 			},
 		},

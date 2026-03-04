@@ -149,6 +149,11 @@ type Job struct {
 	CreatedBy uint      `json:"created_by" gorm:"index"` // Owner user ID
 	UpdatedBy uint      `json:"updated_by"`              // Last modifier user ID
 
+	// Incremental Sync Support
+	Incremental      bool   `json:"incremental" gorm:"default:false"`
+	CheckpointColumn string `json:"checkpoint_column"` // e.g., "id" or "updated_at"
+	LastCheckpoint   string `json:"last_checkpoint"`   // Stores the actual ca_pointer value
+
 	// Relations
 	Schema  *Schema `json:"schema,omitempty" gorm:"foreignKey:SchemaID"` // Optional relation
 	Network Network `json:"network" gorm:"foreignKey:NetworkID"`

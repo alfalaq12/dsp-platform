@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -742,6 +743,22 @@ func (h *Handler) RunJob(c *gin.Context) {
 		uniqueKeyColumn = job.Schema.UniqueKeyColumn
 		hasHeader = job.Schema.HasHeader
 		delimiter = job.Schema.Delimiter
+
+		// Handle incremental sync ca_pointer replacement
+		if job.Incremental && job.CheckpointColumn != "" && sqlCommand != "" {
+			checkpointVal := job.LastCheckpoint
+			if checkpointVal == "" {
+				checkpointVal = "0"
+			}
+
+			// Case-insensitive replacement
+			lowerQuery := strings.ToLower(sqlCommand)
+			if strings.Contains(lowerQuery, "{{ca_pointer}}") {
+				sqlCommand = strings.ReplaceAll(sqlCommand, "{{ca_pointer}}", checkpointVal)
+				sqlCommand = strings.ReplaceAll(sqlCommand, "{{CA_POINTER}}", checkpointVal)
+				sqlCommand = strings.ReplaceAll(sqlCommand, "{{Ca_Pointer}}", checkpointVal)
+			}
+		}
 	}
 
 	command := core.AgentMessage{

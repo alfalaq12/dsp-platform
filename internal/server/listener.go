@@ -41,19 +41,20 @@ type cachedTargetConn struct {
 
 // insertWork represents a unit of insert work for the worker pool
 type insertWork struct {
-	tableName       string
-	records         []interface{}
-	uniqueKeyColumn string
-	networkID       uint
-	jobID           uint
-	logID           float64
-	isPartial       bool
-	status          string
-	recordCount     int
-	sampleData      string
-	errorMsg        string
-	agentName       string
-	clientAddr      string
+	tableName        string
+	records          []interface{}
+	uniqueKeyColumn  string
+	checkpointColumn string
+	networkID        uint
+	jobID            uint
+	logID            float64
+	isPartial        bool
+	status           string
+	recordCount      int
+	sampleData       string
+	errorMsg         string
+	agentName        string
+	clientAddr       string
 }
 
 // workerPoolSize is the number of concurrent insert workers
@@ -519,12 +520,14 @@ func (al *AgentListener) handleDataResponse(msg core.AgentMessage, clientAddr st
 	// Get target table and unique key from job's schema
 	targetTable := ""
 	uniqueKeyColumn := ""
+	checkpointColumn := ""
 	var networkID uint
 	if jobID > 0 {
 		var job core.Job
 		if err := al.handler.db.Preload("Schema").Preload("Network").First(&job, jobID).Error; err == nil {
 			targetTable = job.Schema.TargetTable
 			uniqueKeyColumn = job.Schema.UniqueKeyColumn
+			checkpointColumn = job.CheckpointColumn
 			networkID = job.NetworkID
 		}
 	}
@@ -538,19 +541,20 @@ func (al *AgentListener) handleDataResponse(msg core.AgentMessage, clientAddr st
 	// Dispatch insert work to worker pool (async, non-blocking)
 	if records, ok := msg.Data["records"].([]interface{}); ok && len(records) > 0 && targetTable != "" {
 		work := insertWork{
-			tableName:       targetTable,
-			records:         records,
-			uniqueKeyColumn: uniqueKeyColumn,
-			networkID:       networkID,
-			jobID:           jobID,
-			logID:           logID,
-			isPartial:       isPartial,
-			status:          status,
-			recordCount:     recordCount,
-			sampleData:      sampleData,
-			errorMsg:        errorMsg,
-			agentName:       msg.AgentName,
-			clientAddr:      clientAddr,
+			tableName:        targetTable,
+			records:          records,
+			uniqueKeyColumn:  uniqueKeyColumn,
+			checkpointColumn: checkpointColumn,
+			networkID:        networkID,
+			jobID:            jobID,
+			logID:            logID,
+			isPartial:        isPartial,
+			status:           status,
+			recordCount:      recordCount,
+			sampleData:       sampleData,
+			errorMsg:         errorMsg,
+			agentName:        msg.AgentName,
+			clientAddr:       clientAddr,
 		}
 
 		select {
@@ -580,6 +584,21 @@ func (al *AgentListener) insertWorker(workerID int) {
 
 // executeInsertWork performs the actual insert and updates job log/status
 func (al *AgentListener) executeInsertWork(work insertWork) {
+	// Extract maximum checkpoint value if applicable
+	var maxCheckpoint string
+	if work.checkpointColumn != "" && len(work.records) > 0 {
+		for _, r := range work.records {
+			if rec, ok := r.(map[string]interface{}); ok {
+				if val, exists := rec[work.checkpointColumn]; exists && val != nil {
+					strVal := fmt.Sprintf("%v", val)
+					if maxCheckpoint == "" || strVal > maxCheckpoint {
+						maxCheckpoint = strVal
+					}
+				}
+			}
+		}
+	}
+
 	// Insert/Upsert data into target database
 	insertedCount := al.upsertToTargetDBWithNetwork(work.tableName, work.records, work.uniqueKeyColumn, work.networkID)
 	if work.uniqueKeyColumn != "" {
@@ -590,7 +609,7 @@ func (al *AgentListener) executeInsertWork(work insertWork) {
 
 	// Update job log and status
 	al.updateJobLog(work.logID, work.isPartial, work.status, work.recordCount, insertedCount, work.sampleData, work.errorMsg)
-	al.updateJobStatus(work.jobID, work.isPartial, work.status)
+	al.updateJobStatus(work.jobID, work.isPartial, work.status, maxCheckpoint)
 
 	log.Printf("Job %d response: status=%s, batch_records=%d, inserted=%d, partial=%v",
 		work.jobID, work.status, work.recordCount, insertedCount, work.isPartial)
@@ -627,7 +646,7 @@ func (al *AgentListener) updateJobLog(logID float64, isPartial bool, status stri
 }
 
 // updateJobStatus updates the job status
-func (al *AgentListener) updateJobStatus(jobID uint, isPartial bool, status string) {
+func (al *AgentListener) updateJobStatus(jobID uint, isPartial bool, status string, newCheckpoint ...string) {
 	if jobID == 0 {
 		return
 	}
@@ -638,6 +657,15 @@ func (al *AgentListener) updateJobStatus(jobID uint, isPartial bool, status stri
 		} else {
 			job.Status = status
 		}
+
+		// Update checkpoint if applicable and it's not empty, and if it's greater than current
+		if len(newCheckpoint) > 0 && newCheckpoint[0] != "" {
+			if job.LastCheckpoint == "" || newCheckpoint[0] > job.LastCheckpoint {
+				job.LastCheckpoint = newCheckpoint[0]
+				log.Printf("Updated job %d checkpoint to %s", jobID, job.LastCheckpoint)
+			}
+		}
+
 		al.handler.db.Save(&job)
 	}
 }

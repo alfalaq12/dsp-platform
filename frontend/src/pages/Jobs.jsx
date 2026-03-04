@@ -11,9 +11,15 @@ import SearchableSelect from '../components/SearchableSelect';
 function Jobs() {
     const { isDark } = useTheme();
 
-    const [showForm, setShowForm] = useState(false);
-    const [formData, setFormData] = useState({ name: '', schema_id: '', network_id: '', schedule: '' });
-    const [selectedJob, setSelectedJob] = useState(null);
+    const [formData, setFormData] = useState({
+        name: '',
+        schema_id: '',
+        network_id: '',
+        schedule: '',
+        incremental: false,
+        checkpoint_column: '',
+        last_checkpoint: ''
+    });
     const [lastUpdated, setLastUpdated] = useState(new Date());
 
     // New states for enhanced UX
@@ -90,10 +96,12 @@ function Jobs() {
         try {
             const jobData = {
                 name: formData.name,
-                // Schema is optional for MinIO mirror jobs
                 schema_id: isMinioMirrorMode ? null : parseInt(formData.schema_id, 10),
                 network_id: parseInt(formData.network_id, 10),
                 schedule: formData.schedule || '',
+                incremental: formData.incremental || false,
+                checkpoint_column: formData.checkpoint_column || '',
+                last_checkpoint: formData.last_checkpoint || '',
             };
             await createJobMutation.mutateAsync(jobData);
             addToast('Job created successfully!', 'success');
@@ -166,7 +174,15 @@ function Jobs() {
     };
 
     const resetForm = () => {
-        setFormData({ name: '', schema_id: '', network_id: '', schedule: '' });
+        setFormData({
+            name: '',
+            schema_id: '',
+            network_id: '',
+            schedule: '',
+            incremental: false,
+            checkpoint_column: '',
+            last_checkpoint: ''
+        });
         setShowForm(false);
     };
 
@@ -424,6 +440,56 @@ function Jobs() {
                                 </div>
                             </div>
                         </div>
+                        <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
+                            <label className={`flex items-center gap-2 cursor-pointer mb-4 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                <input
+                                    type="checkbox"
+                                    checked={formData.incremental}
+                                    onChange={(e) => setFormData({ ...formData, incremental: e.target.checked })}
+                                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <span className="text-sm font-medium">Enable Incremental Sync</span>
+                            </label>
+
+                            {formData.incremental && (
+                                <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 p-4 rounded-xl mb-4 ${isDark ? 'bg-slate-900/50 border border-slate-700' : 'bg-slate-50 border border-slate-200'}`}>
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                            Checkpoint Column <span className="text-red-500">*</span>
+                                        </label>
+                                        <p className={`text-xs mb-2 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>e.g., id, updated_at</p>
+                                        <input
+                                            type="text"
+                                            value={formData.checkpoint_column}
+                                            onChange={(e) => setFormData({ ...formData, checkpoint_column: e.target.value })}
+                                            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition ${isDark ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-500' : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'}`}
+                                            placeholder="id"
+                                            required={formData.incremental}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                            Initial Checkpoint Value
+                                        </label>
+                                        <p className={`text-xs mb-2 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>Optional defaults to 0</p>
+                                        <input
+                                            type="text"
+                                            value={formData.last_checkpoint}
+                                            onChange={(e) => setFormData({ ...formData, last_checkpoint: e.target.value })}
+                                            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition ${isDark ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-500' : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'}`}
+                                            placeholder="0"
+                                        />
+                                    </div>
+                                    <div className="col-span-1 md:col-span-2">
+                                        <div className={`flex items-start gap-2 p-3 rounded-lg text-xs ${isDark ? 'bg-blue-500/10 text-blue-300 border border-blue-500/20' : 'bg-blue-50 text-blue-700 border border-blue-100'}`}>
+                                            <Database className="w-4 h-4 shrink-0 mt-0.5" />
+                                            <p>Remember to use <span className="font-mono bg-blue-100 dark:bg-blue-900 px-1 py-0.5 rounded">{"{{ca_pointer}}"}</span> in your Schema&apos;s SQL query WHERE clause. Example: <code className="font-mono text-[10px] sm:text-xs">SELECT * FROM table WHERE {formData.checkpoint_column || 'id'} &gt; {"{{ca_pointer}}"}</code></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
                         <div className="flex gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
                             <button
                                 type="submit"
@@ -470,6 +536,12 @@ function Jobs() {
                                         Schedule
                                     </span>
                                 </th>
+                                <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-orange-400' : 'text-orange-600'}`}>
+                                    <span className="flex items-center gap-1">
+                                        <RefreshCw className="w-3 h-3" />
+                                        Sync Type
+                                    </span>
+                                </th>
                                 <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Status</th>
                                 <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Last Run</th>
                                 <th className={`px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Actions</th>
@@ -514,6 +586,23 @@ function Jobs() {
                                         <span className={`text-xs font-mono px-2 py-1 rounded ${isDark ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
                                             {getScheduleLabel(job.schedule)}
                                         </span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        {job.incremental ? (
+                                            <div className="flex flex-col gap-1">
+                                                <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full w-fit ${isDark ? 'bg-orange-500/20 text-orange-400' : 'bg-orange-50 text-orange-600'}`}>
+                                                    <RefreshCw className="w-3 h-3" />
+                                                    Incremental
+                                                </span>
+                                                <span className={`text-[10px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`} title="Checkpoint Column & Value">
+                                                    {job.checkpoint_column}: {job.last_checkpoint || '0'}
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <span className={`inline-flex py-0.5 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                                Full Sync
+                                            </span>
+                                        )}
                                     </td>
                                     <td className="px-4 py-3">
                                         <span className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full w-fit ${job.status === 'running'
@@ -600,9 +689,17 @@ function Jobs() {
                                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>
                                     <Database className="w-5 h-5" />
                                 </div>
-                                <div>
-                                    <div className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{job.name}</div>
-                                    <div className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>ID: {job.id}</div>
+                                <div className="flex flex-col">
+                                    <div className={`font-bold leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>{job.name}</div>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>ID: {job.id}</span>
+                                        {job.incremental && (
+                                            <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${isDark ? 'bg-orange-500/20 text-orange-400' : 'bg-orange-50 text-orange-600'}`}>
+                                                <RefreshCw className="w-2.5 h-2.5" />
+                                                Inc
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                             <span className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${job.status === 'running'
@@ -642,6 +739,15 @@ function Jobs() {
                                 <span>Schedule:</span>
                                 <span className={`font-mono ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{getScheduleLabel(job.schedule)}</span>
                             </div>
+                            {job.incremental && (
+                                <div className="flex items-center gap-2">
+                                    <RefreshCw className="w-3.5 h-3.5" />
+                                    <span>Checkpoint:</span>
+                                    <span className={`font-mono ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                        {job.checkpoint_column}: {job.last_checkpoint || '0'}
+                                    </span>
+                                </div>
+                            )}
                         </div>
 
                         {/* Action Buttons */}
