@@ -132,8 +132,8 @@ export default function Terminal() {
                         value={selectedAgent}
                         onChange={(e) => setSelectedAgent(e.target.value)}
                         className={`px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                ? 'bg-gray-800 border border-gray-700 text-white'
-                                : 'bg-white border border-gray-300 text-gray-900'
+                            ? 'bg-gray-800 border border-gray-700 text-white'
+                            : 'bg-white border border-gray-300 text-gray-900'
                             }`}
                     >
                         {agents.length === 0 ? (
@@ -158,7 +158,7 @@ export default function Terminal() {
                         <div className="w-3 h-3 rounded-full bg-green-500"></div>
                     </div>
                     <span className="ml-4 text-gray-400 text-sm font-mono">
-                        {selectedAgent ? `${selectedAgent}@dsp-agent` : 'Select an agent'}
+                        {selectedAgent ? `${selectedAgent}@sync-agent` : 'Select an agent'}
                     </span>
                     <div className="flex-1"></div>
                     <button
@@ -176,7 +176,7 @@ export default function Terminal() {
                 >
                     {history.length === 0 ? (
                         <div className="text-gray-500 italic">
-                            <p>Welcome to DSP Terminal Console</p>
+                            <p>Welcome to Sync Go Terminal Console</p>
                             <p className="mt-2">• Select an agent from the dropdown above</p>
                             <p>• Type commands and press Enter to execute</p>
                             <p>• Use ↑/↓ arrows to navigate command history</p>
@@ -244,8 +244,8 @@ export default function Terminal() {
 
             {/* Quick Commands */}
             <div className={`rounded-xl border p-4 ${isDark
-                    ? 'bg-gray-900/50 border-gray-800'
-                    : 'bg-white border-gray-200 shadow-sm'
+                ? 'bg-gray-900/50 border-gray-800'
+                : 'bg-white border-gray-200 shadow-sm'
                 }`}>
                 <h3 className={`text-sm font-medium mb-3 ${isDark ? 'text-gray-400' : 'text-gray-700'}`}>Quick Commands</h3>
                 <div className="flex flex-wrap gap-2">
@@ -270,8 +270,8 @@ export default function Terminal() {
                             }}
                             disabled={!selectedAgent}
                             className={`px-3 py-1.5 text-xs font-mono rounded-lg border transition-colors ${isDark
-                                    ? 'bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800/50 disabled:text-gray-600 text-gray-300 border-gray-700'
-                                    : 'bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 text-gray-700 border-gray-300'
+                                ? 'bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800/50 disabled:text-gray-600 text-gray-300 border-gray-700'
+                                : 'bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 text-gray-700 border-gray-300'
                                 }`}
                         >
                             {item.label}
@@ -285,8 +285,8 @@ export default function Terminal() {
 
             {/* Security Notice */}
             <div className={`rounded-xl border p-4 ${isDark
-                    ? 'bg-yellow-900/20 border-yellow-800/50'
-                    : 'bg-yellow-50 border-yellow-200'
+                ? 'bg-yellow-900/20 border-yellow-800/50'
+                : 'bg-yellow-50 border-yellow-200'
                 }`}>
                 <div className="flex items-start gap-3">
                     <svg className="w-5 h-5 text-yellow-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -295,7 +295,7 @@ export default function Terminal() {
                     <div>
                         <h4 className={`font-medium ${isDark ? 'text-yellow-500' : 'text-yellow-700'}`}>Security Notice</h4>
                         <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-yellow-800'}`}>
-                            Commands are executed with the same privileges as the DSP Agent service. All commands are logged for audit purposes.
+                            Commands are executed with the same privileges as the Sync Go Agent service. All commands are logged for audit purposes.
                             Only administrators have access to this feature.
                         </p>
                     </div>

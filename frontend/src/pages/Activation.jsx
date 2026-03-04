@@ -16,7 +16,7 @@ function Activation() {
     // Console state
     const [consoleCommand, setConsoleCommand] = useState('');
     const [consoleHistory, setConsoleHistory] = useState([
-        { type: 'system', text: 'DSP License Console v1.0' },
+        { type: 'system', text: 'Sync Go License Console v1.0' },
         { type: 'system', text: 'Available commands:' },
         { type: 'info', text: '  #CANC              - Generate Machine ID' },
         { type: 'info', text: '  #CAHOST<code>      - Activate license' },
@@ -234,7 +234,7 @@ function Activation() {
                     <div className="w-3 h-3 rounded-full bg-red-500"></div>
                     <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
                     <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                    <span className="ml-2 text-sm text-slate-400 font-mono">DSP License Console</span>
+                    <span className="ml-2 text-sm text-slate-400 font-mono">Sync Go License Console</span>
                 </div>
 
                 {/* Console Output */}

@@ -129,28 +129,6 @@ function Settings() {
                 </div>
             </div>
 
-            {/* Quick Links Info */}
-            <div className={`rounded-2xl p-6 border ${isDark ? 'bg-blue-900/10 border-blue-800' : 'bg-blue-50 border-blue-200'}`}>
-                <div className="flex items-start gap-4">
-                    <div className={`p-3 rounded-xl ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>
-                        <Info className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1">
-                        <h3 className={`font-bold text-lg mb-1 ${isDark ? 'text-blue-300' : 'text-blue-800'}`}>Target Database Configuration</h3>
-                        <p className={`text-base leading-relaxed mb-3 ${isDark ? 'text-blue-200/70' : 'text-blue-700/80'}`}>
-                            Target database configuration is now set per-network. Each network has its own SOURCE and TARGET configuration for flexible data synchronization.
-                        </p>
-                        <Link
-                            to="/network"
-                            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${isDark ? 'bg-blue-500/20 hover:bg-blue-500/30 text-blue-300' : 'bg-blue-100 hover:bg-blue-200 text-blue-700'}`}
-                        >
-                            Go to Network Management
-                            <ArrowRight className="w-4 h-4" />
-                        </Link>
-                    </div>
-                </div>
-            </div>
-
             {/* Backup & Restore Section */}
             <div className={`rounded-2xl border shadow-xl overflow-hidden ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200 shadow-lg'}`}>
                 <div className={`px-4 sm:px-8 py-4 sm:py-6 border-b ${isDark ? 'border-slate-700 bg-slate-900/50' : 'border-slate-100 bg-slate-50/80'}`}>

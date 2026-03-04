@@ -229,6 +229,16 @@ export const useRunJob = () => {
   });
 };
 
+export const useAbortJob = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.abortJob,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+    },
+  });
+};
+
 export const useToggleJob = () => {
   const queryClient = useQueryClient();
   return useMutation({

@@ -34,7 +34,7 @@ function Login() {
                 localStorage.setItem('mustChangePassword', 'true');
                 setSuccess('⚠️ Anda harus mengganti password sebelum melanjutkan!');
                 addToast('⚠️ Anda harus mengganti password sebelum melanjutkan!', 'warning');
-                setTimeout(() => navigate('/settings?changePassword=true'), 1500);
+                setTimeout(() => navigate('/'), 1500);
             } else {
                 localStorage.removeItem('mustChangePassword');
                 setSuccess('🎉 Login berhasil! Mengalihkan ke dashboard...');
@@ -78,7 +78,7 @@ function Login() {
                         <div className="p-3 bg-blue-500/20 rounded-xl backdrop-blur-sm border border-blue-400/30">
                             <Activity className="w-8 h-8 text-blue-400" />
                         </div>
-                        <h1 className="text-3xl font-bold tracking-tight">DSP Platform</h1>
+                        <h1 className="text-3xl font-bold tracking-tight">Sync Go</h1>
                     </div>
 
                     <h2 className="text-4xl font-bold mb-6 leading-tight">

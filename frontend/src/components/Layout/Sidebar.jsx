@@ -57,7 +57,7 @@ function Sidebar({ isOpen, onClose }) {
             }
             `}>
             <div className={`p-6 ${isDark ? 'border-b border-panda-dark-300' : 'border-b border-gov-blue-800'}`}>
-                <h1 className={`text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r ${isDark ? 'from-blue-400 to-purple-400' : 'from-white to-blue-200'}`}>DSP Platform</h1>
+                <h1 className={`text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r ${isDark ? 'from-blue-400 to-purple-400' : 'from-white to-blue-200'}`}>Sync Go</h1>
                 <p className={`text-sm mt-1 ${isDark ? 'text-panda-text-muted' : 'text-blue-200'}`}>Data Sync</p>
             </div>
 

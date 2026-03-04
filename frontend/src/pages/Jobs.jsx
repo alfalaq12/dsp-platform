@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Play, RefreshCw, X, Clock, Database, CheckCircle, XCircle, Loader2, Trash2, Eye, Pause, Network as NetworkIcon, HardDrive } from 'lucide-react';
-import { useJobs, useSchemas, useNetworks, useJob, useCreateJob, useDeleteJob, useRunJob, useToggleJob } from '../hooks/useQueries';
+import { Plus, Play, RefreshCw, X, Clock, Database, CheckCircle, XCircle, Loader2, Trash2, Eye, Pause, Network as NetworkIcon, HardDrive, StopCircle } from 'lucide-react';
+import { useJobs, useSchemas, useNetworks, useJob, useCreateJob, useDeleteJob, useRunJob, useAbortJob, useToggleJob } from '../hooks/useQueries';
 import { useToast, ToastContainer, ConfirmModal } from '../components/Toast';
 import Pagination from '../components/Pagination';
 import { useTheme } from '../contexts/ThemeContext';
@@ -11,6 +11,8 @@ import SearchableSelect from '../components/SearchableSelect';
 function Jobs() {
     const { isDark } = useTheme();
 
+    const [showForm, setShowForm] = useState(false);
+    const [selectedJob, setSelectedJob] = useState(null);
     const [formData, setFormData] = useState({
         name: '',
         schema_id: '',
@@ -44,6 +46,7 @@ function Jobs() {
     const createJobMutation = useCreateJob();
     const deleteJobMutation = useDeleteJob();
     const runJobMutation = useRunJob();
+    const abortJobMutation = useAbortJob();
     const toggleJobMutation = useToggleJob();
 
     // Extract jobs array and total from query data
@@ -135,6 +138,18 @@ function Jobs() {
                 newSet.delete(jobId);
                 return newSet;
             });
+        }
+    };
+
+    const handleAbortJob = async (jobId, e) => {
+        e?.stopPropagation();
+        try {
+            await abortJobMutation.mutateAsync(jobId);
+            addToast('Job aborted successfully!', 'warning');
+        } catch (error) {
+            console.error('Failed to abort job:', error);
+            const errorMsg = error.response?.data?.error || error.message || 'Unknown error';
+            addToast(`Failed to abort job: ${errorMsg}`, 'error');
         }
     };
 
@@ -647,6 +662,15 @@ function Jobs() {
                                                             <Play className="w-3.5 h-3.5" />
                                                         )}
                                                     </button>
+                                                    {job.status === 'running' && (
+                                                        <button
+                                                            onClick={(e) => handleAbortJob(job.id, e)}
+                                                            className={`p-1.5 rounded-lg transition ${isDark ? 'hover:bg-red-500/20 text-orange-400' : 'hover:bg-orange-50 text-orange-600'}`}
+                                                            title="Abort Job"
+                                                        >
+                                                            <StopCircle className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    )}
                                                     <button
                                                         onClick={(e) => handleToggle(job, e)}
                                                         className={`p-1.5 rounded-lg transition ${job.enabled !== false
@@ -773,6 +797,15 @@ function Jobs() {
                                         )}
                                         Run
                                     </button>
+                                    {job.status === 'running' && (
+                                        <button
+                                            onClick={(e) => handleAbortJob(job.id, e)}
+                                            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition ${isDark ? 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30' : 'bg-orange-50 text-orange-600 hover:bg-orange-100'}`}
+                                        >
+                                            <StopCircle className="w-3.5 h-3.5" />
+                                            Abort
+                                        </button>
+                                    )}
                                     <button
                                         onClick={(e) => handleToggle(job, e)}
                                         className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition ${job.enabled !== false

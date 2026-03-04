@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Trash2, Search, User, Shield, Key, Edit, X } from 'lucide-react';
+import { Plus, Trash2, Search, User, Shield, Key, Edit, X, Eye, EyeOff } from 'lucide-react';
 import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from '../hooks/useQueries';
 import { ConfirmModal, useToast, ToastContainer } from '../components/Toast';
 import Pagination from '../components/Pagination';
@@ -24,6 +24,7 @@ function Users() {
     const [formData, setFormData] = useState({ username: '', password: '', role: 'viewer' });
     const [formLoading, setFormLoading] = useState(false);
     const [error, setError] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
 
     // Delete state
     const [deleteTarget, setDeleteTarget] = useState(null);
@@ -38,6 +39,7 @@ function Users() {
         setSelectedUser(null);
         setFormData({ username: '', password: '', role: 'viewer' });
         setError('');
+        setShowPassword(false);
         setIsModalOpen(true);
     };
 
@@ -47,6 +49,7 @@ function Users() {
         // Don't fill password for edit, only role and display username
         setFormData({ username: user.username, password: '', role: user.role });
         setError('');
+        setShowPassword(false);
         setIsModalOpen(true);
     };
 
@@ -294,16 +297,24 @@ function Users() {
                                 <div className="relative">
                                     <Key className={`absolute left-4 top-3.5 w-5 h-5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
                                     <input
-                                        type="password"
+                                        type={showPassword ? 'text' : 'password'}
                                         value={formData.password}
                                         onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                        className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${isDark
+                                        className={`w-full pl-12 pr-12 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${isDark
                                             ? 'bg-slate-900/50 border-slate-700 text-white placeholder-slate-500'
                                             : 'bg-white border-slate-200 text-slate-900 placeholder-slate-400'
                                             }`}
                                         placeholder={isEditing ? "Enter new password" : "Enter password"}
                                         required={!isEditing}
                                     />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className={`absolute right-4 top-3.5 transition-colors ${isDark ? 'text-slate-500 hover:text-slate-300' : 'text-slate-400 hover:text-slate-600'}`}
+                                        tabIndex={-1}
+                                    >
+                                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                    </button>
                                 </div>
                             </div>
 

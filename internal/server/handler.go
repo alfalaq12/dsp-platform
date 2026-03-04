@@ -672,6 +672,49 @@ func (h *Handler) DeleteJob(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Job deleted successfully"})
 }
 
+// AbortJob stops a running job by setting its status to failed
+func (h *Handler) AbortJob(c *gin.Context) {
+	id := c.Param("id")
+	var job core.Job
+
+	if err := h.db.First(&job, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Job not found"})
+		return
+	}
+
+	if job.Status != "running" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Job is not running"})
+		return
+	}
+
+	// Update job status to failed with abort reason
+	job.Status = "failed"
+	h.db.Save(&job)
+
+	// Update the latest job log
+	var jobLog core.JobLog
+	if err := h.db.Where("job_id = ? AND status = ?", job.ID, "running").
+		Order("started_at DESC").First(&jobLog).Error; err == nil {
+		jobLog.Status = "failed"
+		jobLog.ErrorMessage = "Aborted by user"
+		jobLog.CompletedAt = time.Now()
+		h.db.Save(&jobLog)
+	}
+
+	// Create audit log
+	username, _ := c.Get("username")
+	h.db.Create(&core.AuditLog{
+		Username: fmt.Sprintf("%v", username),
+		Action:   "ABORT",
+		Entity:   "JOB",
+		Details:  fmt.Sprintf("Aborted job '%s' (ID: %d)", job.Name, job.ID),
+	})
+
+	log.Printf("[ABORT] Job %d '%s' aborted by user %v", job.ID, job.Name, username)
+
+	c.JSON(http.StatusOK, gin.H{"message": "Job aborted successfully", "job": job})
+}
+
 // RunJob executes a job by sending command to the connected agent
 func (h *Handler) RunJob(c *gin.Context) {
 	id := c.Param("id")

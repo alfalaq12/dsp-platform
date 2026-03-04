@@ -99,7 +99,7 @@ function Dashboard() {
             if (log.action === 'LOGIN') statusType = 'success';
             else if (log.action === 'DELETE') statusType = 'error';
             else if (log.action === 'CREATE') statusType = 'success';
-            else if (log.action === 'UPDATE') statusType = 'pending';
+            else if (log.action === 'UPDATE') statusType = 'success';
 
             return {
                 id: `log-${log.id || idx}`,
@@ -401,7 +401,7 @@ function Dashboard() {
                                     const badge = getStatusBadge(item.statusType);
                                     return (
                                         <Link
-                                            to={item.type === 'job' ? '/jobs' : '/settings?tab=logs'}
+                                            to={item.type === 'job' ? '/jobs' : '/audit-logs'}
                                             key={item.id}
                                             className={`timeline-item group flex items-start gap-4 p-4 rounded-xl transition-all duration-200 hover:scale-[1.01] mb-3 block ${isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}`}
                                         >

@@ -274,6 +274,7 @@ func setupRouter(handler *server.Handler) *gin.Engine {
 		api.PUT("/jobs/:id", auth.RequireRole("admin"), handler.UpdateJob)
 		api.DELETE("/jobs/:id", auth.RequireRole("admin"), handler.DeleteJob)
 		api.POST("/jobs/:id/run", auth.RequireRole("admin"), handler.RunJob)
+		api.POST("/jobs/:id/abort", auth.RequireRole("admin"), handler.AbortJob)
 		api.POST("/jobs/:id/toggle", auth.RequireRole("admin"), handler.ToggleJob)
 
 		// Agent config endpoint
