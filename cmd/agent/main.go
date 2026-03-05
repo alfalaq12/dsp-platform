@@ -247,14 +247,21 @@ func runAgent() {
 	// Connect to Master server
 	conn, err := connectToMaster()
 	if err != nil {
-		logger.Logger.Fatal().Err(err).Msg("Failed to connect to master")
+		logger.Logger.Warn().Err(err).Msg("Failed initial connection to master, entering reconnect loop...")
+		conn, err = reconnect()
+		if err != nil {
+			// This shouldn't be reached as reconnect() now loops indefinitely,
+			// but kept for safety.
+			logger.Logger.Fatal().Err(err).Msg("Failed to connect to master")
+		}
+	} else {
+		// Register with Master only if initial connection succeeded
+		// (reconnect() handles registration on loop)
+		if err := registerAgent(conn); err != nil {
+			logger.Logger.Fatal().Err(err).Msg("Failed to register")
+		}
 	}
 	defer conn.Close()
-
-	// Register with Master
-	if err := registerAgent(conn); err != nil {
-		logger.Logger.Fatal().Err(err).Msg("Failed to register")
-	}
 
 	// Setup signal handling
 	quit := make(chan os.Signal, 1)
@@ -1573,24 +1580,35 @@ func sendDataResponse(conn net.Conn, jobID, logID uint, records []map[string]int
 }
 
 func reconnect() (net.Conn, error) {
-	logger.Logger.Warn().Msg("Attempting to reconnect to Master server")
+	logger.Logger.Warn().Msg("Connection lost. Attempting to reconnect to Master server...")
 
-	maxRetries := 5
-	for i := 0; i < maxRetries; i++ {
-		logger.Logger.Info().Int("attempt", i+1).Msg("Reconnection attempt")
+	attempt := 1
+	for {
+		logger.Logger.Info().Int("attempt", attempt).Msg("Reconnection attempt")
 
 		conn, err := connectToMaster()
 		if err == nil {
 			if err := registerAgent(conn); err == nil {
 				logger.Logger.Info().Msg("Reconnection successful")
 				return conn, nil
+			} else {
+				logger.Logger.Error().Err(err).Msg("Connected but failed to register")
+				conn.Close()
 			}
+		} else {
+			logger.Logger.Error().Err(err).Msg("Failed to connect to master")
 		}
 
-		time.Sleep(time.Duration(i+1) * time.Second)
-	}
+		// Backoff algorithm (max 30 seconds pause to prevent spamming)
+		sleepDuration := time.Duration(attempt*2) * time.Second
+		if sleepDuration > 30*time.Second {
+			sleepDuration = 30 * time.Second
+		}
 
-	return nil, fmt.Errorf("failed to reconnect after %d attempts", maxRetries)
+		logger.Logger.Info().Stringer("wait", sleepDuration).Msg("Waiting before next reconnect attempt...")
+		time.Sleep(sleepDuration)
+		attempt++
+	}
 }
 
 // executeTestConnection handles TEST_CONNECTION command from master
