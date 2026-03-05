@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -56,7 +57,10 @@ type AgentMessage struct {
 	Data      map[string]interface{} `json:"data,omitempty"`
 }
 
-var heartbeatCount int
+var (
+	heartbeatCount int
+	connMu         sync.Mutex
+)
 
 func init() {
 	// Robust .env loading: Try loading from executable directory
@@ -435,6 +439,10 @@ func sendMessage(conn net.Conn, msg AgentMessage) error {
 			return err
 		}
 	}
+
+	// Protect connection write with mutex to prevent corrupted messages from concurrent writers
+	connMu.Lock()
+	defer connMu.Unlock()
 
 	_, err = conn.Write([]byte(payload + "\n"))
 	return err
@@ -1262,7 +1270,10 @@ func sendMirrorResponse(conn net.Conn, jobID, logID uint, stats *filesync.Mirror
 
 	respBytes, _ := json.Marshal(response)
 	respBytes = append(respBytes, '\n')
+
+	connMu.Lock()
 	conn.Write(respBytes)
+	connMu.Unlock()
 }
 
 // executeAPISyncJob handles REST API based sync jobs
@@ -1650,7 +1661,11 @@ func executeTestConnection(conn net.Conn, msg AgentMessage) {
 	}
 	data = append(data, '\n')
 
-	if _, err := conn.Write(data); err != nil {
+	connMu.Lock()
+	_, err = conn.Write(data)
+	connMu.Unlock()
+
+	if err != nil {
 		logger.Logger.Error().Err(err).Msg("Failed to send test result to Master")
 	}
 }
