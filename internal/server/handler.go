@@ -2627,7 +2627,8 @@ func (h *Handler) BulkCreateSchemas(c *gin.Context) {
 	var req struct {
 		NetworkID int      `json:"network_id"`
 		Tables    []string `json:"tables"`
-		Prefix    string   `json:"prefix"` // Optional prefix for schema names
+		Prefix    string   `json:"prefix"`    // Optional prefix for schema names
+		DBSchema  string   `json:"db_schema"` // Database schema (e.g., 'apps_paspor', 'public')
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -2656,19 +2657,35 @@ func (h *Handler) BulkCreateSchemas(c *gin.Context) {
 			schemaName = req.Prefix + "_" + tableName
 		}
 
-		// Generate SQL based on database type
+		// Generate SQL based on database type, include schema prefix if provided
 		var sqlCommand string
 		switch network.Type {
 		case "postgresql":
-			sqlCommand = fmt.Sprintf(`SELECT * FROM "%s"`, tableName)
+			if req.DBSchema != "" && req.DBSchema != "public" {
+				sqlCommand = fmt.Sprintf(`SELECT * FROM "%s"."%s"`, req.DBSchema, tableName)
+			} else {
+				sqlCommand = fmt.Sprintf(`SELECT * FROM "%s"`, tableName)
+			}
 		case "mysql":
 			sqlCommand = fmt.Sprintf("SELECT * FROM `%s`", tableName)
 		case "sqlserver":
-			sqlCommand = fmt.Sprintf("SELECT * FROM [%s]", tableName)
+			if req.DBSchema != "" && req.DBSchema != "dbo" {
+				sqlCommand = fmt.Sprintf("SELECT * FROM [%s].[%s]", req.DBSchema, tableName)
+			} else {
+				sqlCommand = fmt.Sprintf("SELECT * FROM [%s]", tableName)
+			}
 		case "oracle":
-			sqlCommand = fmt.Sprintf(`SELECT * FROM "%s"`, tableName)
+			if req.DBSchema != "" {
+				sqlCommand = fmt.Sprintf(`SELECT * FROM "%s"."%s"`, req.DBSchema, tableName)
+			} else {
+				sqlCommand = fmt.Sprintf(`SELECT * FROM "%s"`, tableName)
+			}
 		default:
-			sqlCommand = fmt.Sprintf("SELECT * FROM %s", tableName)
+			if req.DBSchema != "" {
+				sqlCommand = fmt.Sprintf("SELECT * FROM %s.%s", req.DBSchema, tableName)
+			} else {
+				sqlCommand = fmt.Sprintf("SELECT * FROM %s", tableName)
+			}
 		}
 
 		schema := core.Schema{

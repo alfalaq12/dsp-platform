@@ -58,7 +58,7 @@ type insertWork struct {
 }
 
 // workerPoolSize is the number of concurrent insert workers
-const workerPoolSize = 4
+const workerPoolSize = 8
 
 // AgentListener handles TCP connections from Tenant Agents on port 447
 type AgentListener struct {
@@ -100,7 +100,7 @@ func NewAgentListener(handler *Handler, port string) *AgentListener {
 		encryptor:       enc,
 		targetDBCache:   make(map[uint]*cachedTargetConn),
 		ensuredTables:   make(map[string]bool),
-		insertWorkChan:  make(chan insertWork, 32),
+		insertWorkChan:  make(chan insertWork, 128),
 	}
 	// Set reference in handler for bidirectional communication
 	handler.agentListener = al
@@ -607,6 +607,11 @@ func (al *AgentListener) executeInsertWork(work insertWork) {
 		log.Printf("Inserted %d records into target table '%s'", insertedCount, work.tableName)
 	}
 
+	// Reset sequence ONLY at end of job (not per-batch) to avoid unnecessary overhead
+	if !work.isPartial {
+		al.resetSequenceForTable(work.tableName, work.uniqueKeyColumn, work.networkID)
+	}
+
 	// Update job log and status
 	al.updateJobLog(work.logID, work.isPartial, work.status, work.recordCount, insertedCount, work.sampleData, work.errorMsg)
 	al.updateJobStatus(work.jobID, work.isPartial, work.status, maxCheckpoint)
@@ -745,14 +750,8 @@ func (al *AgentListener) upsertToTargetDBWithNetwork(tableName string, records [
 		al.evictTargetConn(networkID)
 	}
 
-	// Reset sequence to prevent unique constraint violations when app inserts new records
-	primaryKeyCol := uniqueKeyColumn
-	if primaryKeyCol == "" {
-		primaryKeyCol = "id" // Default to 'id' if no unique key specified
-	}
-	if err := targetConn.ResetSequence(tableName, primaryKeyCol); err != nil {
-		log.Printf("Warning: Failed to reset sequence for %s: %v", tableName, err)
-	}
+	// NOTE: ResetSequence is now called at end-of-job in executeInsertWork(),
+	// not per-batch, to avoid 14,000+ unnecessary sequence reset queries on large syncs.
 
 	return count
 }
@@ -819,6 +818,34 @@ func (al *AgentListener) markTableEnsured(tableName string) {
 	al.ensuredMu.Lock()
 	defer al.ensuredMu.Unlock()
 	al.ensuredTables[tableName] = true
+}
+
+// resetSequenceForTable resets the sequence for a table after job completion
+// Called only once at end-of-job instead of per-batch to avoid massive overhead
+func (al *AgentListener) resetSequenceForTable(tableName string, uniqueKeyColumn string, networkID uint) {
+	config := al.loadTargetDBConfigFromNetwork(networkID)
+	if config.Host == "" {
+		config = al.loadTargetDBConfig()
+	}
+	if config.Password == "" && config.Host == "" {
+		return
+	}
+
+	targetConn, err := al.getOrCreateTargetConn(networkID, config)
+	if err != nil {
+		log.Printf("Warning: Failed to get connection for sequence reset: %v", err)
+		return
+	}
+
+	primaryKeyCol := uniqueKeyColumn
+	if primaryKeyCol == "" {
+		primaryKeyCol = "id"
+	}
+	if err := targetConn.ResetSequence(tableName, primaryKeyCol); err != nil {
+		log.Printf("Warning: Failed to reset sequence for %s: %v", tableName, err)
+	} else {
+		log.Printf("✅ Reset sequence for table %s (end-of-job)", tableName)
+	}
 }
 
 // cleanupStaleTargetConns periodically closes target DB connections unused for 10 minutes

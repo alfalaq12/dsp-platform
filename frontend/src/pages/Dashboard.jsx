@@ -44,6 +44,24 @@ function Dashboard() {
         return () => clearInterval(timer);
     }, []);
 
+    // Check if there are any running jobs
+    const hasRunningJobs = useMemo(() => {
+        const jobs = Array.isArray(jobsData) ? jobsData : (jobsData?.data || []);
+        return jobs.some(job => job.status === 'running');
+    }, [jobsData]);
+
+    // Auto-refresh jobs data when there are running jobs
+    useEffect(() => {
+        if (hasRunningJobs) {
+            const interval = setInterval(() => {
+                refetchJobs();
+                refetchAnalytics();
+            }, 5000); // Refresh every 5 seconds
+
+            return () => clearInterval(interval);
+        }
+    }, [hasRunningJobs, refetchJobs, refetchAnalytics]);
+
     // Compute stats from query data
     const stats = useMemo(() => {
         const schemas = schemasData || [];

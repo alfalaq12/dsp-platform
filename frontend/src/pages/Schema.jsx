@@ -94,7 +94,8 @@ function Schema() {
             const response = await bulkCreateSchemasMutation.mutateAsync({
                 network_id: parseInt(selectedNetwork),
                 tables: selectedTables,
-                prefix: importPrefix || ''
+                prefix: importPrefix || '',
+                db_schema: selectedDbSchema || ''
             });
             addToast(response.data.message, 'success');
             setShowImportModal(false);
@@ -558,10 +559,10 @@ function Schema() {
                                     <div className="flex items-center justify-between mb-3">
                                         <div className="flex items-center gap-3">
                                             <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${schema.source_type === 'api'
-                                                    ? (isDark ? 'bg-cyan-500/20 text-cyan-400' : 'bg-cyan-100 text-cyan-600')
-                                                    : schema.source_type === 'file'
-                                                        ? (isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-600')
-                                                        : (isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600')
+                                                ? (isDark ? 'bg-cyan-500/20 text-cyan-400' : 'bg-cyan-100 text-cyan-600')
+                                                : schema.source_type === 'file'
+                                                    ? (isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-600')
+                                                    : (isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600')
                                                 }`}>
                                                 <Database className="w-4 h-4" />
                                             </div>
@@ -573,10 +574,10 @@ function Schema() {
                                             </div>
                                         </div>
                                         <span className={`text-xs px-2 py-1 rounded-lg font-medium ${schema.source_type === 'api'
-                                                ? (isDark ? 'bg-cyan-500/20 text-cyan-400' : 'bg-cyan-50 text-cyan-700')
-                                                : schema.source_type === 'file'
-                                                    ? (isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-50 text-amber-700')
-                                                    : (isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-700')
+                                            ? (isDark ? 'bg-cyan-500/20 text-cyan-400' : 'bg-cyan-50 text-cyan-700')
+                                            : schema.source_type === 'file'
+                                                ? (isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-50 text-amber-700')
+                                                : (isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-700')
                                             }`}>
                                             {schema.source_type === 'api' ? 'API' : schema.source_type === 'file' ? 'File' : 'SQL'}
                                         </span>

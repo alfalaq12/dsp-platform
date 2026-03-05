@@ -13,8 +13,8 @@ import (
 
 // DefaultBatchSize is the number of records to upsert in a single query
 // Higher values = faster, but too high may cause "too many parameters" errors
-// PostgreSQL max parameters = 65535, so 500 rows × ~10 cols = ~5000 params (safe)
-const DefaultBatchSize = 500
+// PostgreSQL max parameters = 65535, so 3000 rows × ~20 cols = ~60000 params (safe)
+const DefaultBatchSize = 3000
 
 // TargetConfig holds target database connection configuration
 type TargetConfig struct {
@@ -78,9 +78,9 @@ func ConnectTarget(config TargetConfig) (*TargetConnection, error) {
 		return nil, fmt.Errorf("failed to open target database: %w", err)
 	}
 
-	// Set connection pool settings
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(10)
+	// Set connection pool settings (optimized for high-throughput batch operations)
+	db.SetMaxOpenConns(50)
+	db.SetMaxIdleConns(25)
 	db.SetConnMaxLifetime(time.Hour)
 
 	// Test connection
