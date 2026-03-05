@@ -691,6 +691,11 @@ func (h *Handler) AbortJob(c *gin.Context) {
 	job.Status = "failed"
 	h.db.Save(&job)
 
+	// Signal worker pool to skip remaining insert batches for this job
+	if h.agentListener != nil {
+		h.agentListener.MarkJobAborted(job.ID)
+	}
+
 	// Update the latest job log
 	var jobLog core.JobLog
 	if err := h.db.Where("job_id = ? AND status = ?", job.ID, "running").

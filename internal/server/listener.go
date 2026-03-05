@@ -58,7 +58,7 @@ type insertWork struct {
 }
 
 // workerPoolSize is the number of concurrent insert workers
-const workerPoolSize = 8
+const workerPoolSize = 16
 
 // AgentListener handles TCP connections from Tenant Agents on port 447
 type AgentListener struct {
@@ -81,6 +81,10 @@ type AgentListener struct {
 
 	// Performance: Worker pool for parallel batch inserts
 	insertWorkChan chan insertWork
+
+	// Abort tracking: skip insert work for aborted jobs
+	abortedJobs map[uint]bool
+	abortedMu   sync.RWMutex
 }
 
 // NewAgentListener creates a new agent listener
@@ -100,7 +104,8 @@ func NewAgentListener(handler *Handler, port string) *AgentListener {
 		encryptor:       enc,
 		targetDBCache:   make(map[uint]*cachedTargetConn),
 		ensuredTables:   make(map[string]bool),
-		insertWorkChan:  make(chan insertWork, 128),
+		insertWorkChan:  make(chan insertWork, 256),
+		abortedJobs:     make(map[uint]bool),
 	}
 	// Set reference in handler for bidirectional communication
 	handler.agentListener = al
@@ -584,6 +589,13 @@ func (al *AgentListener) insertWorker(workerID int) {
 
 // executeInsertWork performs the actual insert and updates job log/status
 func (al *AgentListener) executeInsertWork(work insertWork) {
+	// Check if job was aborted — skip insert work entirely
+	if al.isJobAborted(work.jobID) {
+		log.Printf("⏭️ Skipping insert for aborted job %d (%d records)", work.jobID, work.recordCount)
+		al.updateJobLog(work.logID, work.isPartial, "failed", work.recordCount, 0, work.sampleData, "Aborted by user")
+		return
+	}
+
 	// Extract maximum checkpoint value if applicable
 	var maxCheckpoint string
 	if work.checkpointColumn != "" && len(work.records) > 0 {
@@ -757,22 +769,15 @@ func (al *AgentListener) upsertToTargetDBWithNetwork(tableName string, records [
 }
 
 // getOrCreateTargetConn returns a cached target DB connection or creates a new one
+// NOTE: No Ping() on cached connections — they are verified lazily on error
 func (al *AgentListener) getOrCreateTargetConn(networkID uint, config database.TargetConfig) (*database.TargetConnection, error) {
 	al.targetDBMu.RLock()
 	if cached, ok := al.targetDBCache[networkID]; ok {
 		cached.lastUsed = time.Now()
 		al.targetDBMu.RUnlock()
-
-		// Verify connection is still alive
-		if err := cached.conn.DB.Ping(); err == nil {
-			return cached.conn, nil
-		}
-		// Connection is dead — evict and reconnect
-		log.Printf("Cached target DB connection for network %d is stale, reconnecting", networkID)
-		al.evictTargetConn(networkID)
-	} else {
-		al.targetDBMu.RUnlock()
+		return cached.conn, nil
 	}
+	al.targetDBMu.RUnlock()
 
 	// Create new connection
 	log.Printf("Connecting to target DB: %s@%s:%s/%s (driver: %s)",
@@ -866,6 +871,28 @@ func (al *AgentListener) cleanupStaleTargetConns() {
 		}
 		al.targetDBMu.Unlock()
 	}
+}
+
+// MarkJobAborted marks a job as aborted so worker pool skips remaining batches
+func (al *AgentListener) MarkJobAborted(jobID uint) {
+	al.abortedMu.Lock()
+	defer al.abortedMu.Unlock()
+	al.abortedJobs[jobID] = true
+	log.Printf("🛑 Marked job %d as aborted in worker pool", jobID)
+}
+
+// isJobAborted checks if a job has been aborted
+func (al *AgentListener) isJobAborted(jobID uint) bool {
+	al.abortedMu.RLock()
+	defer al.abortedMu.RUnlock()
+	return al.abortedJobs[jobID]
+}
+
+// ClearJobAborted removes abort tracking for a job (called when job starts fresh)
+func (al *AgentListener) ClearJobAborted(jobID uint) {
+	al.abortedMu.Lock()
+	defer al.abortedMu.Unlock()
+	delete(al.abortedJobs, jobID)
 }
 
 // decompressGzip decodes base64 and decompresses gzip data
