@@ -310,6 +310,12 @@ func runAgent() {
 func connectToMaster() (net.Conn, error) {
 	address := MasterHost + ":" + MasterPort
 
+	// Create custom dialer with TCP Keep-Alive
+	dialer := &net.Dialer{
+		Timeout:   10 * time.Second,
+		KeepAlive: 5 * time.Second,
+	}
+
 	if TLSEnabled {
 		logger.Logger.Info().
 			Str("address", address).
@@ -342,7 +348,7 @@ func connectToMaster() (net.Conn, error) {
 			logger.Logger.Info().Str("ca_path", TLSCAPath).Msg("Loaded CA certificate for verification")
 		}
 
-		conn, err := tls.Dial("tcp", address, tlsConfig)
+		conn, err := tls.DialWithDialer(dialer, "tcp", address, tlsConfig)
 		if err != nil {
 			logger.Logger.Error().Err(err).Str("address", address).Msg("TLS connection failed")
 			return nil, err
@@ -355,7 +361,7 @@ func connectToMaster() (net.Conn, error) {
 	// Non-TLS connection (fallback)
 	logger.Logger.Info().Str("address", address).Msg("⚠️ Connecting to Master server (NO TLS - INSECURE!)")
 
-	conn, err := net.Dial("tcp", address)
+	conn, err := dialer.Dial("tcp", address)
 	if err != nil {
 		logger.Logger.Error().Err(err).Str("address", address).Msg("Connection failed")
 		return nil, err

@@ -208,6 +208,18 @@ func (al *AgentListener) handleConnection(conn net.Conn) {
 	clientAddr := conn.RemoteAddr().String()
 	log.Printf("New agent connection from %s", clientAddr)
 
+	// Enable TCP Keep-Alive to prevent aggressive firewall/NAT idle timeouts
+	if tcpProxy, ok := conn.(*net.TCPConn); ok {
+		tcpProxy.SetKeepAlive(true)
+		tcpProxy.SetKeepAlivePeriod(5 * time.Second)
+	} else if tlsConn, ok := conn.(*tls.Conn); ok {
+		// If TLS, we need to extract the underlying TCP connection
+		if tcpConn, ok := tlsConn.NetConn().(*net.TCPConn); ok {
+			tcpConn.SetKeepAlive(true)
+			tcpConn.SetKeepAlivePeriod(5 * time.Second)
+		}
+	}
+
 	var agentName string
 
 	scanner := bufio.NewScanner(conn)
