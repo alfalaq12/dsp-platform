@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	_ "github.com/denisenkom/go-mssqldb" // Microsoft SQL Server driver
@@ -228,6 +229,94 @@ func TestConnection(config Config) error {
 		return err
 	}
 	defer conn.Close()
+
+	return nil
+}
+
+// ExecuteQueryWithCsvBatch executes SQL query and processes results as CSV strings in batches.
+// Converts data directly to CSV strings to minimize JSON object memory overhead for huge datasets.
+func (c *Connection) ExecuteQueryWithCsvBatch(query string, batchSize int, callback func(string, []string) error) error {
+	rows, err := c.DB.Query(query)
+	if err != nil {
+		return fmt.Errorf("query execution failed: %w", err)
+	}
+	defer rows.Close()
+
+	columns, err := rows.Columns()
+	if err != nil {
+		return fmt.Errorf("failed to get columns: %w", err)
+	}
+
+	var batchData strings.Builder
+	// Rough estimation to prevent frequent resizing
+	batchData.Grow(batchSize * len(columns) * 15)
+
+	var count int
+
+	for rows.Next() {
+		values := make([]interface{}, len(columns))
+		valuePtrs := make([]interface{}, len(columns))
+
+		for i := range values {
+			valuePtrs[i] = &values[i]
+		}
+
+		if err := rows.Scan(valuePtrs...); err != nil {
+			return fmt.Errorf("failed to scan row: %w", err)
+		}
+
+		// Write values as CSV
+		for i, val := range values {
+			if i > 0 {
+				batchData.WriteByte(',')
+			}
+
+			if val == nil {
+				// empty standard
+				continue
+			}
+
+			var v string
+			if b, ok := val.([]byte); ok {
+				v = string(b)
+			} else if t, ok := val.(time.Time); ok {
+				v = t.Format(time.RFC3339)
+			} else {
+				v = fmt.Sprintf("%v", val)
+			}
+
+			// Escape CSV fields
+			if strings.ContainsAny(v, ",\"\n\r") {
+				v = strings.ReplaceAll(v, "\"", "\"\"")
+				batchData.WriteByte('"')
+				batchData.WriteString(v)
+				batchData.WriteByte('"')
+			} else {
+				batchData.WriteString(v)
+			}
+		}
+		batchData.WriteByte('\n')
+		count++
+
+		if count >= batchSize {
+			if err := callback(batchData.String(), columns); err != nil {
+				return err
+			}
+			batchData.Reset()
+			batchData.Grow(batchSize * len(columns) * 15)
+			count = 0
+		}
+	}
+
+	if count > 0 {
+		if err := callback(batchData.String(), columns); err != nil {
+			return err
+		}
+	}
+
+	if err = rows.Err(); err != nil {
+		return fmt.Errorf("row iteration error: %w", err)
+	}
 
 	return nil
 }

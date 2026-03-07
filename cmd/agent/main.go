@@ -637,27 +637,28 @@ func executeDatabaseSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, 
 	defer dbConn.Close()
 
 	// Batch configuration
-	batchSize := 5000
+	batchSize := 50000 // Increase batch size heavily since CSV payload has low memory footprint
 	totalRecords := 0
 
 	// Define callback function for partial batches
-	processBatch := func(batch []map[string]interface{}) error {
-		count := len(batch)
+	processCsvBatch := func(csvData string, columns []string) error {
+		// Rough estimate of rows by newline count
+		count := strings.Count(csvData, "\n")
 		totalRecords += count
 
 		logger.Logger.Info().
 			Str("job", jobName).
 			Int("batch_size", count).
 			Int("total_so_far", totalRecords).
-			Msg("Sending partial batch")
+			Msg("Sending partial CSV batch")
 
-		sendDataResponse(conn, jobID, logID, batch, count, "", true)
+		sendCsvDataResponse(conn, jobID, logID, csvData, columns, count, "", true)
 		return nil
 	}
 
 	// Execute the query with batching
-	logger.Logger.Info().Str("job", jobName).Msg("Starting batch query execution")
-	err = dbConn.ExecuteQueryWithBatch(query, batchSize, processBatch)
+	logger.Logger.Info().Str("job", jobName).Msg("Starting high-performance CSV batch query execution")
+	err = dbConn.ExecuteQueryWithCsvBatch(query, batchSize, processCsvBatch)
 
 	if err != nil {
 		logger.Logger.Error().Err(err).Msg("Failed to execute batch query")
@@ -1593,6 +1594,50 @@ func sendDataResponse(conn net.Conn, jobID, logID uint, records []map[string]int
 			Str("status", status).
 			Bool("partial", isPartial).
 			Msg("Data response sent to Master")
+	}
+}
+
+// sendCsvDataResponse sends data back to master in raw CSV format
+func sendCsvDataResponse(conn net.Conn, jobID, logID uint, csvRecords string, columns []string, recordCount int, errorMsg string, isPartial bool) {
+	status := "completed"
+	if errorMsg != "" {
+		status = "failed"
+	} else if isPartial {
+		status = "running"
+	}
+
+	// Make columns an interface slice for msgpack/json
+	var columnsInterface []interface{}
+	for _, c := range columns {
+		columnsInterface = append(columnsInterface, c)
+	}
+
+	response := AgentMessage{
+		Type:      "DATA_RESPONSE", // Keep same type for retro-compat, but different payload
+		AgentName: AgentName,
+		Status:    status,
+		Timestamp: time.Now(),
+		Data: map[string]interface{}{
+			"job_id":       jobID,
+			"log_id":       logID,
+			"status":       status,
+			"record_count": recordCount,
+			"csv_records":  csvRecords,
+			"csv_columns":  columnsInterface,
+			"error":        errorMsg,
+			"partial":      isPartial,
+		},
+	}
+
+	if err := sendMessage(conn, response); err != nil {
+		logger.Logger.Error().Err(err).Msg("Failed to send CSV data response")
+	} else {
+		logger.Logger.Info().
+			Uint("job_id", jobID).
+			Int("records", recordCount).
+			Str("status", status).
+			Bool("partial", isPartial).
+			Msg("CSV Data response sent to Master")
 	}
 }
 

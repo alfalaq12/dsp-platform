@@ -43,6 +43,8 @@ type cachedTargetConn struct {
 type insertWork struct {
 	tableName        string
 	records          []interface{}
+	csvData          string
+	csvColumns       []string
 	uniqueKeyColumn  string
 	checkpointColumn string
 	networkID        uint
@@ -555,11 +557,28 @@ func (al *AgentListener) handleDataResponse(msg core.AgentMessage, clientAddr st
 		logID = lid
 	}
 
+	// Read both traditional records and CSV records
+	records, hasRecords := msg.Data["records"].([]interface{})
+	csvData, hasCsv := msg.Data["csv_records"].(string)
+
+	var csvColumns []string
+	if hasCsv {
+		if rawCols, ok := msg.Data["csv_columns"].([]interface{}); ok {
+			for _, c := range rawCols {
+				if s, ok := c.(string); ok {
+					csvColumns = append(csvColumns, s)
+				}
+			}
+		}
+	}
+
 	// Dispatch insert work to worker pool (async, non-blocking)
-	if records, ok := msg.Data["records"].([]interface{}); ok && len(records) > 0 && targetTable != "" {
+	if ((hasRecords && len(records) > 0) || (hasCsv && csvData != "")) && targetTable != "" {
 		work := insertWork{
 			tableName:        targetTable,
 			records:          records,
+			csvData:          csvData,
+			csvColumns:       csvColumns,
 			uniqueKeyColumn:  uniqueKeyColumn,
 			checkpointColumn: checkpointColumn,
 			networkID:        networkID,
@@ -610,6 +629,7 @@ func (al *AgentListener) executeInsertWork(work insertWork) {
 
 	// Extract maximum checkpoint value if applicable
 	var maxCheckpoint string
+	// (Keeping the JSON logic for checkpoint extraction if traditional records are used)
 	if work.checkpointColumn != "" && len(work.records) > 0 {
 		for _, r := range work.records {
 			if rec, ok := r.(map[string]interface{}); ok {
@@ -623,12 +643,21 @@ func (al *AgentListener) executeInsertWork(work insertWork) {
 		}
 	}
 
-	// Insert/Upsert data into target database
-	insertedCount := al.upsertToTargetDBWithNetwork(work.tableName, work.records, work.uniqueKeyColumn, work.networkID)
-	if work.uniqueKeyColumn != "" {
-		log.Printf("Upserted %d records into target table '%s' (key: %s)", insertedCount, work.tableName, work.uniqueKeyColumn)
+	insertedCount := 0
+	if work.csvData != "" && len(work.csvColumns) > 0 {
+		insertedCount = al.upsertCsvToTargetDBWithNetwork(work.tableName, work.csvData, work.csvColumns, work.uniqueKeyColumn, work.networkID)
+		if work.uniqueKeyColumn != "" {
+			log.Printf("Upserted %d CSV records into target table '%s' (key: %s)", insertedCount, work.tableName, work.uniqueKeyColumn)
+		} else {
+			log.Printf("Inserted %d CSV records into target table '%s'", insertedCount, work.tableName)
+		}
 	} else {
-		log.Printf("Inserted %d records into target table '%s'", insertedCount, work.tableName)
+		insertedCount = al.upsertToTargetDBWithNetwork(work.tableName, work.records, work.uniqueKeyColumn, work.networkID)
+		if work.uniqueKeyColumn != "" {
+			log.Printf("Upserted %d JSON records into target table '%s' (key: %s)", insertedCount, work.tableName, work.uniqueKeyColumn)
+		} else {
+			log.Printf("Inserted %d JSON records into target table '%s'", insertedCount, work.tableName)
+		}
 	}
 
 	// Reset sequence ONLY at end of job (not per-batch) to avoid unnecessary overhead
@@ -776,6 +805,54 @@ func (al *AgentListener) upsertToTargetDBWithNetwork(tableName string, records [
 
 	// NOTE: ResetSequence is now called at end-of-job in executeInsertWork(),
 	// not per-batch, to avoid 14,000+ unnecessary sequence reset queries on large syncs.
+
+	return count
+}
+
+// upsertCsvToTargetDBWithNetwork connects to target database and inserts CSV data
+func (al *AgentListener) upsertCsvToTargetDBWithNetwork(tableName string, csvData string, columns []string, uniqueKeyColumn string, networkID uint) int {
+	config := al.loadTargetDBConfigFromNetwork(networkID)
+	if config.Host == "" {
+		config = al.loadTargetDBConfig()
+	}
+
+	if config.Password == "" && config.Host == "" {
+		log.Printf("Target database not configured, skipping insert")
+		return 0
+	}
+
+	targetConn, err := al.getOrCreateTargetConn(networkID, config)
+	if err != nil {
+		log.Printf("Failed to get target database connection: %v", err)
+		return 0
+	}
+
+	// Ensure table exists (cached)
+	if !al.isTableEnsured(tableName) {
+		// Create a dummy record with text values for EnsureTable
+		dummyRecord := make(map[string]interface{})
+		for _, col := range columns {
+			dummyRecord[col] = ""
+		}
+		if err := targetConn.EnsureTable(tableName, dummyRecord); err != nil {
+			log.Printf("Failed to ensure table for CSV: %v", err)
+			return 0
+		}
+		al.markTableEnsured(tableName)
+	}
+
+	var count int
+	if uniqueKeyColumn != "" {
+		log.Printf("Upserting CSV with unique key column: %s (parallel mode)", uniqueKeyColumn)
+		count, err = targetConn.UpsertCsvBatchParallel(tableName, csvData, columns, uniqueKeyColumn)
+	} else {
+		count, err = targetConn.InsertCsvBatch(tableName, csvData, columns)
+	}
+
+	if err != nil {
+		log.Printf("Batch CSV operation error: %v", err)
+		al.evictTargetConn(networkID)
+	}
 
 	return count
 }
