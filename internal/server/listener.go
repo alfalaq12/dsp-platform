@@ -228,7 +228,7 @@ func (al *AgentListener) handleConnection(conn net.Conn) {
 	scanner := bufio.NewScanner(conn)
 	// Increase buffer size for large data
 	buf := make([]byte, 0, 64*1024)
-	scanner.Buffer(buf, 10*1024*1024) // 10MB max
+	scanner.Buffer(buf, 50*1024*1024) // 50MB max
 
 	for scanner.Scan() {
 		rawData := scanner.Text()

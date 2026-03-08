@@ -641,7 +641,7 @@ func executeDatabaseSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, 
 	defer dbConn.Close()
 
 	// Batch configuration
-	batchSize := 50000 // Increase batch size heavily since CSV payload has low memory footprint
+	batchSize := 25000 // Sweet spot: blazingly fast but safe enough payload size
 	totalRecords := 0
 
 	// Define callback function for partial batches
