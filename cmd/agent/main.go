@@ -25,6 +25,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dop251/goja"
 	"github.com/joho/godotenv"
 )
 
@@ -581,6 +582,8 @@ func executeRunJobCommand(conn net.Conn, msg AgentMessage) {
 		executeMinIOSyncJob(conn, msg, jobID, logID, jobName)
 	case "minio_mirror":
 		executeMinIOMirrorJob(conn, msg, jobID, logID, jobName)
+	case "javascript":
+		executeJavaScriptJob(conn, msg, jobID, logID, jobName)
 	default:
 		executeDatabaseSyncJob(conn, msg, jobID, logID, jobName)
 	}
@@ -677,6 +680,152 @@ func executeDatabaseSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, 
 
 	// Send final completion response
 	sendDataResponse(conn, jobID, logID, nil, 0, "", false)
+}
+
+// executeJavaScriptJob handles execution of arbitrary JavaScript schemas (for Data Integration)
+func executeJavaScriptJob(conn net.Conn, msg AgentMessage, jobID, logID uint, jobName string) {
+	logger.Logger.Info().
+		Uint("job_id", jobID).
+		Str("job", jobName).
+		Msg("Starting JavaScript Execution Job")
+
+	// Get script from query or schema.sql_command
+	script := ""
+	if q, ok := msg.Data["query"].(string); ok && q != "" {
+		script = q
+	}
+	if script == "" {
+		if schema, ok := msg.Data["schema"].(map[string]interface{}); ok {
+			if q, ok := schema["sql_command"].(string); ok {
+				script = q
+			}
+		}
+	}
+
+	if script == "" {
+		errMsg := "No JavaScript code provided in schema"
+		logger.Logger.Error().Msg(errMsg)
+		sendDataResponse(conn, jobID, logID, nil, 0, errMsg, false)
+		return
+	}
+
+	// Use db_config from Master (Network settings) if provided
+	dbCfg := DBConfig
+	if dbConfigMap, ok := msg.Data["db_config"].(map[string]interface{}); ok {
+		if driver, ok := dbConfigMap["driver"].(string); ok && driver != "" {
+			dbCfg.Driver = driver
+		}
+		if host, ok := dbConfigMap["host"].(string); ok && host != "" {
+			dbCfg.Host = host
+		}
+		if port, ok := dbConfigMap["port"].(string); ok && port != "" {
+			dbCfg.Port = port
+		}
+		if user, ok := dbConfigMap["user"].(string); ok && user != "" {
+			dbCfg.User = user
+		}
+		if password, ok := dbConfigMap["password"].(string); ok && password != "" {
+			dbCfg.Password = password
+		}
+		if dbName, ok := dbConfigMap["db_name"].(string); ok && dbName != "" {
+			dbCfg.DBName = dbName
+		}
+		if sslMode, ok := dbConfigMap["sslmode"].(string); ok && sslMode != "" {
+			dbCfg.SSLMode = sslMode
+		}
+	}
+
+	// Create Goja interpreter
+	vm := goja.New()
+
+	// Define $GT global context object
+	gtObj := vm.NewObject()
+
+	// $GT.query(sql, args...) -> execute SQL and return array of objects
+	gtObj.Set("query", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 1 {
+			panic(vm.ToValue("query() requires at least 1 argument: sql string"))
+		}
+
+		sqlStr := call.Arguments[0].String()
+
+		var args []interface{}
+		for i := 1; i < len(call.Arguments); i++ {
+			args = append(args, call.Arguments[i].Export())
+		}
+
+		dbConn, err := database.Connect(dbCfg)
+		if err != nil {
+			panic(vm.ToValue(fmt.Sprintf("DB Connect Error: %v", err)))
+		}
+		defer dbConn.Close()
+
+		results, err := dbConn.ExecuteQuery(sqlStr, args...)
+		if err != nil {
+			panic(vm.ToValue(fmt.Sprintf("DB Query Error: %v", err)))
+		}
+
+		return vm.ToValue(results)
+	})
+
+	responseSent := false
+
+	// $GT.response(data, statusCode?) -> send JSON batch back to Master
+	gtObj.Set("response", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 1 {
+			panic(vm.ToValue("response() requires at least 1 object or array of objects"))
+		}
+
+		dataExport := call.Arguments[0].Export()
+		var records []map[string]interface{}
+
+		// Ensure it's a slice of maps or a single map
+		if slice, ok := dataExport.([]interface{}); ok {
+			for _, item := range slice {
+				if m, ok := item.(map[string]interface{}); ok {
+					records = append(records, m)
+				}
+			}
+		} else if sliceMap, ok := dataExport.([]map[string]interface{}); ok {
+			records = sliceMap
+		} else if m, ok := dataExport.(map[string]interface{}); ok {
+			records = append(records, m)
+		} else {
+			panic(vm.ToValue("response() data must be an array of objects or an object natively"))
+		}
+
+		sendDataResponse(conn, jobID, logID, records, len(records), "", false)
+		responseSent = true
+		return goja.Undefined()
+	})
+
+	// Inject $GT global
+	vm.Set("$GT", gtObj)
+
+	// Execute Script
+	logger.Logger.Info().Str("job", jobName).Msg("Running JS evaluation via Goja runtime")
+	_, err := vm.RunString(script)
+
+	if err != nil {
+		logger.Logger.Error().Err(err).Msg("JavaScript Execution Failed")
+		// Extract JS error cleanly
+		errMsg := "JavaScript Runtime Error"
+		if jsErr, ok := err.(*goja.Exception); ok {
+			errMsg = jsErr.String()
+		} else {
+			errMsg = err.Error()
+		}
+		if !responseSent {
+			sendDataResponse(conn, jobID, logID, nil, 0, errMsg, false)
+		}
+		return
+	}
+
+	logger.Logger.Info().Str("job", jobName).Msg("JS evaluation completed")
+
+	if !responseSent {
+		sendDataResponse(conn, jobID, logID, nil, 0, "Warning: script completed but $GT.response() was never called", false)
+	}
 }
 
 // executeMongoDBSyncJob handles MongoDB-based sync jobs

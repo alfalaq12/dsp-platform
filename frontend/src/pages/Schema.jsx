@@ -256,9 +256,10 @@ function Schema() {
                             {/* Source Type Selection */}
                             <div className="md:col-span-2">
                                 <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Source Type</label>
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                     {[
                                         { id: 'query', label: 'SQL Query', icon: Database },
+                                        { id: 'javascript', label: 'JavaScript', icon: Code },
                                         { id: 'file', label: 'File (CSV/Excel)', icon: FileSpreadsheet },
                                         { id: 'api', label: 'REST API', icon: Code }
                                     ].map((type) => (
@@ -278,18 +279,25 @@ function Schema() {
                                 </div>
                             </div>
 
-                            {/* SQL Query Fields - shown when source_type is 'query' */}
-                            {formData.source_type === 'query' && (
+                            {/* SQL/JS Editor Fields */}
+                            {(formData.source_type === 'query' || formData.source_type === 'javascript') && (
                                 <div className="md:col-span-2">
-                                    <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>SQL Command</label>
+                                    <label className={`block text-sm font-medium mb-2 flex items-center gap-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                        {formData.source_type === 'javascript' ? 'JavaScript Code' : 'SQL Command'}
+                                    </label>
                                     <textarea
                                         value={formData.sql_command}
                                         onChange={(e) => setFormData({ ...formData, sql_command: e.target.value })}
-                                        rows="4"
-                                        className={`w-full px-4 py-3 border rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${isDark ? 'bg-slate-900/50 border-slate-700 text-white placeholder-slate-500' : 'bg-white border-slate-200 text-slate-900 placeholder-slate-400'}`}
-                                        placeholder="SELECT * FROM users WHERE..."
+                                        rows={formData.source_type === 'javascript' ? "8" : "4"}
+                                        className={`w-full px-4 py-3 border rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${isDark ? 'bg-slate-900/50 border-slate-700 text-slate-300 placeholder-slate-600' : 'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400'}`}
+                                        placeholder={formData.source_type === 'javascript' ? "// Example:\\nvar data = $GT.query('SELECT * FROM users');\\n// Process data...\\n$GT.response(data);" : "SELECT * FROM users WHERE..."}
                                         required
                                     />
+                                    {formData.source_type === 'javascript' && (
+                                        <p className={`text-xs mt-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                            Use <code className={`px-1 rounded ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>$GT.query(sql_string)</code> to query DB, and <code className={`px-1 rounded ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>$GT.response(data_array)</code> to push records to Master.
+                                        </p>
+                                    )}
                                 </div>
                             )}
 
@@ -489,6 +497,10 @@ function Schema() {
                                                         <span className={`px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1 ${isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-50 text-amber-700 border border-amber-100'}`}>
                                                             <Database className="w-3 h-3" /> File
                                                         </span>
+                                                    ) : schema.source_type === 'javascript' ? (
+                                                        <span className={`px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1 ${isDark ? 'bg-yellow-500/20 text-yellow-400' : 'bg-yellow-50 text-yellow-700 border border-yellow-100'}`}>
+                                                            <Code className="w-3 h-3" /> JS
+                                                        </span>
                                                     ) : (
                                                         <span className={`px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1 ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-700 border border-blue-100'}`}>
                                                             <Database className="w-3 h-3" /> SQL
@@ -560,11 +572,13 @@ function Schema() {
                                         <div className="flex items-center gap-3">
                                             <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${schema.source_type === 'api'
                                                 ? (isDark ? 'bg-cyan-500/20 text-cyan-400' : 'bg-cyan-100 text-cyan-600')
-                                                : schema.source_type === 'file'
-                                                    ? (isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-600')
-                                                    : (isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600')
+                                                : schema.source_type === 'javascript'
+                                                    ? (isDark ? 'bg-yellow-500/20 text-yellow-400' : 'bg-yellow-100 text-yellow-600')
+                                                    : schema.source_type === 'file'
+                                                        ? (isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-600')
+                                                        : (isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600')
                                                 }`}>
-                                                <Database className="w-4 h-4" />
+                                                {schema.source_type === 'javascript' ? <Code className="w-4 h-4" /> : <Database className="w-4 h-4" />}
                                             </div>
                                             <div>
                                                 <div className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>{schema.name}</div>
@@ -575,11 +589,13 @@ function Schema() {
                                         </div>
                                         <span className={`text-xs px-2 py-1 rounded-lg font-medium ${schema.source_type === 'api'
                                             ? (isDark ? 'bg-cyan-500/20 text-cyan-400' : 'bg-cyan-50 text-cyan-700')
-                                            : schema.source_type === 'file'
-                                                ? (isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-50 text-amber-700')
-                                                : (isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-700')
+                                            : schema.source_type === 'javascript'
+                                                ? (isDark ? 'bg-yellow-500/20 text-yellow-400' : 'bg-yellow-50 text-yellow-700')
+                                                : schema.source_type === 'file'
+                                                    ? (isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-50 text-amber-700')
+                                                    : (isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-700')
                                             }`}>
-                                            {schema.source_type === 'api' ? 'API' : schema.source_type === 'file' ? 'File' : 'SQL'}
+                                            {schema.source_type === 'api' ? 'API' : schema.source_type === 'javascript' ? 'JS' : schema.source_type === 'file' ? 'File' : 'SQL'}
                                         </span>
                                     </div>
 
@@ -676,7 +692,9 @@ function Schema() {
                         <div className={`rounded-xl p-4 ${isDark ? 'bg-slate-800/50' : 'bg-slate-50 border border-slate-100'}`}>
                             <div className="flex items-center gap-2 mb-3">
                                 <Code className="w-4 h-4 text-blue-400" />
-                                <span className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>SQL Command</span>
+                                <span className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                    {selectedSchema.source_type === 'javascript' ? 'JavaScript Code' : 'SQL Command'}
+                                </span>
                             </div>
                             <pre className={`rounded-lg p-4 text-sm font-mono overflow-x-auto whitespace-pre-wrap ${isDark ? 'bg-slate-900 text-slate-300' : 'bg-white border border-slate-200 text-slate-800'}`}>
                                 {selectedSchema.sql_command}
