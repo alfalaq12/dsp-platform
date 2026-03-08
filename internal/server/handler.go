@@ -735,6 +735,11 @@ func (h *Handler) RunJob(c *gin.Context) {
 	job.LastRun = time.Now()
 	h.db.Save(&job)
 
+	// Clear any stale abort flag from previous runs so the worker pool doesn't skip this job's batches
+	if h.agentListener != nil {
+		h.agentListener.ClearJobAborted(job.ID)
+	}
+
 	// Create job log entry
 	jobLog := core.JobLog{
 		JobID:     job.ID,

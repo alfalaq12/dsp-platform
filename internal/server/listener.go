@@ -141,7 +141,8 @@ func NewAgentListenerWithTLS(handler *Handler, port string, tlsConfig security.T
 		encryptor:       enc,
 		targetDBCache:   make(map[uint]*cachedTargetConn),
 		ensuredTables:   make(map[string]bool),
-		insertWorkChan:  make(chan insertWork, 32),
+		insertWorkChan:  make(chan insertWork, 256),
+		abortedJobs:     make(map[uint]bool),
 	}
 
 	// Load TLS config if enabled
@@ -614,7 +615,17 @@ func (al *AgentListener) handleDataResponse(msg core.AgentMessage, clientAddr st
 func (al *AgentListener) insertWorker(workerID int) {
 	log.Printf("Insert worker %d started", workerID)
 	for work := range al.insertWorkChan {
-		al.executeInsertWork(work)
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("⚠️ Worker %d recovered from panic (job %d): %v", workerID, work.jobID, r)
+					// Mark job as failed so it doesn't stay stuck as "running"
+					al.updateJobLog(work.logID, work.isPartial, "failed", work.recordCount, 0, work.sampleData, fmt.Sprintf("Internal error: %v", r))
+					al.updateJobStatus(work.jobID, false, "failed")
+				}
+			}()
+			al.executeInsertWork(work)
+		}()
 	}
 }
 
