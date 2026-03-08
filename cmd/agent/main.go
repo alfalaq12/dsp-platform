@@ -292,6 +292,10 @@ func runAgent() {
 				if err != nil {
 					logger.Logger.Fatal().Err(err).Msg("Failed to reconnect")
 				}
+
+				// CRITICAL FIX: listenForResponses goroutine from old connection is dead.
+				// We must start a new one for this new connection!
+				go listenForResponses(conn)
 			}
 
 		case <-quit:
