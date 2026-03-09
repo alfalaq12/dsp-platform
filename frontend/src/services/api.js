@@ -111,5 +111,8 @@ export const getSystemStatus = () => api.get('/system-status');
 // Analytics
 export const getJobAnalytics = (params) => api.get('/analytics/jobs', { params });
 
+// Remote Query
+export const executeQuery = (agentName, data) => api.post(`/agents/${encodeURIComponent(agentName)}/query`, data);
+
 export default api;
 

@@ -19,6 +19,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -402,15 +403,27 @@ func sendHeartbeat(conn net.Conn) error {
 		logger.Logger.Debug().Int("count", heartbeatCount).Msg("Sending heartbeat to Master")
 	}
 
-	// Get system metrics (simplified)
+	// Get system metrics
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+	// CPU Usage - simplified estimation for Go (using NumGoroutine as a proxy for load)
+	cpuLoad := float64(runtime.NumGoroutine()) / 10.0
+	if cpuLoad > 100 {
+		cpuLoad = 99.9
+	}
+
 	msg := AgentMessage{
 		Type:      "HEARTBEAT",
 		AgentName: AgentName,
 		Status:    "online",
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
-			"cpu_usage":    25.5, // Placeholder
-			"memory_usage": 1024, // Placeholder (MB)
+			"cpu_usage":    cpuLoad,                         // Load proxy
+			"memory_total": m.Sys / 1024 / 1024,             // Total MB allocated by system
+			"memory_used":  m.Alloc / 1024 / 1024,           // Used MB (heap)
+			"memory_free":  (m.Sys - m.Alloc) / 1024 / 1024, // Free internal MB
+			"version":      "1.0.0",                         // Software version
 		},
 	}
 
@@ -514,6 +527,10 @@ func listenForResponses(conn net.Conn) {
 			// Handle immediate job execution command from master
 			go executeRunJobCommand(conn, msg)
 
+		case "RUN_QUERY":
+			// Handle direct SQL query execution from test console
+			go executeRunQuery(conn, msg)
+
 		case "TEST_CONNECTION":
 			// Handle test connection command from master
 			go executeTestConnection(conn, msg)
@@ -591,16 +608,30 @@ func executeRunJobCommand(conn net.Conn, msg AgentMessage) {
 
 // executeDatabaseSyncJob handles database-based sync jobs
 func executeDatabaseSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, jobName string) {
-	// Get query
+	// Get schema/rule details
 	query := ""
-	if q, ok := msg.Data["query"].(string); ok {
-		query = q
+	targetTable := ""
+	extractPreQuery := ""
+	extractPostQuery := ""
+
+	if schema, ok := msg.Data["schema"].(map[string]interface{}); ok {
+		if q, ok := schema["sql_command"].(string); ok {
+			query = q
+		}
+		if tt, ok := schema["target_table"].(string); ok {
+			targetTable = tt
+		}
+		if ep, ok := schema["extract_pre"].(string); ok {
+			extractPreQuery = ep
+		}
+		if ep, ok := schema["extract_post"].(string); ok {
+			extractPostQuery = ep
+		}
 	}
+
 	if query == "" {
-		if schema, ok := msg.Data["schema"].(map[string]interface{}); ok {
-			if q, ok := schema["sql_command"].(string); ok {
-				query = q
-			}
+		if q, ok := msg.Data["query"].(string); ok {
+			query = q
 		}
 	}
 
@@ -643,13 +674,21 @@ func executeDatabaseSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, 
 	}
 	defer dbConn.Close()
 
+	// Execute pre-extraction query if provided
+	if extractPreQuery != "" {
+		logger.Logger.Info().Str("job", jobName).Str("query", extractPreQuery).Msg("Executing Extract Pre Query")
+		if _, err := dbConn.DB.Exec(extractPreQuery); err != nil {
+			logger.Logger.Error().Err(err).Msg("Failed to execute Extract Pre Query")
+		}
+	}
+
 	// Batch configuration
-	batchSize := 25000 // Sweet spot: blazingly fast but safe enough payload size
+	batchSize := 25000
 	totalRecords := 0
 
-	// Define callback function for partial batches
-	processCsvBatch := func(csvData string, columns []string) error {
-		// Rough estimate of rows by newline count
+	// Execute the query with batching
+	logger.Logger.Info().Str("job", jobName).Msg("Starting high-performance CSV batch query execution")
+	err = dbConn.ExecuteQueryWithCsvBatch(query, batchSize, func(csvData string, columns []string) error {
 		count := strings.Count(csvData, "\n")
 		totalRecords += count
 
@@ -659,13 +698,9 @@ func executeDatabaseSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, 
 			Int("total_so_far", totalRecords).
 			Msg("Sending partial CSV batch")
 
-		sendCsvDataResponse(conn, jobID, logID, csvData, columns, count, "", true)
+		sendCsvDataResponseExtended(conn, jobID, logID, csvData, columns, count, "", true, targetTable)
 		return nil
-	}
-
-	// Execute the query with batching
-	logger.Logger.Info().Str("job", jobName).Msg("Starting high-performance CSV batch query execution")
-	err = dbConn.ExecuteQueryWithCsvBatch(query, batchSize, processCsvBatch)
+	})
 
 	if err != nil {
 		logger.Logger.Error().Err(err).Msg("Failed to execute batch query")
@@ -678,8 +713,16 @@ func executeDatabaseSyncJob(conn net.Conn, msg AgentMessage, jobID, logID uint, 
 		Int("total_records", totalRecords).
 		Msg("Query execution completed")
 
+	// Execute post-extraction query if provided
+	if extractPostQuery != "" {
+		logger.Logger.Info().Str("job", jobName).Str("query", extractPostQuery).Msg("Executing Extract Post Query")
+		if _, err := dbConn.DB.Exec(extractPostQuery); err != nil {
+			logger.Logger.Error().Err(err).Msg("Failed to execute Extract Post Query")
+		}
+	}
+
 	// Send final completion response
-	sendDataResponse(conn, jobID, logID, nil, 0, "", false)
+	sendCsvDataResponseExtended(conn, jobID, logID, "", nil, 0, "", false, targetTable)
 }
 
 // executeJavaScriptJob handles execution of arbitrary JavaScript schemas (for Data Integration)
@@ -1750,8 +1793,8 @@ func sendDataResponse(conn net.Conn, jobID, logID uint, records []map[string]int
 	}
 }
 
-// sendCsvDataResponse sends data back to master in raw CSV format
-func sendCsvDataResponse(conn net.Conn, jobID, logID uint, csvRecords string, columns []string, recordCount int, errorMsg string, isPartial bool) {
+// sendCsvDataResponseExtended sends data back to master in raw CSV format with optional target table
+func sendCsvDataResponseExtended(conn net.Conn, jobID, logID uint, csvRecords string, columns []string, recordCount int, errorMsg string, isPartial bool, targetTable string) {
 	status := "completed"
 	if errorMsg != "" {
 		status = "failed"
@@ -1779,6 +1822,7 @@ func sendCsvDataResponse(conn net.Conn, jobID, logID uint, csvRecords string, co
 			"csv_columns":  columnsInterface,
 			"error":        errorMsg,
 			"partial":      isPartial,
+			"target_table": targetTable,
 		},
 	}
 
@@ -2163,6 +2207,127 @@ func testMinIOConnection(msg AgentMessage, response *AgentMessage, startTime tim
 	response.Data["duration"] = duration
 	response.Data["endpoint"] = minioConfig.Endpoint
 	response.Data["bucket"] = minioConfig.BucketName
+}
+
+// executeRunQuery handles direct SQL execution from Master Test Console
+func executeRunQuery(conn net.Conn, msg AgentMessage) {
+	logger.Logger.Info().Msg("Executing RUN_QUERY command from Master")
+
+	startTime := time.Now()
+
+	// Extract query and request ID
+	query := ""
+	if q, ok := msg.Data["query"].(string); ok {
+		query = q
+	}
+
+	requestID := uint(0)
+	if id, ok := msg.Data["request_id"].(float64); ok {
+		requestID = uint(id)
+	}
+
+	// Extract DB config
+	dbCfg := DBConfig
+	if dbConfigMap, ok := msg.Data["db_config"].(map[string]interface{}); ok {
+		if v, ok := dbConfigMap["driver"].(string); ok {
+			dbCfg.Driver = v
+		}
+		if v, ok := dbConfigMap["host"].(string); ok {
+			dbCfg.Host = v
+		}
+		if v, ok := dbConfigMap["port"].(string); ok {
+			dbCfg.Port = v
+		}
+		if v, ok := dbConfigMap["user"].(string); ok {
+			dbCfg.User = v
+		}
+		if v, ok := dbConfigMap["password"].(string); ok {
+			dbCfg.Password = v
+		}
+		if v, ok := dbConfigMap["db_name"].(string); ok {
+			dbCfg.DBName = v
+		}
+		if v, ok := dbConfigMap["sslmode"].(string); ok {
+			dbCfg.SSLMode = v
+		}
+	}
+
+	response := AgentMessage{
+		Type:      "RUN_QUERY_RESULT",
+		AgentName: AgentName,
+		Timestamp: time.Now(),
+		Data: map[string]interface{}{
+			"request_id": requestID,
+		},
+	}
+
+	if query == "" {
+		response.Data["success"] = false
+		response.Data["error"] = "Query is empty"
+		sendMessage(conn, response)
+		return
+	}
+
+	// Connect and execute
+	db, err := database.Connect(dbCfg)
+	if err != nil {
+		response.Data["success"] = false
+		response.Data["error"] = fmt.Sprintf("Failed to connect to database: %v", err)
+		sendMessage(conn, response)
+		return
+	}
+	defer db.Close()
+
+	// Get Metadata (Product Version)
+	dbProduct := "Unknown"
+	versionQuery := ""
+	switch dbCfg.Driver {
+	case "postgres":
+		versionQuery = "SELECT version()"
+	case "mysql":
+		versionQuery = "SELECT version()"
+	case "sqlserver", "mssql":
+		versionQuery = "SELECT @@VERSION"
+	case "oracle":
+		versionQuery = "SELECT banner FROM v$version WHERE ROWNUM = 1"
+	}
+
+	if versionQuery != "" {
+		metaResults, err := db.ExecuteQuery(versionQuery)
+		if err == nil && len(metaResults) > 0 {
+			for _, v := range metaResults[0] {
+				dbProduct = fmt.Sprintf("%v", v)
+				break
+			}
+		}
+	}
+
+	results, err := db.ExecuteQuery(query)
+	duration := time.Since(startTime).Milliseconds()
+
+	if err != nil {
+		response.Data["success"] = false
+		response.Data["error"] = fmt.Sprintf("Query execution failed: %v", err)
+		response.Data["duration"] = duration
+		sendMessage(conn, response)
+		return
+	}
+
+	// Format response with metadata
+	response.Data["success"] = true
+	response.Data["results"] = results
+	response.Data["row_count"] = len(results)
+	response.Data["duration"] = duration
+	response.Data["metadata"] = map[string]interface{}{
+		"product": dbProduct,
+		"driver":  dbCfg.Driver,
+		"host":    dbCfg.Host,
+		"port":    dbCfg.Port,
+		"db_name": dbCfg.DBName,
+		"user":    dbCfg.User,
+	}
+
+	sendMessage(conn, response)
 }
 
 // executeRemoteCommand handles EXEC_COMMAND from master terminal console

@@ -57,6 +57,7 @@ type insertWork struct {
 	errorMsg         string
 	agentName        string
 	clientAddr       string
+	uploadPostQuery  string
 }
 
 // workerPoolSize is the number of concurrent insert workers
@@ -377,6 +378,8 @@ func (al *AgentListener) processMessage(msg core.AgentMessage, clientAddr string
 		al.handleConfigPull(msg, conn)
 	case "EXEC_COMMAND_RESULT":
 		al.handleExecCommandResult(msg, clientAddr)
+	case "RUN_QUERY_RESULT":
+		al.handleRunQueryResult(msg, clientAddr)
 	default:
 		log.Printf("Unknown message type: %s", msg.Type)
 	}
@@ -384,7 +387,7 @@ func (al *AgentListener) processMessage(msg core.AgentMessage, clientAddr string
 
 // handleRegister processes agent registration
 func (al *AgentListener) handleRegister(msg core.AgentMessage, clientAddr string, conn net.Conn) {
-	al.handler.UpdateAgentStatus(msg.AgentName, "online", clientAddr)
+	al.handler.UpdateAgentStatus(msg.AgentName, "online", clientAddr, msg.Data)
 
 	// Store connection for later use (bidirectional communication)
 	al.storeConnection(msg.AgentName, conn)
@@ -453,7 +456,7 @@ func (al *AgentListener) autoCreateNetwork(agentName, clientAddr string) {
 
 // handleHeartbeat processes heartbeat messages
 func (al *AgentListener) handleHeartbeat(msg core.AgentMessage, clientAddr string) {
-	al.handler.UpdateAgentStatus(msg.AgentName, msg.Status, clientAddr)
+	al.handler.UpdateAgentStatus(msg.AgentName, msg.Status, clientAddr, msg.Data)
 }
 
 // handleDataSync processes database sync data from agents
@@ -483,7 +486,7 @@ func (al *AgentListener) handleDataSync(msg core.AgentMessage, clientAddr string
 		}
 	}
 
-	al.handler.UpdateAgentStatus(msg.AgentName, "online", clientAddr)
+	al.handler.UpdateAgentStatus(msg.AgentName, "online", clientAddr, msg.Data)
 }
 
 // handleDataResponse processes data responses from run job commands
@@ -537,18 +540,33 @@ func (al *AgentListener) handleDataResponse(msg core.AgentMessage, clientAddr st
 		sampleData = string(sampleJSON)
 	}
 
-	// Get target table and unique key from job's schema
+	// Get target table and unique key
 	targetTable := ""
+	if tt, ok := msg.Data["target_table"].(string); ok && tt != "" {
+		targetTable = tt
+	}
+
 	uniqueKeyColumn := ""
 	checkpointColumn := ""
 	var networkID uint
+	uploadPostQuery := ""
 	if jobID > 0 {
 		var job core.Job
-		if err := al.handler.db.Preload("Schema").Preload("Network").First(&job, jobID).Error; err == nil {
-			targetTable = job.Schema.TargetTable
+		if err := al.handler.db.Preload("Schema.Rules").Preload("Network").First(&job, jobID).Error; err == nil {
+			if targetTable == "" {
+				targetTable = job.Schema.TargetTable
+			}
 			uniqueKeyColumn = job.Schema.UniqueKeyColumn
 			checkpointColumn = job.CheckpointColumn
 			networkID = job.NetworkID
+
+			// Find rule-specific PostQuery if it's a multi-rule schema
+			for _, rule := range job.Schema.Rules {
+				if rule.TargetTable == targetTable {
+					uploadPostQuery = rule.UploadPostQuery
+					break
+				}
+			}
 		}
 	}
 
@@ -592,6 +610,7 @@ func (al *AgentListener) handleDataResponse(msg core.AgentMessage, clientAddr st
 			errorMsg:         errorMsg,
 			agentName:        msg.AgentName,
 			clientAddr:       clientAddr,
+			uploadPostQuery:  uploadPostQuery,
 		}
 
 		select {
@@ -608,7 +627,7 @@ func (al *AgentListener) handleDataResponse(msg core.AgentMessage, clientAddr st
 		al.updateJobStatus(jobID, isPartial, status)
 	}
 
-	al.handler.UpdateAgentStatus(msg.AgentName, "online", clientAddr)
+	al.handler.UpdateAgentStatus(msg.AgentName, "online", clientAddr, msg.Data)
 }
 
 // insertWorker is a goroutine that processes insert work from the channel
@@ -671,9 +690,12 @@ func (al *AgentListener) executeInsertWork(work insertWork) {
 		}
 	}
 
-	// Reset sequence ONLY at end of job (not per-batch) to avoid unnecessary overhead
+	// Reset sequence and run post-queries ONLY at end of job (not per-batch)
 	if !work.isPartial {
 		al.resetSequenceForTable(work.tableName, work.uniqueKeyColumn, work.networkID)
+		if work.uploadPostQuery != "" {
+			al.ExecuteTargetQuery(work.uploadPostQuery, work.networkID)
+		}
 	}
 
 	// Update job log and status
@@ -1114,7 +1136,7 @@ func (al *AgentListener) handleDataPush(msg core.AgentMessage, clientAddr string
 
 	// In production, you would process and store this data
 	// For now, we just log it
-	al.handler.UpdateAgentStatus(msg.AgentName, "online", clientAddr)
+	al.handler.UpdateAgentStatus(msg.AgentName, "online", clientAddr, msg.Data)
 }
 
 // handleConfigPull sends configuration to requesting agents
@@ -1277,5 +1299,80 @@ func (al *AgentListener) handleExecCommandResult(msg core.AgentMessage, clientAd
 		log.Printf("No pending request found for request_id %d", requestID)
 	}
 
-	al.handler.UpdateAgentStatus(msg.AgentName, "online", clientAddr)
+	al.handler.UpdateAgentStatus(msg.AgentName, "online", clientAddr, msg.Data)
+}
+
+// handleRunQueryResult processes SQL query results from agents
+func (al *AgentListener) handleRunQueryResult(msg core.AgentMessage, clientAddr string) {
+	log.Printf("RUN_QUERY_RESULT received from %s", msg.AgentName)
+
+	if msg.Data == nil {
+		log.Printf("No data in query result")
+		return
+	}
+
+	// Get request_id to find the pending request
+	requestID := uint(0)
+	if id, ok := msg.Data["request_id"].(float64); ok {
+		requestID = uint(id)
+	}
+
+	// Find and notify the waiting goroutine
+	al.pendingMu.RLock()
+	pending, exists := al.pendingRequests[requestID]
+	al.pendingMu.RUnlock()
+
+	if exists && pending != nil {
+		// Send result to channel (non-blocking)
+		select {
+		case pending.ResponseChan <- msg.Data:
+			log.Printf("Delivered query result for request %d", requestID)
+		default:
+			log.Printf("Failed to deliver query result for request %d (channel full)", requestID)
+		}
+	} else {
+		log.Printf("No pending request found for request_id %d", requestID)
+	}
+
+	al.handler.UpdateAgentStatus(msg.AgentName, "online", clientAddr, msg.Data)
+}
+
+// ExecuteTargetQuery executes a raw query on target database
+func (al *AgentListener) ExecuteTargetQuery(query string, networkID uint) error {
+	if query == "" {
+		return nil
+	}
+
+	// Use connection caching from upsert logic
+	var targetDB database.TargetConfig
+	if networkID > 0 {
+		targetDB = al.loadTargetDBConfigFromNetwork(networkID)
+	} else {
+		targetDB = al.loadTargetDBConfig()
+	}
+
+	// Connect/Get from cache
+	var connSpec *database.TargetConnection
+	al.targetDBMu.Lock()
+	if cached, ok := al.targetDBCache[networkID]; ok && time.Since(cached.lastUsed) < 30*time.Minute {
+		connSpec = cached.conn
+		cached.lastUsed = time.Now()
+	}
+	al.targetDBMu.Unlock()
+
+	if connSpec == nil {
+		c, err := database.ConnectTarget(targetDB)
+		if err != nil {
+			return err
+		}
+		connSpec = c
+		al.targetDBMu.Lock()
+		al.targetDBCache[networkID] = &cachedTargetConn{conn: c, lastUsed: time.Now()}
+		al.targetDBMu.Unlock()
+	}
+
+	// Execute original query
+	log.Printf("Executing target query for network %d: %s", networkID, query)
+	_, err := connSpec.DB.Exec(query)
+	return err
 }

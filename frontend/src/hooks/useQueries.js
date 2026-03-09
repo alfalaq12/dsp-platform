@@ -552,3 +552,11 @@ export const useJobAnalytics = (range = '7d') => {
     refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
   });
 };
+// ============================================
+// Remote Query Hooks
+// ============================================
+export const useExecuteQuery = () => {
+  return useMutation({
+    mutationFn: ({ agentName, data }) => api.executeQuery(agentName, data),
+  });
+};

@@ -1,7 +1,7 @@
 import { lazy } from 'react';
 import {
     LayoutDashboard, Database, Network as NetworkIcon, Play,
-    Users, Shield, Key, Lock, Terminal, Settings
+    Users, Shield, Key, Lock, Terminal, Settings, Share2
 } from 'lucide-react';
 
 // Lazy load components
@@ -15,6 +15,7 @@ const TokenManagement = lazy(() => import('../pages/TokenManagement'));
 const Activation = lazy(() => import('../pages/Activation'));
 const TerminalPage = lazy(() => import('../pages/Terminal'));
 const SettingsPage = lazy(() => import('../pages/Settings'));
+const Nodes = lazy(() => import('../pages/Nodes'));
 const NotFound = lazy(() => import('../pages/NotFound'));
 
 export const routes = [
@@ -25,6 +26,12 @@ export const routes = [
         component: Dashboard,
         exact: true,
         pinned: true // Dashboard is always pinned/cant be closed? or just default
+    },
+    {
+        path: '/nodes',
+        label: 'Nodes',
+        icon: Share2,
+        component: Nodes
     },
     {
         path: '/schema',

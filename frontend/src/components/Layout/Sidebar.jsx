@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { useState, useEffect, memo } from 'react';
-import { Database, Network as NetworkIcon, Play, LayoutDashboard, X, Settings, Shield, Users, Key, Lock, AlertTriangle, Terminal } from 'lucide-react';
+import { Database, Network as NetworkIcon, Play, LayoutDashboard, X, Settings, Shield, Users, Key, Lock, AlertTriangle, Terminal, Share2 } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { getLicenseStatus } from '../../services/api';
 
@@ -30,6 +30,7 @@ function Sidebar({ isOpen, onClose }) {
 
     const fullMenuItems = [
         { path: '/', label: 'Dashboard', icon: LayoutDashboard },
+        { path: '/nodes', label: 'Nodes', icon: Share2 },
         { path: '/schema', label: 'Schema', icon: Database },
         { path: '/network', label: 'Network', icon: NetworkIcon },
         { path: '/jobs', label: 'Jobs', icon: Play },

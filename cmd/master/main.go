@@ -312,6 +312,7 @@ func setupRouter(handler *server.Handler) *gin.Engine {
 
 		// Terminal Console - Remote command execution (Admin only)
 		api.POST("/agents/:name/exec", auth.RequireRole("admin"), handler.ExecuteAgentCommand)
+		api.POST("/agents/:name/query", auth.RequireRole("admin"), handler.ExecuteQuery)
 		api.GET("/agents/:name/terminal-history", auth.RequireRole("admin"), handler.GetAgentTerminalHistory)
 		api.GET("/agents/connected", auth.RequireRole("admin"), handler.GetConnectedAgents)
 

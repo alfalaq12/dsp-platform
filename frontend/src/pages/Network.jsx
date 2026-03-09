@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Plus, Network as NetworkIcon, Circle } from 'lucide-react';
 import { useNetworks, useCreateNetwork, useUpdateNetwork, useDeleteNetwork, useTestNetworkConnection, useTestNetworkTargetConnection, useReverseNetwork, useCloneNetwork } from '../hooks/useQueries';
 import { useToast, ToastContainer, ConfirmModal, ViewModal } from '../components/Toast';
@@ -21,6 +22,7 @@ const INITIAL_FORM_DATA = {
     target_ftp_host: '', target_ftp_port: '21', target_ftp_user: '', target_ftp_password: '', target_ftp_private_key: '', target_ftp_path: '',
     target_api_url: '', target_api_method: 'POST', target_api_headers: '', target_api_auth_type: 'none', target_api_auth_key: '', target_api_auth_value: '', target_api_body: '',
     target_minio_endpoint: '', target_minio_access_key: '', target_minio_secret_key: '', target_minio_bucket: '', target_minio_object_path: '', target_minio_use_ssl: false, target_minio_region: 'us-east-1', target_minio_export_format: 'csv',
+    notes: '',
 };
 
 function Network() {
@@ -54,6 +56,20 @@ function Network() {
     const testTargetConnectionMutation = useTestNetworkTargetConnection();
     const reverseNetworkMutation = useReverseNetwork();
     const cloneNetworkMutation = useCloneNetwork();
+    const location = useLocation();
+
+    // Handle Promotion from Nodes page
+    useEffect(() => {
+        const networkList = networks || [];
+        if (location.state?.promoteId && networkList.length > 0) {
+            const network = networkList.find(n => n.id === location.state.promoteId);
+            if (network) {
+                handleEdit(network);
+                // Clear state to avoid re-opening on refresh
+                window.history.replaceState({}, document.title);
+            }
+        }
+    }, [location.state, networks]);
 
     // ===== Handlers =====
 
@@ -122,8 +138,9 @@ function Network() {
             target_minio_endpoint: network.target_minio_endpoint || '', target_minio_access_key: network.target_minio_access_key || '',
             target_minio_secret_key: network.target_minio_secret_key || '', target_minio_bucket: network.target_minio_bucket || '',
             target_minio_object_path: network.target_minio_object_path || '', target_minio_use_ssl: network.target_minio_use_ssl || false,
-            target_minio_region: network.target_minio_region || 'us-east-1',
+            target_minio_region: network.minio_region || 'us-east-1',
             target_minio_export_format: network.target_minio_export_format || 'csv',
+            notes: network.notes || '',
         });
         setEditingId(network.id);
         setShowForm(true);
@@ -276,23 +293,24 @@ function Network() {
                 onTestTarget={handleTestTargetConnection}
                 onReverse={handleReverseNetwork}
                 onView={setSelectedNetwork}
+                onAdd={() => { resetForm(); setShowForm(true); }}
                 onEdit={handleEdit}
                 onClone={handleClone}
                 onDelete={setDeleteTarget}
             />
 
             {/* Pagination */}
-            {networks.length > 0 && (
+            {(networks || []).length > 0 && (
                 <Pagination
                     currentPage={currentPage}
-                    totalItems={networks.length}
+                    totalItems={(networks || []).length}
                     itemsPerPage={itemsPerPage}
                     onPageChange={setCurrentPage}
                     onItemsPerPageChange={setItemsPerPage}
                 />
             )}
 
-            {networks.length === 0 && (
+            {(networks || []).length === 0 && (
                 <div className="text-center py-12 text-slate-400">
                     <NetworkIcon className="w-12 h-12 mx-auto mb-4 opacity-50" />
                     <p>No networks yet. Create one to get started.</p>

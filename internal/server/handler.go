@@ -134,8 +134,8 @@ func (h *Handler) Logout(c *gin.Context) {
 
 // GetSchemas returns all schemas (newest first)
 func (h *Handler) GetSchemas(c *gin.Context) {
-	var schemas []core.Schema
-	if err := h.db.Order("id DESC").Find(&schemas).Error; err != nil {
+	schemas := []core.Schema{}
+	if err := h.db.Preload("Rules").Order("id DESC").Find(&schemas).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -230,6 +230,12 @@ func (h *Handler) UpdateSchema(c *gin.Context) {
 		return
 	}
 
+	// Update Rules (Replace existing with new ones)
+	if err := h.db.Model(&schema).Association("Rules").Replace(schema.Rules); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update rules: " + err.Error()})
+		return
+	}
+
 	// Log audit
 	go func() {
 		h.db.Create(&core.AuditLog{
@@ -309,8 +315,8 @@ func (h *Handler) DeleteSchema(c *gin.Context) {
 // @Failure 401 {object} map[string]string
 // @Router /networks [get]
 func (h *Handler) GetNetworks(c *gin.Context) {
-	var networks []core.Network
-	if err := h.db.Order("id DESC").Find(&networks).Error; err != nil {
+	networks := []core.Network{}
+	if err := h.db.Preload("Jobs.Schema").Order("id DESC").Find(&networks).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -343,6 +349,19 @@ func (h *Handler) CreateNetwork(c *gin.Context) {
 	if err := h.db.Create(&network).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Auto-create Job for this network
+	newJob := core.Job{
+		Name:      network.Name,
+		NetworkID: network.ID,
+		Enabled:   true,
+		Status:    "pending",
+		CreatedBy: c.GetUint("user_id"),
+		UpdatedBy: c.GetUint("user_id"),
+	}
+	if err := h.db.Create(&newJob).Error; err == nil {
+		log.Printf("✅ Auto-created Job '%s' for NEW Network ID %d", newJob.Name, network.ID)
 	}
 
 	// Log audit
@@ -403,6 +422,38 @@ func (h *Handler) UpdateNetwork(c *gin.Context) {
 	if err := h.db.Save(&network).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Auto-create Job if it doesn't exist for this network
+	var jobCount int64
+	h.db.Model(&core.Job{}).Where("network_id = ?", network.ID).Count(&jobCount)
+	if jobCount == 0 {
+		newJob := core.Job{
+			Name:      network.Name,
+			NetworkID: network.ID,
+			Enabled:   true,
+			Status:    "pending",
+			CreatedBy: c.GetUint("user_id"),
+			UpdatedBy: c.GetUint("user_id"),
+		}
+		if err := h.db.Create(&newJob).Error; err == nil {
+			log.Printf("✅ Auto-created Job '%s' for Network ID %d", newJob.Name, network.ID)
+
+			// Log audit for auto-created job
+			go func() {
+				h.db.Create(&core.AuditLog{
+					Username:  c.GetString("username"),
+					UserID:    c.GetUint("user_id"),
+					Action:    "CREATE",
+					Entity:    "JOB",
+					EntityID:  fmt.Sprintf("%d", newJob.ID),
+					Details:   fmt.Sprintf("Auto-created job '%s' from network configuration", newJob.Name),
+					IPAddress: c.ClientIP(),
+					UserAgent: c.Request.UserAgent(),
+					CreatedAt: time.Now(),
+				})
+			}()
+		}
 	}
 
 	// Log audit
@@ -526,7 +577,7 @@ func (h *Handler) GetJobs(c *gin.Context) {
 
 	offset := (page - 1) * pageSize
 
-	var jobs []core.Job
+	jobs := []core.Job{}
 	var total int64
 
 	// Get total count
@@ -997,7 +1048,7 @@ func (h *Handler) GetJob(c *gin.Context) {
 	}
 
 	// Get recent logs for this job
-	var logs []core.JobLog
+	logs := []core.JobLog{}
 	h.db.Where("job_id = ?", id).Order("created_at DESC").Limit(10).Find(&logs)
 
 	// Fix stale 'running' logs if the job itself is 'failed'
@@ -1022,19 +1073,17 @@ func (h *Handler) GetJob(c *gin.Context) {
 // GetJobLogs returns execution logs for a specific job
 func (h *Handler) GetJobLogs(c *gin.Context) {
 	id := c.Param("id")
-
-	var logs []core.JobLog
+	logs := []core.JobLog{}
 	if err := h.db.Where("job_id = ?", id).Order("created_at DESC").Limit(50).Find(&logs).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
 	c.JSON(http.StatusOK, logs)
 }
 
 // GetRecentJobLogs returns the most recent execution logs across all jobs for notifications
 func (h *Handler) GetRecentJobLogs(c *gin.Context) {
-	var logs []core.JobLog
+	logs := []core.JobLog{}
 	// Get last 10 logs with Job details
 	if err := h.db.Preload("Job").Order("created_at DESC").Limit(10).Find(&logs).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -1045,14 +1094,15 @@ func (h *Handler) GetRecentJobLogs(c *gin.Context) {
 }
 
 // UpdateAgentStatus updates agent status from listener
-func (h *Handler) UpdateAgentStatus(agentName, status, ipAddress string) {
+func (h *Handler) UpdateAgentStatus(agentName, status, ipAddress string, data map[string]interface{}) {
 	var network core.Network
 
 	// Find or create network entry for this agent
-	if err := h.db.Where("name = ?", agentName).First(&network).Error; err != nil {
+	if err := h.db.Where("name = ? OR agent_name = ?", agentName, agentName).First(&network).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			network = core.Network{
 				Name:      agentName,
+				AgentName: agentName,
 				IPAddress: ipAddress,
 				Status:    status,
 				Type:      "source",
@@ -1060,15 +1110,33 @@ func (h *Handler) UpdateAgentStatus(agentName, status, ipAddress string) {
 			}
 			h.db.Create(&network)
 		}
-	} else {
-		network.Status = status
-		network.LastSeen = time.Now()
-		network.IPAddress = ipAddress
-		h.db.Save(&network)
 	}
 
+	// Update common fields
+	network.Status = status
+	network.LastSeen = time.Now()
+	network.IPAddress = ipAddress
+
+	// Update real-time metrics if provided in data
+	if val, ok := data["cpu_usage"].(float64); ok {
+		network.CPUUsage = val
+	}
+	if val, ok := data["memory_total"].(float64); ok {
+		network.MemoryTotal = uint64(val)
+	}
+	if val, ok := data["memory_free"].(float64); ok {
+		network.MemoryFree = uint64(val)
+	}
+	if val, ok := data["memory_used"].(float64); ok {
+		network.MemoryUsed = uint64(val)
+	}
+	if val, ok := data["version"].(string); ok {
+		network.SoftwareVersion = val
+	}
+
+	h.db.Save(&network)
 	h.agents[agentName] = &network
-	log.Printf("Agent %s status updated: %s", agentName, status)
+	log.Printf("Agent %s status updated: %s (CPU: %.2f%%)", agentName, status, network.CPUUsage)
 }
 
 // GetAgentJobs returns jobs assigned to a specific agent
@@ -1852,7 +1920,7 @@ func (h *Handler) GetAuditLogs(c *gin.Context) {
 
 	offset := (page - 1) * limit
 
-	var logs []core.AuditLog
+	logs := []core.AuditLog{}
 	var total int64
 
 	query := h.db.Model(&core.AuditLog{})
@@ -1882,7 +1950,7 @@ func (h *Handler) GetAuditLogs(c *gin.Context) {
 
 // GetUsers returns all users
 func (h *Handler) GetUsers(c *gin.Context) {
-	var users []core.User
+	users := []core.User{}
 	if err := h.db.Find(&users).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -2069,7 +2137,7 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 
 // GetAgentTokens returns all agent tokens
 func (h *Handler) GetAgentTokens(c *gin.Context) {
-	var tokens []core.AgentToken
+	tokens := []core.AgentToken{}
 	h.db.Order("created_at DESC").Find(&tokens)
 
 	// Hide full token in response
@@ -2820,6 +2888,78 @@ func (h *Handler) GetAgentTerminalHistory(c *gin.Context) {
 		Find(&logs)
 
 	c.JSON(http.StatusOK, logs)
+}
+
+// ExecuteQuery sends an SQL query to an agent for remote execution
+func (h *Handler) ExecuteQuery(c *gin.Context) {
+	agentName := c.Param("name")
+
+	var req struct {
+		Query    string                 `json:"query" binding:"required"`
+		Timeout  int                    `json:"timeout"` // Timeout in seconds, default 30
+		DBConfig map[string]interface{} `json:"db_config"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Query is required"})
+		return
+	}
+
+	// Set default timeout
+	if req.Timeout <= 0 {
+		req.Timeout = 60 // DB queries might take longer than shell commands
+	}
+
+	// Get user info for audit
+	userID := c.GetUint("user_id")
+	username := c.GetString("username")
+
+	// Check if agent is connected
+	if h.agentListener == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Agent listener not available"})
+		return
+	}
+
+	// Create audit log entry
+	auditLog := core.AuditLog{
+		UserID:    userID,
+		Username:  username,
+		Action:    "EXEC_QUERY",
+		Entity:    "AGENT",
+		EntityID:  "",
+		Details:   fmt.Sprintf("Agent: %s, Query: %s", agentName, req.Query),
+		IPAddress: c.ClientIP(),
+		UserAgent: c.Request.UserAgent(),
+		CreatedAt: time.Now(),
+	}
+	h.db.Create(&auditLog)
+
+	// Send command to agent
+	command := core.AgentMessage{
+		Type:      "RUN_QUERY",
+		Timestamp: time.Now(),
+		Data: map[string]interface{}{
+			"query":      req.Query,
+			"timeout":    req.Timeout,
+			"db_config":  req.DBConfig,
+			"request_id": auditLog.ID,
+		},
+	}
+
+	// Send and wait for response
+	result, err := h.agentListener.SendCommandAndWait(agentName, command, time.Duration(req.Timeout)*time.Second)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   err.Error(),
+			"agent":   agentName,
+			"query":   req.Query,
+			"success": false,
+		})
+		return
+	}
+
+	// Return result
+	c.JSON(http.StatusOK, result)
 }
 
 // ==================== BACKUP & RESTORE HANDLERS ====================

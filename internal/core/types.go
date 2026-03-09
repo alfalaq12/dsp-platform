@@ -2,25 +2,44 @@ package core
 
 import "time"
 
-// Schema represents a SQL query or file configuration to be executed/synced
+// Schema represents a collection of extraction rules for data synchronization
 type Schema struct {
 	ID          uint      `json:"id" gorm:"primaryKey"`
 	Name        string    `json:"name" gorm:"not null"`
-	SQLCommand  string    `json:"sql_command" gorm:"type:text"` // For database source
-	TargetTable string    `json:"target_table" gorm:"not null"`
 	Description string    `json:"description" gorm:"type:text"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 	CreatedBy   uint      `json:"created_by" gorm:"index"` // Owner user ID
 	UpdatedBy   uint      `json:"updated_by"`              // Last modifier user ID
 
-	// File Sync Configuration (for FTP/SFTP sources)
-	SourceType      string `json:"source_type" gorm:"default:'query'"` // query, file
-	FileFormat      string `json:"file_format"`                        // csv, xlsx, json
-	FilePattern     string `json:"file_pattern"`                       // e.g., "data.csv" or "*.csv"
-	UniqueKeyColumn string `json:"unique_key_column"`                  // Column for upsert logic
-	HasHeader       bool   `json:"has_header" gorm:"default:true"`     // CSV/Excel has header row
-	Delimiter       string `json:"delimiter" gorm:"default:','"`       // CSV delimiter
+	// Source Type: query, file, javascript, api
+	SourceType string `json:"source_type" gorm:"default:'query'"`
+
+	// Rules for extraction (1:N)
+	Rules []SchemaRule `json:"rules" gorm:"foreignKey:SchemaID;constraint:OnDelete:CASCADE"`
+
+	// Legacy fields (kept for compatibility or single-rule schemas)
+	SQLCommand      string `json:"sql_command" gorm:"type:text"`
+	TargetTable     string `json:"target_table"`
+	FileFormat      string `json:"file_format"`
+	FilePattern     string `json:"file_pattern"`
+	UniqueKeyColumn string `json:"unique_key_column"`
+	HasHeader       bool   `json:"has_header" gorm:"default:true"`
+	Delimiter       string `json:"delimiter" gorm:"default:','"`
+}
+
+// SchemaRule represents a single table extraction/sync rule within a Schema
+type SchemaRule struct {
+	ID               uint   `json:"id" gorm:"primaryKey"`
+	SchemaID         uint   `json:"schema_id" gorm:"index"`
+	SourceQuery      string `json:"source_query" gorm:"type:text"`
+	TargetTable      string `json:"target_table"` // DTBN in UI
+	Truncate         bool   `json:"truncate" gorm:"default:false"`
+	ExtractPreQuery  string `json:"extract_pre_query" gorm:"type:text"`
+	ExtractPostQuery string `json:"extract_post_query" gorm:"type:text"`
+	UploadPreQuery   string `json:"upload_pre_query" gorm:"type:text"`
+	UploadPostQuery  string `json:"upload_post_query" gorm:"type:text"`
+	Notes            string `json:"notes" gorm:"type:text"`
 }
 
 // Network represents a data source (Tenant Agent) or data target
@@ -132,6 +151,17 @@ type Network struct {
 	TargetMinIOUseSSL       bool   `json:"target_minio_use_ssl" gorm:"default:false"`
 	TargetMinIORegion       string `json:"target_minio_region" gorm:"default:'us-east-1'"`
 	TargetMinIOExportFormat string `json:"target_minio_export_format" gorm:"default:'csv'"` // csv, json, parquet
+
+	// Nodes Redesign Fields
+	Notes           string  `json:"notes" gorm:"type:text"`
+	CPUUsage        float64 `json:"cpu_usage"`
+	MemoryTotal     uint64  `json:"memory_total"`
+	MemoryFree      uint64  `json:"memory_free"`
+	MemoryUsed      uint64  `json:"memory_used"`
+	SoftwareVersion string  `json:"software_version"`
+
+	// Relations
+	Jobs []Job `json:"jobs,omitempty" gorm:"foreignKey:NetworkID"`
 }
 
 // Job represents a data synchronization job linking a Schema to a Network

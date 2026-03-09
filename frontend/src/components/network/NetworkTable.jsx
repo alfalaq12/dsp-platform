@@ -1,204 +1,257 @@
-import { Database, Server, Shield, Globe, HardDrive, Circle, Eye, Edit, Copy, Trash2, Zap, Play, ArrowLeftRight, Loader2 } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+    Database,
+    Server,
+    Shield,
+    Globe,
+    HardDrive,
+    Circle,
+    Eye,
+    Edit,
+    Copy,
+    Trash2,
+    Zap,
+    Play,
+    ArrowLeftRight,
+    Loader2,
+    Search,
+    ChevronLeft,
+    ChevronRight,
+    User,
+    Plus,
+    Monitor
+} from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Helper: Generate source connection string
 function getSourceAddr(network) {
     const srcType = network.source_type || 'database';
-    if (srcType === 'database') return `${network.db_driver || 'postgres'}://${network.db_host || '-'}:${network.db_port || '5432'}/${network.db_name || '-'}`;
-    if (srcType === 'ftp' || srcType === 'sftp') return `${srcType}://${network.ftp_host || '-'}:${network.ftp_port || '21'}${network.ftp_path || '/'}`;
-    if (srcType === 'api') return network.api_url || '-';
-    if (srcType === 'mongodb') return `mongodb://${network.mongo_host || '-'}:${network.mongo_port || '27017'}/${network.mongo_database || '-'}`;
-    if (srcType === 'redis') return `redis://${network.redis_host || '-'}:${network.redis_port || '6379'}/${network.redis_db || 0}`;
+    if (srcType === 'database') {
+        const params = [];
+        if (network.db_sslmode) params.push(`sslmode=${network.db_sslmode}`);
+        const paramStr = params.length > 0 ? `?${params.join('&')}` : '';
+        return `{{${network.db_driver || 'postgres'} '${network.db_host || '-'}' '${network.db_port || '5432'}' '${network.db_user || '-'}'${paramStr}}}`;
+    }
+    if (srcType === 'ftp' || srcType === 'sftp') return `{{${srcType} '${network.ftp_host || '-'}' '${network.ftp_path || '/'}'}}`;
+    if (srcType === 'api') return `{{api '${network.api_url || '-'}'}}`;
     return '-';
 }
 
-function getSourceAddrShort(network) {
-    const srcType = network.source_type || 'database';
-    if (srcType === 'database') return `${network.db_driver || 'postgres'}://${network.db_host || '-'}:${network.db_port || '5432'}`;
-    if (srcType === 'ftp' || srcType === 'sftp') return `${srcType}://${network.ftp_host || '-'}:${network.ftp_port || '21'}`;
-    if (srcType === 'api') return network.api_url || '-';
-    return '-';
-}
-
-function getTargetAddr(network, short = false) {
+function getTargetAddr(network) {
     const tgtType = network.target_source_type || 'database';
     if (tgtType === 'database') {
         if (!network.target_db_host) return '-';
-        return short
-            ? `${network.target_db_driver || 'postgres'}://${network.target_db_host}:${network.target_db_port || '5432'}`
-            : `${network.target_db_driver || 'postgres'}://${network.target_db_host}:${network.target_db_port || '5432'}/${network.target_db_name || '-'}`;
+        const params = [];
+        if (network.target_db_sslmode) params.push(`sslmode=${network.target_db_sslmode}`);
+        const paramStr = params.length > 0 ? `?${params.join('&')}` : '';
+        return `{{${network.target_db_driver || 'postgres'} '${network.target_db_host}' '${network.target_db_port || '5432'}' '${network.target_db_user || '-'}'${paramStr}}}`;
     }
     if (tgtType === 'ftp' || tgtType === 'sftp') {
         if (!network.target_ftp_host) return '-';
-        return short
-            ? `${tgtType}://${network.target_ftp_host}:${network.target_ftp_port || '21'}`
-            : `${tgtType}://${network.target_ftp_host}:${network.target_ftp_port || '21'}${network.target_ftp_path || '/'}`;
+        return `{{${tgtType} '${network.target_ftp_host}' '${network.target_ftp_path || '/'}'}}`;
     }
-    if (tgtType === 'api') return network.target_api_url || '-';
+    if (tgtType === 'api') return `{{api '${network.target_api_url || '-'}'}}`;
     return '-';
 }
 
-// Desktop table row
-function NetworkRow({ network, userRole, testingNetwork, testingTargetNetwork, reversingNetwork, cloningNetwork, onTestSource, onTestTarget, onReverse, onView, onEdit, onClone, onDelete, isDark }) {
-    const srcType = network.source_type || 'database';
-    const tgtType = network.target_source_type || 'database';
-    return (
-        <tr className={`transition-colors ${isDark ? 'hover:bg-slate-700/50' : 'hover:bg-slate-50'}`}>
-            <td className={`px-4 py-3 text-sm font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{network.id}</td>
-            <td className="px-4 py-3">
-                <div className={`font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{network.name}</div>
-                <div className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{network.ip_address}</div>
-            </td>
-            <td className="px-4 py-3">
-                <div className={`text-xs font-semibold uppercase mb-1 ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>{srcType.toUpperCase()}</div>
-                <div className={`text-xs font-mono break-all max-w-xs ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{getSourceAddr(network)}</div>
-            </td>
-            <td className="px-4 py-3">
-                <div className={`text-xs font-semibold uppercase mb-1 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>{tgtType.toUpperCase()}</div>
-                <div className={`text-xs font-mono break-all max-w-xs ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{getTargetAddr(network)}</div>
-            </td>
-            <td className="px-4 py-3">
-                <div className="flex items-center justify-center gap-1">
-                    {userRole === 'admin' && (
-                        <>
-                            <button onClick={() => onTestSource(network)} disabled={testingNetwork === network.id} className={`p-1.5 rounded-lg transition ${isDark ? 'hover:bg-slate-600 text-purple-400' : 'hover:bg-purple-50 text-purple-600'}`} title="Test Source">
-                                {testingNetwork === network.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
-                            </button>
-                            <button onClick={() => onTestTarget(network)} disabled={testingTargetNetwork === network.id} className={`p-1.5 rounded-lg transition ${isDark ? 'hover:bg-slate-600 text-emerald-400' : 'hover:bg-emerald-50 text-emerald-600'}`} title="Test Target">
-                                {testingTargetNetwork === network.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-                            </button>
-                            <button onClick={() => onReverse(network)} disabled={reversingNetwork === network.id} className={`p-1.5 rounded-lg transition ${isDark ? 'hover:bg-slate-600 text-orange-400' : 'hover:bg-orange-50 text-orange-600'}`} title="Swap ↔">
-                                {reversingNetwork === network.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowLeftRight className="w-3.5 h-3.5" />}
-                            </button>
-                        </>
-                    )}
-                    <button onClick={() => onView(network)} className={`p-1.5 rounded-lg transition ${isDark ? 'hover:bg-slate-600 text-blue-400' : 'hover:bg-blue-50 text-blue-600'}`} title="View">
-                        <Eye className="w-3.5 h-3.5" />
-                    </button>
-                    {userRole === 'admin' && (
-                        <>
-                            <button onClick={() => onEdit(network)} className={`p-1.5 rounded-lg transition ${isDark ? 'hover:bg-slate-600 text-slate-400' : 'hover:bg-slate-100 text-slate-600'}`} title="Edit">
-                                <Edit className="w-3.5 h-3.5" />
-                            </button>
-                            <button onClick={() => onClone(network)} disabled={cloningNetwork === network.id} className={`p-1.5 rounded-lg transition ${isDark ? 'hover:bg-slate-600 text-slate-400' : 'hover:bg-slate-100 text-slate-600'}`} title="Clone">
-                                {cloningNetwork === network.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />}
-                            </button>
-                            <button onClick={() => onDelete(network)} className={`p-1.5 rounded-lg transition ${isDark ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-50 text-red-500'}`} title="Delete">
-                                <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                        </>
-                    )}
-                </div>
-            </td>
-        </tr>
-    );
-}
-
-// Mobile card
-function NetworkCard({ network, userRole, testingNetwork, testingTargetNetwork, reversingNetwork, cloningNetwork, onTestSource, onTestTarget, onReverse, onView, onEdit, onClone, onDelete, isDark }) {
-    const srcType = network.source_type || 'database';
-    const tgtType = network.target_source_type || 'database';
-    return (
-        <div className={`rounded-2xl border p-4 ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200 shadow-md'}`}>
-            {/* Header */}
-            <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isDark ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-600'}`}>
-                        <Database className="w-5 h-5" />
-                    </div>
-                    <div>
-                        <div className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{network.name}</div>
-                        <div className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>ID: {network.id}</div>
-                    </div>
-                </div>
-                <Circle className={`w-3 h-3 ${isDark ? 'text-emerald-400' : 'text-emerald-500'} fill-current`} />
-            </div>
-
-            {/* Source & Target Info */}
-            <div className="space-y-2 mb-4">
-                <div className={`p-2 rounded-lg text-xs ${isDark ? 'bg-purple-500/10 border border-purple-500/20' : 'bg-purple-50 border border-purple-100'}`}>
-                    <span className={`font-semibold ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>SOURCE:</span>
-                    <span className={`ml-2 font-mono ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{srcType.toUpperCase()} - {getSourceAddrShort(network)}</span>
-                </div>
-                <div className={`p-2 rounded-lg text-xs ${isDark ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-emerald-50 border border-emerald-100'}`}>
-                    <span className={`font-semibold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>TARGET:</span>
-                    <span className={`ml-2 font-mono ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{tgtType.toUpperCase()} - {getTargetAddr(network, true)}</span>
-                </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className={`flex flex-wrap gap-2 pt-3 border-t ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-                <button onClick={() => onView(network)} className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition ${isDark ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}>
-                    <Eye className="w-3.5 h-3.5" /> Detail
-                </button>
-                {userRole === 'admin' && (
-                    <>
-                        <button onClick={() => onTestSource(network)} disabled={testingNetwork === network.id} className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition ${isDark ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'}`}>
-                            {testingNetwork === network.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />} Test Src
-                        </button>
-                        <button onClick={() => onTestTarget(network)} disabled={testingTargetNetwork === network.id} className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition ${isDark ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}`}>
-                            {testingTargetNetwork === network.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />} Test Target
-                        </button>
-                        <button onClick={() => onReverse(network)} disabled={reversingNetwork === network.id} className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition ${isDark ? 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30' : 'bg-orange-50 text-orange-600 hover:bg-orange-100'}`}>
-                            {reversingNetwork === network.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowLeftRight className="w-3.5 h-3.5" />} Swap
-                        </button>
-                        <button onClick={() => onEdit(network)} className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition ${isDark ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>
-                            <Edit className="w-3.5 h-3.5" /> Edit
-                        </button>
-                        <button onClick={() => onClone(network)} disabled={cloningNetwork === network.id} className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition ${isDark ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>
-                            {cloningNetwork === network.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />} Clone
-                        </button>
-                        <button onClick={() => onDelete(network)} className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition ${isDark ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}>
-                            <Trash2 className="w-3.5 h-3.5" /> Hapus
-                        </button>
-                    </>
-                )}
-            </div>
-        </div>
-    );
-}
-
-// Main component: renders both desktop table and mobile cards
-export default function NetworkTable({ networks, currentPage, itemsPerPage, userRole, testingNetwork, testingTargetNetwork, reversingNetwork, cloningNetwork, onTestSource, onTestTarget, onReverse, onView, onEdit, onClone, onDelete }) {
+export default function NetworkTable({
+    networks,
+    currentPage,
+    itemsPerPage,
+    userRole,
+    testingNetwork,
+    testingTargetNetwork,
+    reversingNetwork,
+    cloningNetwork,
+    onTestSource,
+    onTestTarget,
+    onReverse,
+    onView,
+    onAdd,
+    onEdit,
+    onClone,
+    onDelete
+}) {
     const { isDark } = useTheme();
-    const paged = networks.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    const [search1, setSearch1] = useState('');
+    const [search2, setSearch2] = useState('');
+    const [selectedId, setSelectedId] = useState(null);
 
-    const actionProps = { userRole, testingNetwork, testingTargetNetwork, reversingNetwork, cloningNetwork, onTestSource, onTestTarget, onReverse, onView, onEdit, onClone, onDelete, isDark };
+    const networkList = networks || [];
+    const filtered = networkList.filter(n => {
+        const s1 = search1.toLowerCase();
+        const s2 = search2.toLowerCase();
+        const content = `${n.id} ${n.name} ${n.agent_name} ${n.ip_address} ${n.notes}`.toLowerCase();
+        return content.includes(s1) && content.includes(s2);
+    });
+
+    const paged = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+    const selectedNetwork = networkList.find(n => n.id === selectedId);
 
     return (
-        <>
-            {/* Desktop Table */}
-            <div className={`hidden lg:block rounded-2xl border overflow-hidden ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200 shadow-lg'}`}>
+        <div className="space-y-4">
+            {/* Search Filter Area */}
+            <div className={`p-4 rounded-xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-4">
+                        <label className="text-[10px] font-bold uppercase tracking-widest opacity-50 w-24">Search 1 :</label>
+                        <input
+                            type="text"
+                            value={search1}
+                            onChange={(e) => setSearch1(e.target.value)}
+                            className={`flex-1 max-w-sm px-3 py-1 text-sm border rounded ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300'}`}
+                        />
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <label className="text-[10px] font-bold uppercase tracking-widest opacity-50 w-24">Search 2 :</label>
+                        <input
+                            type="text"
+                            value={search2}
+                            onChange={(e) => setSearch2(e.target.value)}
+                            className={`flex-1 max-w-sm px-3 py-1 text-sm border rounded ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300'}`}
+                        />
+                    </div>
+                    <div className="pl-28">
+                        <button className={`px-4 py-1 text-xs font-bold rounded border transition-all ${isDark ? 'bg-slate-800 border-slate-700 hover:bg-slate-700' : 'bg-white border-slate-300 hover:bg-slate-50'}`}>
+                            Search
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* High Density Table */}
+            <div className={`rounded-xl border overflow-hidden ${isDark ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
                 <div className="overflow-x-auto">
-                    <table className="w-full">
+                    <table className="w-full border-collapse text-left">
                         <thead>
-                            <tr className={isDark ? 'bg-slate-900/50' : 'bg-slate-50'}>
-                                <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>ID</th>
-                                <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Name</th>
-                                <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
-                                    <span className="flex items-center gap-1"><Database className="w-3 h-3" /> Source</span>
-                                </th>
-                                <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                                    <span className="flex items-center gap-1"><Server className="w-3 h-3" /> Target</span>
-                                </th>
-                                <th className={`px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Actions</th>
+                            <tr className={`text-[10px] font-bold uppercase tracking-wider border-b ${isDark ? 'bg-slate-800/50 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                                <th className="p-2 w-8"></th>
+                                <th className="p-2 border-r border-slate-700/20">ID</th>
+                                <th className="p-2 border-r border-slate-700/20">SID</th>
+                                <th className="p-2 border-r border-slate-700/20">Schedule</th>
+                                <th className="p-2 border-r border-slate-700/20">Schema</th>
+                                <th className="p-2 border-r border-slate-700/20">Target Node</th>
+                                <th className="p-2 border-r border-slate-700/20">Target Address</th>
+                                <th className="p-2 border-r border-slate-700/20">Source Node</th>
+                                <th className="p-2 border-r border-slate-700/20">Source Address</th>
+                                <th className="p-2 border-r border-slate-700/20">Owner</th>
+                                <th className="p-2">Creator</th>
                             </tr>
                         </thead>
-                        <tbody className={`divide-y ${isDark ? 'divide-slate-700' : 'divide-slate-200'}`}>
-                            {paged.map((network) => (
-                                <NetworkRow key={network.id} network={network} {...actionProps} />
-                            ))}
+                        <tbody>
+                            {paged.map((n) => {
+                                const job = n.jobs?.[0] || {};
+                                const schema = job.schema || {};
+                                return (
+                                    <tr
+                                        key={n.id}
+                                        onClick={() => setSelectedId(n.id)}
+                                        className={`group cursor-pointer border-b last:border-0 transition-colors ${selectedId === n.id
+                                            ? (isDark ? 'bg-blue-500/20' : 'bg-blue-50')
+                                            : (isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50')
+                                            } ${isDark ? 'border-slate-800/50' : 'border-slate-100'}`}
+                                    >
+                                        <td className="p-2 text-center">
+                                            <div className={`w-3.5 h-3.5 rounded-full border-2 transition-all ${selectedId === n.id
+                                                ? 'border-blue-500 bg-blue-500 ring-2 ring-blue-500/20'
+                                                : (isDark ? 'border-slate-700' : 'border-slate-300')
+                                                }`} />
+                                        </td>
+                                        <td className="p-2 text-[11px] font-mono opacity-60">#{n.id}</td>
+                                        <td className="p-2 text-[11px] font-bold">{job.name || 'kosong'}</td>
+                                        <td className="p-2 text-[11px] opacity-80">{job.schedule || 'kosong'}</td>
+                                        <td className="p-2 text-[11px] text-blue-500 font-bold">{schema.name || 'kosong'}</td>
+                                        <td className="p-2 text-[11px] font-black uppercase">
+                                            {n.target_db_host ? 'MASTER HOST' : 'REMOTE'}
+                                        </td>
+                                        <td className="p-2 text-[11px] font-mono opacity-80 max-w-[200px] truncate" title={getTargetAddr(n)}>
+                                            {getTargetAddr(n)}
+                                        </td>
+                                        <td className="p-2 text-[11px] font-black uppercase text-blue-400">
+                                            {n.agent_name || n.name}
+                                        </td>
+                                        <td className="p-2 text-[11px] font-mono opacity-80 max-w-[200px] truncate" title={getSourceAddr(n)}>
+                                            {getSourceAddr(n)}
+                                        </td>
+                                        <td className="p-2 text-[11px] opacity-60">admin</td>
+                                        <td className="p-2 text-[11px] opacity-60 whitespace-nowrap">administrator</td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            {/* Mobile Cards */}
-            <div className="lg:hidden space-y-4">
-                {paged.map((network) => (
-                    <NetworkCard key={network.id} network={network} {...actionProps} />
-                ))}
+            {/* Action Buttons & Quick Controls */}
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4 pt-4">
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => selectedNetwork && onClone(selectedNetwork)}
+                        disabled={!selectedId || cloningNetwork === selectedId}
+                        className={`px-4 py-2 text-xs font-bold rounded-lg border transition-all ${!selectedId ? 'opacity-30 cursor-not-allowed' : (isDark ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white' : 'bg-white border-slate-300 hover:bg-slate-50')
+                            }`}
+                    >
+                        {cloningNetwork === selectedId ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Duplicate'}
+                    </button>
+                    <button
+                        onClick={onAdd}
+                        className={`px-4 py-2 text-xs font-bold rounded-lg border transition-all ${isDark ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white' : 'bg-white border-slate-300 hover:bg-slate-50'}`}
+                    >
+                        Add
+                    </button>
+                    <button
+                        onClick={() => selectedNetwork && onEdit(selectedNetwork)}
+                        disabled={!selectedId}
+                        className={`px-4 py-2 text-xs font-bold rounded-lg border transition-all ${!selectedId ? 'opacity-30 cursor-not-allowed' : (isDark ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white' : 'bg-white border-slate-300 hover:bg-slate-50')
+                            }`}
+                    >
+                        Edit
+                    </button>
+                    <button
+                        onClick={() => selectedNetwork && onView(selectedNetwork)}
+                        disabled={!selectedId}
+                        className={`px-4 py-2 text-xs font-bold rounded-lg border transition-all ${!selectedId ? 'opacity-30 cursor-not-allowed' : (isDark ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white' : 'bg-white border-slate-300 hover:bg-slate-50')
+                            }`}
+                    >
+                        View
+                    </button>
+                    <button
+                        onClick={() => selectedNetwork && onDelete(selectedNetwork)}
+                        disabled={!selectedId}
+                        className={`px-4 py-2 text-xs font-bold rounded-lg border transition-all ${!selectedId ? 'opacity-30 cursor-not-allowed' : (isDark ? 'bg-rose-500/10 border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white' : 'bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white')
+                            }`}
+                    >
+                        Delete
+                    </button>
+                </div>
+
+                {/* Visual Connection Linkage (Additional Premium Touch) */}
+                <AnimatePresence>
+                    {selectedId && (
+                        <motion.div
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 20 }}
+                            className={`flex items-center gap-4 px-6 py-2 rounded-2xl border ${isDark ? 'bg-blue-500/10 border-blue-500/20' : 'bg-blue-50 border-blue-100'}`}
+                        >
+                            <div className="flex flex-col items-end">
+                                <span className="text-[9px] uppercase font-bold opacity-40">Source</span>
+                                <span className={`text-xs font-black ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>{selectedNetwork?.name}</span>
+                            </div>
+                            <ArrowLeftRight className={`w-4 h-4 ${isDark ? 'text-blue-400' : 'text-blue-600'} animate-pulse`} />
+                            <div className="flex flex-col">
+                                <span className="text-[9px] uppercase font-bold opacity-40">Target</span>
+                                <span className={`text-xs font-black ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>
+                                    {selectedNetwork?.target_db_host ? 'Master Server' : 'Remote'}
+                                </span>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
-        </>
+        </div>
     );
 }

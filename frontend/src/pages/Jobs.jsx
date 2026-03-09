@@ -38,8 +38,10 @@ function Jobs() {
 
     // React Query hooks
     const { data: jobsData, isLoading: jobsLoading, refetch: refetchJobs, isFetching } = useJobs({ page: currentPage, page_size: itemsPerPage });
-    const { data: schemas = [] } = useSchemas();
-    const { data: networks = [] } = useNetworks();
+    const { data: schemasData } = useSchemas();
+    const { data: networksData } = useNetworks();
+    const schemas = schemasData || [];
+    const networks = networksData || [];
     const { data: jobDetails, refetch: refetchJobDetails } = useJob(selectedJob?.id);
 
     // Mutations
