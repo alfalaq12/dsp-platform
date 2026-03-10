@@ -164,6 +164,7 @@ func initDatabase() (*gorm.DB, error) {
 	if err := db.AutoMigrate(
 		&core.User{},
 		&core.Schema{},
+		&core.SchemaRule{},
 		&core.Network{},
 		&core.Job{},
 		&core.JobLog{},

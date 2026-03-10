@@ -158,7 +158,7 @@ const SchemaTable = ({
                         onClick={onNew}
                         className={`px-4 py-1.5 rounded border text-sm font-medium transition-all ${isDark ? 'bg-slate-800 border-slate-600 text-white hover:bg-slate-700' : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200 shadow-sm'}`}
                     >
-                        New Database Schema
+                        New Schema
                     </button>
                     <button
                         onClick={onDuplicate}

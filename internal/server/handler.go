@@ -942,6 +942,13 @@ func (h *Handler) RunJob(c *gin.Context) {
 				"use_ssl":     job.Network.MinIOUseSSL,
 				"region":      job.Network.MinIORegion,
 			},
+			// Schema details
+			"schema": map[string]interface{}{
+				"id":          targetTable, // legacy DTBN
+				"name":        job.Schema.Name,
+				"source_type": job.Schema.SourceType,
+				"rules":       job.Schema.Rules,
+			},
 			// ===== TARGET CONFIGURATIONS =====
 			"target_source_type": job.Network.TargetSourceType,
 			// Target Database config
@@ -966,6 +973,11 @@ func (h *Handler) RunJob(c *gin.Context) {
 				"export_format": job.Network.TargetMinIOExportFormat,
 			},
 		},
+	}
+
+	// Override source type if schema is JS
+	if job.Schema != nil && job.Schema.SourceType == "javascript" {
+		command.Data["source_type"] = "javascript"
 	}
 
 	if err := h.agentListener.SendCommandToAgent(agentName, command); err != nil {
@@ -1619,6 +1631,18 @@ func (h *Handler) TestNetworkConnection(c *gin.Context) {
 		return
 	}
 
+	// Create audit log entry to get a unique request ID
+	auditLog := core.AuditLog{
+		Action:    "TEST_NETWORK",
+		Entity:    "NETWORK",
+		EntityID:  id,
+		Details:   fmt.Sprintf("Testing connection for network: %s", network.Name),
+		IPAddress: c.ClientIP(),
+		UserAgent: c.Request.UserAgent(),
+		CreatedAt: time.Now(),
+	}
+	h.db.Create(&auditLog)
+
 	// Send TEST_CONNECTION command to agent with source_type
 	command := core.AgentMessage{
 		Type:      "TEST_CONNECTION",
@@ -1626,6 +1650,7 @@ func (h *Handler) TestNetworkConnection(c *gin.Context) {
 		Data: map[string]interface{}{
 			"network_id":  network.ID,
 			"source_type": network.SourceType,
+			"request_id":  auditLog.ID,
 			"db_config": map[string]interface{}{
 				"driver":   network.DBDriver,
 				"host":     network.DBHost,
@@ -1656,22 +1681,16 @@ func (h *Handler) TestNetworkConnection(c *gin.Context) {
 		},
 	}
 
-	err := h.agentListener.SendCommandToAgent(network.Name, command)
+	result, err := h.agentListener.SendCommandAndWait(network.Name, command, 10*time.Second)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"error":   fmt.Sprintf("Agent not connected: %v", err),
+			"error":   fmt.Sprintf("Test failed: %v", err),
 		})
 		return
 	}
 
-	// Note: For now, we just confirm the command was sent
-	// In a full implementation, we'd wait for the response
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Test command sent to agent",
-		"agent":   network.Name,
-	})
+	c.JSON(http.StatusOK, result)
 }
 
 // TestNetworkTargetConnection tests the TARGET database/FTP/API connection directly from master
@@ -1738,11 +1757,17 @@ func (h *Handler) TestNetworkTargetConnection(c *gin.Context) {
 		})
 
 	case "ftp", "sftp":
-		// For FTP/SFTP target, send command to agent
-		if h.agentListener == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"success": false, "error": "Agent listener not available"})
-			return
+		// Create audit log entry to get a unique request ID
+		auditLog := core.AuditLog{
+			Action:    "TEST_NETWORK_TARGET",
+			Entity:    "NETWORK",
+			EntityID:  id,
+			Details:   fmt.Sprintf("Testing target connection for network: %s", network.Name),
+			IPAddress: c.ClientIP(),
+			UserAgent: c.Request.UserAgent(),
+			CreatedAt: time.Now(),
 		}
+		h.db.Create(&auditLog)
 
 		command := core.AgentMessage{
 			Type:      "TEST_CONNECTION",
@@ -1750,6 +1775,7 @@ func (h *Handler) TestNetworkTargetConnection(c *gin.Context) {
 			Data: map[string]interface{}{
 				"network_id":  network.ID,
 				"source_type": sourceType,
+				"request_id":  auditLog.ID,
 				"ftp_config": map[string]interface{}{
 					"host":        network.TargetFTPHost,
 					"port":        network.TargetFTPPort,
@@ -1766,20 +1792,16 @@ func (h *Handler) TestNetworkTargetConnection(c *gin.Context) {
 			agentName = network.Name
 		}
 
-		err := h.agentListener.SendCommandToAgent(agentName, command)
+		result, err := h.agentListener.SendCommandAndWait(agentName, command, 10*time.Second)
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"error":   fmt.Sprintf("Agent not connected: %v", err),
+				"error":   fmt.Sprintf("Target test failed: %v", err),
 			})
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{
-			"success": true,
-			"message": "Test command sent to agent for target FTP/SFTP",
-			"agent":   agentName,
-		})
+		c.JSON(http.StatusOK, result)
 
 	case "api":
 		// For API target, we could do a quick test from master
@@ -2735,10 +2757,10 @@ func (h *Handler) BulkCreateSchemas(c *gin.Context) {
 			schemaName = req.Prefix + "_" + tableName
 		}
 
-		// Generate SQL based on database type, include schema prefix if provided
+		// Generate SQL based on database driver, include schema prefix if provided
 		var sqlCommand string
-		switch network.Type {
-		case "postgresql":
+		switch network.DBDriver {
+		case "postgres", "postgresql":
 			if req.DBSchema != "" && req.DBSchema != "public" {
 				sqlCommand = fmt.Sprintf(`SELECT * FROM "%s"."%s"`, req.DBSchema, tableName)
 			} else {
@@ -2746,7 +2768,7 @@ func (h *Handler) BulkCreateSchemas(c *gin.Context) {
 			}
 		case "mysql":
 			sqlCommand = fmt.Sprintf("SELECT * FROM `%s`", tableName)
-		case "sqlserver":
+		case "sqlserver", "mssql":
 			if req.DBSchema != "" && req.DBSchema != "dbo" {
 				sqlCommand = fmt.Sprintf("SELECT * FROM [%s].[%s]", req.DBSchema, tableName)
 			} else {

@@ -182,13 +182,13 @@ function Network() {
             setTestingNetwork(network.id);
             const response = await testConnectionMutation.mutateAsync(network.id);
             if (response.data.success) {
-                addToast(`Test command sent to agent "${network.name}"`, 'success');
+                addToast(`Connection successful! ${response.data.message || ''} ${response.data.duration ? `(${response.data.duration}ms)` : ''}`, 'success');
             } else {
-                addToast(response.data.error || 'Test failed', 'error');
+                addToast(response.data.error || 'Connection failed', 'error');
             }
         } catch (error) {
             console.error('Test failed:', error);
-            addToast('Failed to send test command: ' + (error.response?.data?.error || error.message), 'error');
+            addToast('Failed to test connection: ' + (error.response?.data?.error || error.message), 'error');
         } finally { setTestingNetwork(null); }
     };
 
@@ -207,9 +207,9 @@ function Network() {
             setTestingTargetNetwork(network.id);
             const response = await testTargetConnectionMutation.mutateAsync(network.id);
             if (response.data.success) {
-                addToast(`Target connection successful! Host: ${response.data.host || response.data.url || 'OK'}`, 'success');
+                addToast(`${response.data.message || 'Target connection successful!'} ${response.data.duration ? `(${response.data.duration}ms)` : ''}`, 'success');
             } else {
-                addToast(response.data.error || 'Target test failed', 'error');
+                addToast(response.data.error || 'Target connection failed', 'error');
             }
         } catch (error) {
             console.error('Target test failed:', error);

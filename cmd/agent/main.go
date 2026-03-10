@@ -732,21 +732,29 @@ func executeJavaScriptJob(conn net.Conn, msg AgentMessage, jobID, logID uint, jo
 		Str("job", jobName).
 		Msg("Starting JavaScript Execution Job")
 
-	// Get script from query or schema.sql_command
-	script := ""
+	// Determine scripts to execute
+	var scripts []string
 	if q, ok := msg.Data["query"].(string); ok && q != "" {
-		script = q
+		scripts = append(scripts, q)
 	}
-	if script == "" {
-		if schema, ok := msg.Data["schema"].(map[string]interface{}); ok {
-			if q, ok := schema["sql_command"].(string); ok {
-				script = q
+
+	if schema, ok := msg.Data["schema"].(map[string]interface{}); ok {
+		if q, ok := schema["sql_command"].(string); ok && q != "" {
+			scripts = append(scripts, q)
+		}
+		if rules, ok := schema["rules"].([]interface{}); ok {
+			for _, r := range rules {
+				if rule, ok := r.(map[string]interface{}); ok {
+					if sq, ok := rule["source_query"].(string); ok && sq != "" {
+						scripts = append(scripts, sq)
+					}
+				}
 			}
 		}
 	}
 
-	if script == "" {
-		errMsg := "No JavaScript code provided in schema"
+	if len(scripts) == 0 {
+		errMsg := "No JavaScript scripts found to execute"
 		logger.Logger.Error().Msg(errMsg)
 		sendDataResponse(conn, jobID, logID, nil, 0, errMsg, false)
 		return
@@ -845,29 +853,38 @@ func executeJavaScriptJob(conn net.Conn, msg AgentMessage, jobID, logID uint, jo
 	// Inject $GT global
 	vm.Set("$GT", gtObj)
 
-	// Execute Script
-	logger.Logger.Info().Str("job", jobName).Msg("Running JS evaluation via Goja runtime")
-	_, err := vm.RunString(script)
+	// Execute Scripts sequentially
+	for i, script := range scripts {
+		logger.Logger.Info().
+			Str("job", jobName).
+			Int("script_index", i+1).
+			Int("total_scripts", len(scripts)).
+			Msg("Running JS evaluation via Goja runtime")
 
-	if err != nil {
-		logger.Logger.Error().Err(err).Msg("JavaScript Execution Failed")
-		// Extract JS error cleanly
-		errMsg := "JavaScript Runtime Error"
-		if jsErr, ok := err.(*goja.Exception); ok {
-			errMsg = jsErr.String()
-		} else {
-			errMsg = err.Error()
+		_, err := vm.RunString(script)
+		if err != nil {
+			logger.Logger.Error().
+				Err(err).
+				Int("script_index", i+1).
+				Msg("JavaScript Execution Failed")
+
+			errMsg := fmt.Sprintf("JS Error (Script %d): ", i+1)
+			if jsErr, ok := err.(*goja.Exception); ok {
+				errMsg += jsErr.String()
+			} else {
+				errMsg += err.Error()
+			}
+
+			if !responseSent {
+				sendDataResponse(conn, jobID, logID, nil, 0, errMsg, false)
+			}
+			return
 		}
-		if !responseSent {
-			sendDataResponse(conn, jobID, logID, nil, 0, errMsg, false)
-		}
-		return
 	}
 
-	logger.Logger.Info().Str("job", jobName).Msg("JS evaluation completed")
-
+	// Final check: if no response sent at all, send empty success
 	if !responseSent {
-		sendDataResponse(conn, jobID, logID, nil, 0, "Warning: script completed but $GT.response() was never called", false)
+		sendDataResponse(conn, jobID, logID, nil, 0, "", false)
 	}
 }
 
@@ -1889,6 +1906,11 @@ func executeTestConnection(conn net.Conn, msg AgentMessage) {
 		AgentName: AgentName,
 		Timestamp: time.Now(),
 		Data:      make(map[string]interface{}),
+	}
+
+	// Propagate request_id if provided
+	if reqID, ok := msg.Data["request_id"]; ok {
+		response.Data["request_id"] = reqID
 	}
 
 	// Route based on source type

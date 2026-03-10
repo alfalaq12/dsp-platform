@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Save, X, Plus, Trash2, Database, Table,
+    Save, X, Plus, Trash2, Database, Table, Code,
     ChevronDown, ChevronUp, Info, Copy, Clipboard,
     ArrowRight, Settings, MessageSquare, Terminal, Search
 } from 'lucide-react';
@@ -16,7 +16,7 @@ const SchemaForm = ({
     const [formData, setFormData] = useState({
         name: '',
         description: '',
-        source_type: 'query',
+        source_type: 'query', // 'query' for SQL, 'javascript' for JS
         rules: []
     });
 
@@ -111,7 +111,7 @@ const SchemaForm = ({
 
                         {/* Summary Section (High Density) */}
                         <div className={`p-4 rounded-xl border ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-white border-slate-300 shadow-sm'}`}>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                 <div className="space-y-1">
                                     <label className="text-[10px] font-bold text-slate-500 uppercase">ID No.</label>
                                     <input
@@ -131,107 +131,186 @@ const SchemaForm = ({
                                         className={`w-full px-3 py-1.5 rounded border text-sm focus:ring-1 focus:ring-blue-500 outline-none transition-all ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-yellow-50 border-slate-300'}`}
                                     />
                                 </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Schema Type</label>
+                                    <div className={`flex p-1 rounded-lg border ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-slate-100 border-slate-200'}`}>
+                                        <button
+                                            onClick={() => setFormData({ ...formData, source_type: 'query' })}
+                                            className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded-md text-[10px] font-bold transition-all ${formData.source_type === 'query' ? (isDark ? 'bg-slate-800 text-white shadow-lg' : 'bg-white text-slate-800 shadow-sm') : 'text-slate-500 hover:text-slate-400'}`}
+                                        >
+                                            <Database className="w-3 h-3" />
+                                            SQL
+                                        </button>
+                                        <button
+                                            onClick={() => setFormData({ ...formData, source_type: 'javascript' })}
+                                            className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded-md text-[10px] font-bold transition-all ${formData.source_type === 'javascript' ? 'bg-yellow-500 text-white shadow-lg' : 'text-slate-500 hover:text-slate-400'}`}
+                                        >
+                                            <Code className="w-3 h-3" />
+                                            JavaScript
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        {/* Rules Table Section (Directly from Image 2 & 3) */}
-                        <div className={`rounded-xl border flex flex-col h-[500px] ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-white border-slate-300 shadow-sm'}`}>
-                            <div className="p-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                                <div className="flex items-center gap-2">
+                        {formData.source_type === 'javascript' ? (
+                            /* JavaScript Script List View */
+                            <div className="space-y-4">
+                                <div className={`p-4 rounded-xl border flex items-center justify-between ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-white border-slate-300 shadow-sm'}`}>
+                                    <div className="flex items-center gap-2">
+                                        <Plus className="w-4 h-4 text-blue-500" />
+                                        <span className="text-sm font-bold uppercase tracking-wider">Scripts</span>
+                                    </div>
                                     <button
                                         onClick={addRule}
-                                        className={`flex items-center gap-1.5 px-3 py-1 rounded text-[10px] font-bold uppercase transition-all ${isDark ? 'bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                                        className={`px-4 py-1.5 rounded text-[10px] font-bold uppercase transition-all ${isDark ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
                                     >
-                                        <Plus className="w-3 h-3" />
-                                        Add Extract Command
-                                    </button>
-                                    <button className={`flex items-center gap-1.5 px-3 py-1 rounded border text-[10px] font-bold uppercase transition-all ${isDark ? 'bg-slate-800 border-slate-700 hover:bg-slate-700' : 'bg-slate-100 border-slate-300 hover:bg-slate-200'}`}>
-                                        <Search className="w-3 h-3" />
-                                        Search Table
+                                        Add Script
                                     </button>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <button className="p-1 hover:text-blue-500 transition-colors"><Copy className="w-4 h-4" /></button>
-                                    <button className="p-1 hover:text-blue-500 transition-colors"><Clipboard className="w-4 h-4" /></button>
-                                </div>
-                            </div>
 
-                            <div className="flex-1 overflow-auto">
-                                <table className="w-full text-[11px] font-medium border-collapse min-w-[1200px]">
-                                    <thead className={`sticky top-0 z-10 border-b ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-800 text-white'}`}>
-                                        <tr>
-                                            <th className="px-3 py-2 text-left border-r border-slate-700/50 w-8">#</th>
-                                            <th className="px-3 py-2 text-left border-r border-slate-700/50">Source SQL Extraction</th>
-                                            <th className="px-3 py-2 text-left border-r border-slate-700/50 w-40">DTBN (Target Table)</th>
-                                            <th className="px-3 py-2 text-center border-r border-slate-700/50 w-16">Trunc</th>
-                                            <th className="px-3 py-2 text-left border-r border-slate-700/50 w-24">Ext Pre</th>
-                                            <th className="px-3 py-2 text-left border-r border-slate-700/50 w-24">Ext Post</th>
-                                            <th className="px-3 py-2 text-left border-r border-slate-700/50 w-24">Upld Pre</th>
-                                            <th className="px-3 py-2 text-left border-r border-slate-700/50 w-24">Upld Post</th>
-                                            <th className="px-3 py-2 text-center w-16">Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className={`divide-y ${isDark ? 'divide-slate-800/50' : 'divide-slate-200'}`}>
-                                        {(formData.rules || []).length === 0 ? (
+                                {formData.rules.map((rule, idx) => (
+                                    <div key={idx} className={`rounded-xl border overflow-hidden ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-300 shadow-md'}`}>
+                                        <div className={`px-4 py-2 border-b flex items-center justify-between ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${isDark ? 'bg-slate-700 text-slate-300' : 'bg-slate-200 text-slate-600'}`}>
+                                                    {idx + 1}
+                                                </div>
+                                                <span className="text-xs font-bold uppercase text-slate-500">Script {idx + 1}</span>
+                                            </div>
+                                            <button
+                                                onClick={() => removeRule(idx)}
+                                                className="p-1 text-slate-500 hover:text-red-500 transition-colors"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                        <div className="p-0">
+                                            <div className="relative font-mono text-sm">
+                                                <div className={`absolute left-0 top-0 bottom-0 w-10 flex flex-col items-center pt-4 text-[10px] font-bold ${isDark ? 'bg-slate-800/50 text-slate-600' : 'bg-slate-100 text-slate-400'}`}>
+                                                    {[...Array(10)].map((_, i) => <span key={i} className="leading-[20px]">{i + 1}</span>)}
+                                                </div>
+                                                <textarea
+                                                    rows="10"
+                                                    value={rule.source_query}
+                                                    onChange={(e) => handleRuleChange(idx, 'source_query', e.target.value)}
+                                                    className={`w-full pl-12 pr-4 pt-4 bg-[#1a1b26] text-[#a9b1d6] outline-none font-mono resize-y min-h-[200px] leading-[20px] transition-all selection:bg-blue-500/30`}
+                                                    placeholder="// Type your JavaScript code here...
+let rows = $GT.query('SELECT * FROM users');
+$GT.response(rows);"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+
+                                {formData.rules.length === 0 && (
+                                    <div className={`py-12 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-3 ${isDark ? 'bg-slate-800/20 border-slate-700 text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                                        <Code className="w-8 h-8 opacity-20" />
+                                        <p className="text-sm italic">No scripts added. Click "Add Script" to begin.</p>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            /* SQL Rules Table Section */
+                            <div className={`rounded-xl border flex flex-col h-[500px] ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-white border-slate-300 shadow-sm'}`}>
+                                <div className="p-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={addRule}
+                                            className={`flex items-center gap-1.5 px-3 py-1 rounded text-[10px] font-bold uppercase transition-all ${isDark ? 'bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                                        >
+                                            <Plus className="w-3 h-3" />
+                                            Add Extract Command
+                                        </button>
+                                        <button className={`flex items-center gap-1.5 px-3 py-1 rounded border text-[10px] font-bold uppercase transition-all ${isDark ? 'bg-slate-800 border-slate-700 hover:bg-slate-700' : 'bg-slate-100 border-slate-300 hover:bg-slate-200'}`}>
+                                            <Search className="w-3 h-3" />
+                                            Search Table
+                                        </button>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button className="p-1 hover:text-blue-500 transition-colors"><Copy className="w-4 h-4" /></button>
+                                        <button className="p-1 hover:text-blue-500 transition-colors"><Clipboard className="w-4 h-4" /></button>
+                                    </div>
+                                </div>
+
+                                <div className="flex-1 overflow-auto">
+                                    <table className="w-full text-[11px] font-medium border-collapse min-w-[1200px]">
+                                        <thead className={`sticky top-0 z-10 border-b ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-800 text-white'}`}>
                                             <tr>
-                                                <td colSpan="9" className="py-20 text-center text-slate-500 italic">
-                                                    No extraction rules added. Click "Add Extract Command" to begin.
-                                                </td>
+                                                <th className="px-3 py-2 text-left border-r border-slate-700/50 w-8">#</th>
+                                                <th className="px-3 py-2 text-left border-r border-slate-700/50">Source SQL Extraction</th>
+                                                <th className="px-3 py-2 text-left border-r border-slate-700/50 w-40">DTBN (Target Table)</th>
+                                                <th className="px-3 py-2 text-center border-r border-slate-700/50 w-16">Trunc</th>
+                                                <th className="px-3 py-2 text-left border-r border-slate-700/50 w-24">Ext Pre</th>
+                                                <th className="px-3 py-2 text-left border-r border-slate-700/50 w-24">Ext Post</th>
+                                                <th className="px-3 py-2 text-left border-r border-slate-700/50 w-24">Upld Pre</th>
+                                                <th className="px-3 py-2 text-left border-r border-slate-700/50 w-24">Upld Post</th>
+                                                <th className="px-3 py-2 text-center w-16">Action</th>
                                             </tr>
-                                        ) : (
-                                            (formData.rules || []).map((rule, idx) => (
-                                                <tr key={idx} className={isDark ? 'hover:bg-slate-700/20' : 'hover:bg-blue-50'}>
-                                                    <td className="px-3 py-1 border-r border-slate-200 dark:border-slate-800 text-center text-slate-500">{idx + 1}</td>
-                                                    <td className="px-2 py-1 border-r border-slate-200 dark:border-slate-800">
-                                                        <textarea
-                                                            rows="1"
-                                                            value={rule.source_query}
-                                                            onChange={(e) => handleRuleChange(idx, 'source_query', e.target.value)}
-                                                            className={`w-full px-2 py-1 rounded bg-transparent outline-none focus:ring-1 focus:ring-blue-500 font-mono resize-none transition-all ${isDark ? 'text-slate-200' : 'text-slate-800'}`}
-                                                            placeholder="SELECT * FROM my_table ..."
-                                                        />
+                                        </thead>
+                                        <tbody className={`divide-y ${isDark ? 'divide-slate-800/50' : 'divide-slate-200'}`}>
+                                            {(formData.rules || []).length === 0 ? (
+                                                <tr>
+                                                    <td colSpan="9" className="py-20 text-center text-slate-500 italic">
+                                                        No extraction rules added. Click "Add Extract Command" to begin.
                                                     </td>
-                                                    <td className="px-2 py-1 border-r border-slate-200 dark:border-slate-800">
-                                                        <input
-                                                            type="text"
-                                                            value={rule.target_table}
-                                                            onChange={(e) => handleRuleChange(idx, 'target_table', e.target.value)}
-                                                            className={`w-full px-2 py-1 rounded bg-transparent outline-none focus:ring-1 focus:ring-blue-500 transition-all ${isDark ? 'text-slate-200' : 'text-slate-800'}`}
-                                                        />
-                                                    </td>
-                                                    <td className="px-2 py-1 border-r border-slate-200 dark:border-slate-800 text-center">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={rule.truncate}
-                                                            onChange={(e) => handleRuleChange(idx, 'truncate', e.target.checked)}
-                                                            className="w-3.5 h-3.5 cursor-pointer accent-blue-500"
-                                                        />
-                                                    </td>
-                                                    {['extract_pre_query', 'extract_post_query', 'upload_pre_query', 'upload_post_query'].map(field => (
-                                                        <td key={field} className="px-2 py-1 border-r border-slate-200 dark:border-slate-800">
+                                                </tr>
+                                            ) : (
+                                                (formData.rules || []).map((rule, idx) => (
+                                                    <tr key={idx} className={isDark ? 'hover:bg-slate-700/20' : 'hover:bg-blue-50'}>
+                                                        <td className="px-3 py-1 border-r border-slate-200 dark:border-slate-800 text-center text-slate-500">{idx + 1}</td>
+                                                        <td className="px-2 py-1 border-r border-slate-200 dark:border-slate-800">
+                                                            <textarea
+                                                                rows="1"
+                                                                value={rule.source_query}
+                                                                onChange={(e) => handleRuleChange(idx, 'source_query', e.target.value)}
+                                                                className={`w-full px-2 py-1 rounded bg-transparent outline-none focus:ring-1 focus:ring-blue-500 font-mono resize-none transition-all ${isDark ? 'text-slate-200' : 'text-slate-800'}`}
+                                                                placeholder="SELECT * FROM my_table ..."
+                                                            />
+                                                        </td>
+                                                        <td className="px-2 py-1 border-r border-slate-200 dark:border-slate-800">
                                                             <input
                                                                 type="text"
-                                                                value={rule[field]}
-                                                                onChange={(e) => handleRuleChange(idx, field, e.target.value)}
+                                                                value={rule.target_table}
+                                                                onChange={(e) => handleRuleChange(idx, 'target_table', e.target.value)}
                                                                 className={`w-full px-2 py-1 rounded bg-transparent outline-none focus:ring-1 focus:ring-blue-500 transition-all ${isDark ? 'text-slate-200' : 'text-slate-800'}`}
                                                             />
                                                         </td>
-                                                    ))}
-                                                    <td className="px-2 py-1 text-center">
-                                                        <button
-                                                            onClick={() => removeRule(idx)}
-                                                            className="p-1 px-2.5 rounded bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-all active:scale-95 border border-red-500/20"
-                                                        >
-                                                            <Trash2 className="w-3 h-3" />
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
+                                                        <td className="px-2 py-1 border-r border-slate-200 dark:border-slate-800 text-center">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={rule.truncate}
+                                                                onChange={(e) => handleRuleChange(idx, 'truncate', e.target.checked)}
+                                                                className="w-3.5 h-3.5 cursor-pointer accent-blue-500"
+                                                            />
+                                                        </td>
+                                                        {['extract_pre_query', 'extract_post_query', 'upload_pre_query', 'upload_post_query'].map(field => (
+                                                            <td key={field} className="px-2 py-1 border-r border-slate-200 dark:border-slate-800">
+                                                                <input
+                                                                    type="text"
+                                                                    value={rule[field]}
+                                                                    onChange={(e) => handleRuleChange(idx, field, e.target.value)}
+                                                                    className={`w-full px-2 py-1 rounded bg-transparent outline-none focus:ring-1 focus:ring-blue-500 transition-all ${isDark ? 'text-slate-200' : 'text-slate-800'}`}
+                                                                />
+                                                            </td>
+                                                        ))}
+                                                        <td className="px-2 py-1 text-center">
+                                                            <button
+                                                                onClick={() => removeRule(idx)}
+                                                                className="p-1 px-2.5 rounded bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-all active:scale-95 border border-red-500/20"
+                                                            >
+                                                                <Trash2 className="w-3 h-3" />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
 
                     {/* Right Column: Notes & Sidebar */}

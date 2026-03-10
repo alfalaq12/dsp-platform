@@ -380,6 +380,8 @@ func (al *AgentListener) processMessage(msg core.AgentMessage, clientAddr string
 		al.handleExecCommandResult(msg, clientAddr)
 	case "RUN_QUERY_RESULT":
 		al.handleRunQueryResult(msg, clientAddr)
+	case "TEST_CONNECTION_RESULT":
+		al.handleTestConnectionResult(msg, clientAddr)
 	default:
 		log.Printf("Unknown message type: %s", msg.Type)
 	}
@@ -420,7 +422,7 @@ func (al *AgentListener) autoCreateNetwork(agentName, clientAddr string) {
 		existingNetwork.Status = "online"
 		existingNetwork.LastSeen = time.Now()
 		al.handler.db.Save(&existingNetwork)
-		log.Printf("Updated existing Network '%s' with IP: %s", agentName, clientAddr)
+		log.Printf("Updated existing Node/Network '%s' (ID: %d) with IP: %s", agentName, existingNetwork.ID, clientAddr)
 		return
 	}
 
@@ -451,7 +453,7 @@ func (al *AgentListener) autoCreateNetwork(agentName, clientAddr string) {
 		return
 	}
 
-	log.Printf("✅ Auto-created Network '%s' for newly registered agent (IP: %s)", agentName, clientAddr)
+	log.Printf("✅ Auto-created Node/Network '%s' (ID: %d) for newly registered agent (IP: %s)", agentName, network.ID, clientAddr)
 }
 
 // handleHeartbeat processes heartbeat messages
@@ -1329,6 +1331,41 @@ func (al *AgentListener) handleRunQueryResult(msg core.AgentMessage, clientAddr 
 			log.Printf("Delivered query result for request %d", requestID)
 		default:
 			log.Printf("Failed to deliver query result for request %d (channel full)", requestID)
+		}
+	} else {
+		log.Printf("No pending request found for request_id %d", requestID)
+	}
+
+	al.handler.UpdateAgentStatus(msg.AgentName, "online", clientAddr, msg.Data)
+}
+
+// handleTestConnectionResult processes connection test results from agents
+func (al *AgentListener) handleTestConnectionResult(msg core.AgentMessage, clientAddr string) {
+	log.Printf("TEST_CONNECTION_RESULT received from %s", msg.AgentName)
+
+	if msg.Data == nil {
+		log.Printf("No data in test connection result")
+		return
+	}
+
+	// Get request_id to find the pending request
+	requestID := uint(0)
+	if id, ok := msg.Data["request_id"].(float64); ok {
+		requestID = uint(id)
+	}
+
+	// Find and notify the waiting goroutine
+	al.pendingMu.RLock()
+	pending, exists := al.pendingRequests[requestID]
+	al.pendingMu.RUnlock()
+
+	if exists && pending != nil {
+		// Send result to channel (non-blocking)
+		select {
+		case pending.ResponseChan <- msg.Data:
+			log.Printf("Delivered test connection result for request %d", requestID)
+		default:
+			log.Printf("Failed to deliver test connection result for request %d (channel full)", requestID)
 		}
 	} else {
 		log.Printf("No pending request found for request_id %d", requestID)
