@@ -116,10 +116,10 @@ const NetworkForm = ({ formData, setFormData, editingId, isSubmitting, onSubmit,
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className={`rounded-3xl border shadow-2xl overflow-hidden mb-8 ${isDark ? 'bg-slate-900/80 border-slate-800 backdrop-blur-xl' : 'bg-white border-slate-200'}`}
+            className={`rounded-3xl border shadow-2xl overflow-hidden mb-8 ${isDark ? 'bg-slate-900/80 border-slate-800 backdrop-blur-xl' : 'bg-white border-slate-400'}`}
         >
             {/* Form Header */}
-            <div className={`px-8 py-6 border-b flex items-center justify-between ${isDark ? 'bg-slate-800/30 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+            <div className={`px-8 py-6 border-b flex items-center justify-between ${isDark ? 'bg-slate-800/30 border-slate-800' : 'bg-slate-100 border-slate-300 shadow-sm'}`}>
                 <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-600 to-blue-500 flex items-center justify-center text-white shadow-lg">
                         <Terminal className="w-6 h-6" />
@@ -178,7 +178,7 @@ const NetworkForm = ({ formData, setFormData, editingId, isSubmitting, onSubmit,
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 relative">
 
                     {/* Source Box */}
-                    <div className={`p-8 rounded-3xl border-2 transition-all ${isDark ? 'bg-slate-800/20 border-slate-800/50 hover:border-purple-500/30' : 'bg-slate-50 border-slate-300 hover:border-purple-500 shadow-sm'}`}>
+                    <div className={`p-8 rounded-3xl border-2 transition-all ${isDark ? 'bg-slate-800/20 border-slate-800/50 hover:border-purple-500/30' : 'bg-white border-slate-400 hover:border-purple-500 shadow-md'}`}>
                         <div className="flex items-center justify-between mb-8">
                             <SectionHeader title="SOURCE NODE" icon={Database} color="purple" />
                             <div className="flex items-center gap-2">
@@ -249,7 +249,7 @@ const NetworkForm = ({ formData, setFormData, editingId, isSubmitting, onSubmit,
                     </div>
 
                     {/* Target Box */}
-                    <div className={`p-8 rounded-3xl border-2 transition-all ${isDark ? 'bg-slate-800/20 border-slate-800/50 hover:border-emerald-500/30' : 'bg-slate-50 border-slate-300 hover:border-emerald-500 shadow-sm'}`}>
+                    <div className={`p-8 rounded-3xl border-2 transition-all ${isDark ? 'bg-slate-800/20 border-slate-800/50 hover:border-emerald-500/30' : 'bg-white border-slate-400 hover:border-emerald-500 shadow-md'}`}>
                         <div className="flex items-center justify-between mb-8">
                             <SectionHeader title="TARGET NODE" icon={Shield} color="emerald" />
                             <div className="flex items-center gap-2">

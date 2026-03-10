@@ -77,7 +77,7 @@ const SchemaForm = ({
     return (
         <div className={`flex flex-col h-full bg-transparent overflow-hidden ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
             {/* Header / Toolbar */}
-            <div className={`p-4 flex items-center justify-between border-b ${isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-slate-100 border-slate-300'}`}>
+            <div className={`p-4 flex items-center justify-between border-b ${isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-300 shadow-sm'}`}>
                 <div className="flex items-center gap-4">
                     <h2 className={`text-sm font-bold uppercase tracking-wider flex items-center gap-2 ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
                         <Settings className="w-4 h-4 text-blue-500" />
@@ -136,7 +136,7 @@ const SchemaForm = ({
                                     <div className={`flex p-1 rounded-lg border ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-300'}`}>
                                         <button
                                             onClick={() => setFormData({ ...formData, source_type: 'query' })}
-                                            className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded-md text-[10px] font-bold transition-all ${formData.source_type === 'query' ? (isDark ? 'bg-slate-800 text-white shadow-lg' : 'bg-white text-slate-800 shadow-sm') : 'text-slate-500 hover:text-slate-400'}`}
+                                            className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded-md text-[10px] font-bold transition-all ${formData.source_type === 'query' ? (isDark ? 'bg-slate-800 text-white shadow-lg' : 'bg-white text-slate-900 shadow-sm border border-slate-200') : 'text-slate-500 hover:text-slate-400'}`}
                                         >
                                             <Database className="w-3 h-3" />
                                             SQL
@@ -170,13 +170,13 @@ const SchemaForm = ({
                                 </div>
 
                                 {formData.rules.map((rule, idx) => (
-                                    <div key={idx} className={`rounded-xl border overflow-hidden ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-300 shadow-md'}`}>
-                                        <div className={`px-4 py-2 border-b flex items-center justify-between ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-100 border-slate-300'}`}>
+                                    <div key={idx} className={`rounded-xl border border-2 overflow-hidden ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-400 shadow-md'}`}>
+                                        <div className={`px-4 py-2 border-b-2 flex items-center justify-between ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-100 border-slate-300'}`}>
                                             <div className="flex items-center gap-3">
-                                                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${isDark ? 'bg-slate-700 text-slate-300' : 'bg-slate-200 text-slate-600'}`}>
+                                                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${isDark ? 'bg-slate-700 text-slate-300' : 'bg-slate-800 text-white'}`}>
                                                     {idx + 1}
                                                 </div>
-                                                <span className="text-xs font-bold uppercase text-slate-500">Script {idx + 1}</span>
+                                                <span className={`text-xs font-bold uppercase ${isDark ? 'text-slate-500' : 'text-slate-800'}`}>Script {idx + 1}</span>
                                             </div>
                                             <button
                                                 onClick={() => removeRule(idx)}
@@ -358,7 +358,7 @@ $GT.response(rows);"
             </div>
 
             {/* Legend / Status Footer */}
-            <div className={`px-4 py-2 border-t text-[10px] flex items-center justify-between ${isDark ? 'bg-slate-900/80 border-slate-800 text-slate-500' : 'bg-slate-100 border-slate-300 text-slate-600 font-bold'}`}>
+            <div className={`px-4 py-2 border-t text-[10px] flex items-center justify-between ${isDark ? 'bg-slate-900/80 border-slate-800 text-slate-500' : 'bg-white border-slate-300 text-slate-800 font-bold'}`}>
                 <div className="flex items-center gap-4">
                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500"></div> DTBN: Direct Table Backend Name</span>
                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> Ext: Extraction Phase</span>

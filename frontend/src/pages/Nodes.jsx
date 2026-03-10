@@ -81,7 +81,7 @@ const NodeRow = ({ agent, onRename, onUpdateNotes, onPromote, onDelete, isDark }
             exit={{ opacity: 0 }}
             className={`group border-b last:border-0 transition-colors ${isDark
                 ? 'border-slate-800/50 hover:bg-slate-800/30'
-                : 'border-slate-100 hover:bg-blue-50/30'
+                : 'border-slate-200 hover:bg-blue-50'
                 }`}
         >
             {/* ID */}
@@ -333,9 +333,9 @@ export default function Nodes() {
                             placeholder="Filter cluster nodes..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className={`w-full pl-11 pr-4 py-3 text-sm rounded-2xl border transition-all ${isDark
+                            className={`w-full pl-11 pr-4 py-3 text-sm rounded-2xl border transition-all outline-none ${isDark
                                 ? 'bg-slate-900/60 border-slate-800 text-white focus:border-blue-500 focus:bg-slate-900'
-                                : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-blue-400 focus:bg-white shadow-sm'
+                                : 'bg-white border-slate-400 text-slate-900 focus:border-blue-500 shadow-sm'
                                 }`}
                         />
                     </div>
@@ -343,7 +343,7 @@ export default function Nodes() {
                         onClick={() => refetch()}
                         className={`p-3 rounded-2xl border transition-all ${isDark
                             ? 'bg-slate-900/60 border-slate-800 hover:bg-slate-800 text-blue-400'
-                            : 'bg-white border-slate-200 hover:bg-slate-50 text-blue-600 shadow-sm'
+                            : 'bg-white border-slate-300 hover:bg-slate-50 text-blue-600 shadow-md'
                             }`}
                     >
                         <RefreshCw className={`w-5 h-5 ${isFetching ? 'animate-spin' : ''}`} />
@@ -364,7 +364,7 @@ export default function Nodes() {
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ delay: i * 0.1 }}
                         key={i}
-                        className={`p-6 rounded-[2rem] border overflow-hidden relative group ${isDark ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200 shadow-xl shadow-slate-200/40'
+                        className={`p-6 rounded-[2rem] border overflow-hidden relative group ${isDark ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-300 shadow-xl'
                             }`}
                     >
                         <div className={`absolute top-0 right-0 w-24 h-24 ${s.bg} rounded-full blur-3xl -mr-12 -mt-12 transition-transform group-hover:scale-150 duration-700`} />
@@ -384,12 +384,12 @@ export default function Nodes() {
             {/* Futuristic Table Container */}
             <div className={`rounded-[2.5rem] border overflow-hidden transition-all ${isDark
                 ? 'bg-slate-900/40 border-slate-800 shadow-2xl'
-                : 'bg-white border-slate-300 shadow-2xl shadow-blue-900/5'
+                : 'bg-white border-slate-400 shadow-2xl shadow-blue-900/5'
                 }`}>
                 <div className="overflow-x-auto">
                     <table className="w-full border-collapse">
                         <thead>
-                            <tr className={`${isDark ? 'bg-slate-800/40 text-slate-400' : 'bg-slate-100 text-slate-700 font-bold'}`}>
+                            <tr className={`${isDark ? 'bg-slate-800/40 text-slate-400' : 'bg-slate-100 text-slate-900 font-bold border-b border-slate-300 shadow-sm'}`}>
                                 <th className="py-5 px-4 text-left text-[10px] font-black uppercase tracking-[0.2em] w-16">ID</th>
                                 <th className="py-5 px-4 text-left text-[10px] font-black uppercase tracking-[0.2em]">Node / Identity</th>
                                 <th className="py-5 px-4 text-left text-[10px] font-black uppercase tracking-[0.2em]">Notes / Description</th>
@@ -439,7 +439,7 @@ export default function Nodes() {
                 </div>
 
                 {/* Footer / Pagination Area (Placeholder for consistency with image) */}
-                <div className={`p-6 border-t flex justify-between items-center text-[10px] font-black tracking-widest uppercase ${isDark ? 'border-slate-800 bg-slate-900/60' : 'border-slate-300 bg-slate-100'
+                <div className={`p-6 border-t flex justify-between items-center text-[10px] font-black tracking-widest uppercase ${isDark ? 'border-slate-800 bg-slate-900/60' : 'border-slate-400 bg-white shadow-sm'
                     }`}>
                     <div className="flex items-center gap-4">
                         <span className={`tracking-[0.3em] ${isDark ? 'opacity-40' : 'text-slate-600'}`}>Sector 7G-Alpha</span>

@@ -96,21 +96,21 @@ export default function NetworkTable({
             <div className={`p-4 rounded-xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
                 <div className="flex flex-col gap-3">
                     <div className="flex items-center gap-4">
-                        <label className={`text-[10px] font-bold uppercase tracking-widest w-24 ${isDark ? 'opacity-50' : 'text-slate-700'}`}>Search 1 :</label>
+                        <label className={`text-[10px] font-bold uppercase tracking-widest w-24 ${isDark ? 'opacity-50 text-slate-400' : 'text-slate-900 opacity-100'}`}>Search 1 :</label>
                         <input
                             type="text"
                             value={search1}
                             onChange={(e) => setSearch1(e.target.value)}
-                            className={`flex-1 max-w-sm px-3 py-1 text-sm border rounded ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-400 text-slate-900 focus:bg-white'}`}
+                            className={`flex-1 max-w-sm px-3 py-1 text-sm border rounded outline-none transition-all ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-400 text-slate-900 shadow-sm focus:border-blue-500'}`}
                         />
                     </div>
                     <div className="flex items-center gap-4">
-                        <label className={`text-[10px] font-bold uppercase tracking-widest w-24 ${isDark ? 'opacity-50' : 'text-slate-700'}`}>Search 2 :</label>
+                        <label className={`text-[10px] font-bold uppercase tracking-widest w-24 ${isDark ? 'opacity-50 text-slate-400' : 'text-slate-900 opacity-100'}`}>Search 2 :</label>
                         <input
                             type="text"
                             value={search2}
                             onChange={(e) => setSearch2(e.target.value)}
-                            className={`flex-1 max-w-sm px-3 py-1 text-sm border rounded ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-400 text-slate-900 focus:bg-white'}`}
+                            className={`flex-1 max-w-sm px-3 py-1 text-sm border rounded outline-none transition-all ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-400 text-slate-900 shadow-sm focus:border-blue-500'}`}
                         />
                     </div>
                     <div className="pl-28">
@@ -159,7 +159,7 @@ export default function NetworkTable({
                                                 : (isDark ? 'border-slate-700' : 'border-slate-400')
                                                 }`} />
                                         </td>
-                                        <td className={`p-2 text-[11px] font-mono ${isDark ? 'opacity-60' : 'text-slate-800 font-bold'}`}>#{n.id}</td>
+                                        <td className={`p-2 text-[11px] font-mono ${isDark ? 'opacity-60 text-slate-400' : 'text-slate-900 font-black opacity-100'}`}>#{n.id}</td>
                                         <td className={`p-2 text-[11px] font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{job.name || 'kosong'}</td>
                                         <td className={`p-2 text-[11px] ${isDark ? 'opacity-80' : 'text-slate-700 font-medium'}`}>{job.schedule || 'kosong'}</td>
                                         <td className="p-2 text-[11px] text-blue-500 font-bold">{schema.name || 'kosong'}</td>

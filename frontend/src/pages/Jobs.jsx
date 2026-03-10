@@ -329,7 +329,7 @@ function Jobs() {
             <ToastContainer toasts={toasts} removeToast={removeToast} />
 
             {/* Premium Page Header */}
-            <div className={`relative overflow-hidden rounded-2xl p-8 border hover:shadow-xl transition-all duration-300 ${isDark ? 'bg-gradient-to-br from-slate-800 via-slate-800/95 to-slate-900 border-slate-700/50' : 'bg-slate-50 border-slate-300 shadow-lg'}`}>
+            <div className={`relative overflow-hidden rounded-2xl p-8 border hover:shadow-xl transition-all duration-300 ${isDark ? 'bg-gradient-to-br from-slate-800 via-slate-800/95 to-slate-900 border-slate-700/50' : 'bg-white border-slate-300 shadow-md'}`}>
                 {/* Decorative Elements */}
                 <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-500/10 to-sky-500/10 rounded-full blur-3xl"></div>
 
@@ -367,7 +367,7 @@ function Jobs() {
 
             {/* Create Form */}
             {showForm && (
-                <div className={`backdrop-blur-sm border rounded-2xl p-10 modal-scale-in mb-10 ${isDark ? 'bg-slate-800/80 border-slate-700' : 'bg-white border-slate-300 shadow-2xl'}`}>
+                <div className={`backdrop-blur-sm border rounded-2xl p-10 modal-scale-in mb-10 ${isDark ? 'bg-slate-800/80 border-slate-700' : 'bg-white border-slate-400 shadow-2xl'}`}>
                     <h2 className={`text-xl font-bold mb-6 flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
                         <Plus className="w-5 h-5 text-blue-500" />
                         Create New Job
@@ -379,7 +379,7 @@ function Jobs() {
                                 type="text"
                                 value={formData.name}
                                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${isDark ? 'bg-slate-900/50 border-slate-700 text-white placeholder-slate-500' : 'bg-slate-50 border-slate-400 text-slate-900 placeholder-slate-400 focus:bg-white'}`}
+                                className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${isDark ? 'bg-slate-900/50 border-slate-700 text-white placeholder-slate-500' : 'bg-white border-slate-400 text-slate-900 placeholder-slate-400 focus:bg-white'}`}
                                 placeholder="e.g., Daily Sales Sync"
                                 required
                             />
@@ -427,7 +427,7 @@ function Jobs() {
                                     type="text"
                                     value={formData.schedule}
                                     onChange={(e) => setFormData({ ...formData, schedule: e.target.value })}
-                                    className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition font-mono ${isDark ? 'bg-slate-900/50 border-slate-700 text-white placeholder-slate-500' : 'bg-slate-50 border-slate-400 text-slate-900 placeholder-slate-400 focus:bg-white'}`}
+                                    className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition font-mono ${isDark ? 'bg-slate-900/50 border-slate-700 text-white placeholder-slate-500' : 'bg-white border-slate-400 text-slate-900 placeholder-slate-400 focus:bg-white'}`}
                                     placeholder="*/5 * * * * (every 5 min) or leave empty for manual"
                                 />
                             </div>
@@ -528,11 +528,11 @@ function Jobs() {
             )}
 
             {/* Jobs Table - Desktop Only */}
-            <div className={`hidden lg:block rounded-2xl border overflow-hidden ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-300 shadow-xl shadow-slate-200/40'}`}>
+            <div className={`hidden lg:block rounded-2xl border overflow-hidden ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-300 shadow-md'}`}>
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead>
-                            <tr className={isDark ? 'bg-slate-900/50' : 'bg-slate-100 border-b border-slate-300'}>
+                            <tr className={isDark ? 'bg-slate-900/50' : 'bg-slate-100 border-b border-slate-300 shadow-sm'}>
                                 <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>ID</th>
                                 <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Job Name</th>
                                 <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
