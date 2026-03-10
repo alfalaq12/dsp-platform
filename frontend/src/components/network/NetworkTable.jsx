@@ -96,25 +96,25 @@ export default function NetworkTable({
             <div className={`p-4 rounded-xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
                 <div className="flex flex-col gap-3">
                     <div className="flex items-center gap-4">
-                        <label className="text-[10px] font-bold uppercase tracking-widest opacity-50 w-24">Search 1 :</label>
+                        <label className={`text-[10px] font-bold uppercase tracking-widest w-24 ${isDark ? 'opacity-50' : 'text-slate-700'}`}>Search 1 :</label>
                         <input
                             type="text"
                             value={search1}
                             onChange={(e) => setSearch1(e.target.value)}
-                            className={`flex-1 max-w-sm px-3 py-1 text-sm border rounded ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300'}`}
+                            className={`flex-1 max-w-sm px-3 py-1 text-sm border rounded ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-400 text-slate-900 focus:bg-white'}`}
                         />
                     </div>
                     <div className="flex items-center gap-4">
-                        <label className="text-[10px] font-bold uppercase tracking-widest opacity-50 w-24">Search 2 :</label>
+                        <label className={`text-[10px] font-bold uppercase tracking-widest w-24 ${isDark ? 'opacity-50' : 'text-slate-700'}`}>Search 2 :</label>
                         <input
                             type="text"
                             value={search2}
                             onChange={(e) => setSearch2(e.target.value)}
-                            className={`flex-1 max-w-sm px-3 py-1 text-sm border rounded ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300'}`}
+                            className={`flex-1 max-w-sm px-3 py-1 text-sm border rounded ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-400 text-slate-900 focus:bg-white'}`}
                         />
                     </div>
                     <div className="pl-28">
-                        <button className={`px-4 py-1 text-xs font-bold rounded border transition-all ${isDark ? 'bg-slate-800 border-slate-700 hover:bg-slate-700' : 'bg-white border-slate-300 hover:bg-slate-50'}`}>
+                        <button className={`px-4 py-1 text-xs font-bold rounded border transition-all ${isDark ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white' : 'bg-slate-100 border-slate-400 hover:bg-slate-200 text-slate-800 shadow-sm'}`}>
                             Search
                         </button>
                     </div>
@@ -126,17 +126,17 @@ export default function NetworkTable({
                 <div className="overflow-x-auto">
                     <table className="w-full border-collapse text-left">
                         <thead>
-                            <tr className={`text-[10px] font-bold uppercase tracking-wider border-b ${isDark ? 'bg-slate-800/50 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                            <tr className={`text-[10px] font-bold uppercase tracking-wider border-b ${isDark ? 'bg-slate-800/50 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-700 border-slate-300'}`}>
                                 <th className="p-2 w-8"></th>
-                                <th className="p-2 border-r border-slate-700/20">ID</th>
-                                <th className="p-2 border-r border-slate-700/20">SID</th>
-                                <th className="p-2 border-r border-slate-700/20">Schedule</th>
-                                <th className="p-2 border-r border-slate-700/20">Schema</th>
-                                <th className="p-2 border-r border-slate-700/20">Target Node</th>
-                                <th className="p-2 border-r border-slate-700/20">Target Address</th>
-                                <th className="p-2 border-r border-slate-700/20">Source Node</th>
-                                <th className="p-2 border-r border-slate-700/20">Source Address</th>
-                                <th className="p-2 border-r border-slate-700/20">Owner</th>
+                                <th className="p-2 border-r border-slate-300/30">ID</th>
+                                <th className="p-2 border-r border-slate-300/30">SID</th>
+                                <th className="p-2 border-r border-slate-300/30">Schedule</th>
+                                <th className="p-2 border-r border-slate-300/30">Schema</th>
+                                <th className="p-2 border-r border-slate-300/30">Target Node</th>
+                                <th className="p-2 border-r border-slate-300/30">Target Address</th>
+                                <th className="p-2 border-r border-slate-300/30">Source Node</th>
+                                <th className="p-2 border-r border-slate-300/30">Source Address</th>
+                                <th className="p-2 border-r border-slate-300/30">Owner</th>
                                 <th className="p-2">Creator</th>
                             </tr>
                         </thead>
@@ -156,27 +156,27 @@ export default function NetworkTable({
                                         <td className="p-2 text-center">
                                             <div className={`w-3.5 h-3.5 rounded-full border-2 transition-all ${selectedId === n.id
                                                 ? 'border-blue-500 bg-blue-500 ring-2 ring-blue-500/20'
-                                                : (isDark ? 'border-slate-700' : 'border-slate-300')
+                                                : (isDark ? 'border-slate-700' : 'border-slate-400')
                                                 }`} />
                                         </td>
-                                        <td className="p-2 text-[11px] font-mono opacity-60">#{n.id}</td>
-                                        <td className="p-2 text-[11px] font-bold">{job.name || 'kosong'}</td>
-                                        <td className="p-2 text-[11px] opacity-80">{job.schedule || 'kosong'}</td>
+                                        <td className={`p-2 text-[11px] font-mono ${isDark ? 'opacity-60' : 'text-slate-800 font-bold'}`}>#{n.id}</td>
+                                        <td className={`p-2 text-[11px] font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{job.name || 'kosong'}</td>
+                                        <td className={`p-2 text-[11px] ${isDark ? 'opacity-80' : 'text-slate-700 font-medium'}`}>{job.schedule || 'kosong'}</td>
                                         <td className="p-2 text-[11px] text-blue-500 font-bold">{schema.name || 'kosong'}</td>
-                                        <td className="p-2 text-[11px] font-black uppercase">
+                                        <td className={`p-2 text-[11px] font-black uppercase ${isDark ? 'text-white' : 'text-slate-800'}`}>
                                             {n.target_db_host ? 'MASTER HOST' : 'REMOTE'}
                                         </td>
-                                        <td className="p-2 text-[11px] font-mono opacity-80 max-w-[200px] truncate" title={getTargetAddr(n)}>
+                                        <td className={`p-2 text-[11px] font-mono max-w-[200px] truncate ${isDark ? 'opacity-80' : 'text-slate-800'}`} title={getTargetAddr(n)}>
                                             {getTargetAddr(n)}
                                         </td>
-                                        <td className="p-2 text-[11px] font-black uppercase text-blue-400">
+                                        <td className="p-2 text-[11px] font-black uppercase text-blue-500">
                                             {n.agent_name || n.name}
                                         </td>
-                                        <td className="p-2 text-[11px] font-mono opacity-80 max-w-[200px] truncate" title={getSourceAddr(n)}>
+                                        <td className={`p-2 text-[11px] font-mono max-w-[200px] truncate ${isDark ? 'opacity-80' : 'text-slate-800'}`} title={getSourceAddr(n)}>
                                             {getSourceAddr(n)}
                                         </td>
-                                        <td className="p-2 text-[11px] opacity-60">admin</td>
-                                        <td className="p-2 text-[11px] opacity-60 whitespace-nowrap">administrator</td>
+                                        <td className={`p-2 text-[11px] ${isDark ? 'opacity-60' : 'text-slate-800'}`}>admin</td>
+                                        <td className={`p-2 text-[11px] whitespace-nowrap ${isDark ? 'opacity-60' : 'text-slate-800'}`}>administrator</td>
                                     </tr>
                                 );
                             })}
@@ -191,21 +191,21 @@ export default function NetworkTable({
                     <button
                         onClick={() => selectedNetwork && onClone(selectedNetwork)}
                         disabled={!selectedId || cloningNetwork === selectedId}
-                        className={`px-4 py-2 text-xs font-bold rounded-lg border transition-all ${!selectedId ? 'opacity-30 cursor-not-allowed' : (isDark ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white' : 'bg-white border-slate-300 hover:bg-slate-50')
+                        className={`px-4 py-2 text-xs font-bold rounded-lg border transition-all ${!selectedId ? 'opacity-30 cursor-not-allowed' : (isDark ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white' : 'bg-slate-100 border-slate-300 hover:bg-slate-200 text-slate-700 shadow-sm')
                             }`}
                     >
                         {cloningNetwork === selectedId ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Duplicate'}
                     </button>
                     <button
                         onClick={onAdd}
-                        className={`px-4 py-2 text-xs font-bold rounded-lg border transition-all ${isDark ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white' : 'bg-white border-slate-300 hover:bg-slate-50'}`}
+                        className={`px-4 py-2 text-xs font-bold rounded-lg border transition-all ${isDark ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white' : 'bg-slate-100 border-slate-300 hover:bg-slate-200 text-slate-700 shadow-sm'}`}
                     >
                         Add
                     </button>
                     <button
                         onClick={() => selectedNetwork && onEdit(selectedNetwork)}
                         disabled={!selectedId}
-                        className={`px-4 py-2 text-xs font-bold rounded-lg border transition-all ${!selectedId ? 'opacity-30 cursor-not-allowed' : (isDark ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white' : 'bg-white border-slate-300 hover:bg-slate-50')
+                        className={`px-4 py-2 text-xs font-bold rounded-lg border transition-all ${!selectedId ? 'opacity-30 cursor-not-allowed' : (isDark ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white' : 'bg-slate-100 border-slate-300 hover:bg-slate-200 text-slate-700 shadow-sm')
                             }`}
                     >
                         Edit
@@ -213,7 +213,7 @@ export default function NetworkTable({
                     <button
                         onClick={() => selectedNetwork && onView(selectedNetwork)}
                         disabled={!selectedId}
-                        className={`px-4 py-2 text-xs font-bold rounded-lg border transition-all ${!selectedId ? 'opacity-30 cursor-not-allowed' : (isDark ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white' : 'bg-white border-slate-300 hover:bg-slate-50')
+                        className={`px-4 py-2 text-xs font-bold rounded-lg border transition-all ${!selectedId ? 'opacity-30 cursor-not-allowed' : (isDark ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white' : 'bg-slate-100 border-slate-300 hover:bg-slate-200 text-slate-700 shadow-sm')
                             }`}
                     >
                         View
@@ -221,7 +221,7 @@ export default function NetworkTable({
                     <button
                         onClick={() => selectedNetwork && onDelete(selectedNetwork)}
                         disabled={!selectedId}
-                        className={`px-4 py-2 text-xs font-bold rounded-lg border transition-all ${!selectedId ? 'opacity-30 cursor-not-allowed' : (isDark ? 'bg-rose-500/10 border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white' : 'bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white')
+                        className={`px-4 py-2 text-xs font-bold rounded-lg border transition-all ${!selectedId ? 'opacity-30 cursor-not-allowed' : (isDark ? 'bg-rose-500/10 border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white' : 'bg-rose-100 border-rose-300 text-rose-700 hover:bg-rose-600 hover:text-white shadow-sm')
                             }`}
                     >
                         Delete
@@ -235,12 +235,12 @@ export default function NetworkTable({
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: 20 }}
-                            className={`flex items-center gap-6 px-6 py-3 rounded-2xl border ${isDark ? 'bg-blue-500/10 border-blue-500/20' : 'bg-blue-50 border-blue-100 shadow-sm'}`}
+                            className={`flex items-center gap-6 px-6 py-3 rounded-2xl border ${isDark ? 'bg-blue-500/10 border-blue-500/20' : 'bg-white border-blue-300 shadow-md'}`}
                         >
                             <div className="flex items-center gap-3">
                                 <div className="flex flex-col items-end">
-                                    <span className="text-[9px] uppercase font-bold opacity-40">Source Node</span>
-                                    <span className={`text-xs font-black ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>{selectedNetwork?.name}</span>
+                                    <span className={`text-[9px] uppercase font-bold ${isDark ? 'opacity-40' : 'text-slate-400'}`}>Source Node</span>
+                                    <span className={`text-xs font-black ${isDark ? 'text-blue-400' : 'text-blue-700'}`}>{selectedNetwork?.name}</span>
                                 </div>
                                 <button
                                     onClick={() => onTestSource(selectedNetwork)}
@@ -268,8 +268,8 @@ export default function NetworkTable({
                                     {testingTargetNetwork === selectedId ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
                                 </button>
                                 <div className="flex flex-col">
-                                    <span className="text-[9px] uppercase font-bold opacity-40">Target Node</span>
-                                    <span className={`text-xs font-black ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>
+                                    <span className={`text-[9px] uppercase font-bold ${isDark ? 'opacity-40' : 'text-slate-400'}`}>Target Node</span>
+                                    <span className={`text-xs font-black ${isDark ? 'text-blue-400' : 'text-blue-700'}`}>
                                         {selectedNetwork?.target_db_host ? 'Master Server' : 'Remote Agent'}
                                     </span>
                                 </div>

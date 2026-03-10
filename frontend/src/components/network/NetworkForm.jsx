@@ -96,7 +96,7 @@ const NetworkForm = ({ formData, setFormData, editingId, isSubmitting, onSubmit,
 
     const inputClasses = `w-full px-4 py-2.5 rounded-xl border-2 transition-all outline-none text-sm ${isDark
         ? 'bg-slate-800/50 border-slate-700/50 text-white focus:border-purple-500/50 focus:bg-slate-800'
-        : 'bg-white border-slate-200 text-slate-900 focus:border-purple-500 shadow-sm'
+        : 'bg-white border-slate-300 text-slate-900 focus:border-purple-500 shadow-sm'
         }`;
 
     const labelClasses = `block text-xs font-bold mb-2 uppercase tracking-widest ${isDark ? 'text-slate-400' : 'text-slate-500'}`;
@@ -130,7 +130,7 @@ const NetworkForm = ({ formData, setFormData, editingId, isSubmitting, onSubmit,
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
-                    <button onClick={onCancel} className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${isDark ? 'text-slate-400 hover:bg-slate-800' : 'text-slate-600 hover:bg-slate-100'}`}>
+                    <button onClick={onCancel} className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${isDark ? 'text-slate-400 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-200 bg-slate-100 border border-slate-300 shadow-sm'}`}>
                         Cancel
                     </button>
                     <button
@@ -175,10 +175,10 @@ const NetworkForm = ({ formData, setFormData, editingId, isSubmitting, onSubmit,
                 </div>
 
                 {/* Source & Target Grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 relative">
 
                     {/* Source Box */}
-                    <div className={`p-8 rounded-3xl border-2 transition-all ${isDark ? 'bg-slate-800/20 border-slate-800/50 hover:border-purple-500/30' : 'bg-slate-50/50 border-slate-100 hover:border-purple-200'}`}>
+                    <div className={`p-8 rounded-3xl border-2 transition-all ${isDark ? 'bg-slate-800/20 border-slate-800/50 hover:border-purple-500/30' : 'bg-slate-50 border-slate-300 hover:border-purple-500 shadow-sm'}`}>
                         <div className="flex items-center justify-between mb-8">
                             <SectionHeader title="SOURCE NODE" icon={Database} color="purple" />
                             <div className="flex items-center gap-2">
@@ -217,9 +217,9 @@ const NetworkForm = ({ formData, setFormData, editingId, isSubmitting, onSubmit,
                             <div>
                                 <label className={labelClasses}>Connectivity (Host:Port)</label>
                                 <div className="flex items-center gap-3">
-                                    <input name="db_host" value={formData.db_host} onChange={handleChange} className={`${inputClasses} flex-1`} placeholder="localhost" />
+                                    <input name="db_host" value={formData.db_host} onChange={handleChange} className={`${inputClasses} flex-1 min-w-0`} placeholder="localhost" />
                                     <span className="text-slate-500 font-bold">:</span>
-                                    <input name="db_port" value={formData.db_port} onChange={handleChange} className={`${inputClasses} w-24`} placeholder="5432" />
+                                    <input name="db_port" value={formData.db_port} onChange={handleChange} className={`${inputClasses} w-32 min-w-0`} placeholder="5432" />
                                 </div>
                             </div>
 
@@ -242,14 +242,14 @@ const NetworkForm = ({ formData, setFormData, editingId, isSubmitting, onSubmit,
                     </div>
 
                     {/* Bridge Icon - Desktop only */}
-                    <div className="absolute left-1/2 -translate-x-1/2 top-[60%] hidden lg:flex flex-col items-center gap-4 z-10">
-                        <button onClick={handleReverse} className={`p-4 rounded-full border-4 shadow-xl transition-all hover:scale-110 active:rotate-180 duration-500 ${isDark ? 'bg-slate-900 border-slate-800 text-purple-500' : 'bg-white border-white text-purple-600'}`}>
+                    <div className="absolute left-1/2 -translate-x-1/2 top-1/2 hidden lg:flex flex-col items-center gap-4 z-20">
+                        <button onClick={handleReverse} className={`p-4 rounded-full border-4 shadow-2xl transition-all hover:scale-110 active:rotate-180 duration-500 ${isDark ? 'bg-slate-900 border-slate-800 text-purple-500' : 'bg-white border-slate-100 text-purple-600'}`}>
                             <ArrowLeftRight className="w-6 h-6" />
                         </button>
                     </div>
 
                     {/* Target Box */}
-                    <div className={`p-8 rounded-3xl border-2 transition-all ${isDark ? 'bg-slate-800/20 border-slate-800/50 hover:border-emerald-500/30' : 'bg-slate-50/50 border-slate-100 hover:border-emerald-200'}`}>
+                    <div className={`p-8 rounded-3xl border-2 transition-all ${isDark ? 'bg-slate-800/20 border-slate-800/50 hover:border-emerald-500/30' : 'bg-slate-50 border-slate-300 hover:border-emerald-500 shadow-sm'}`}>
                         <div className="flex items-center justify-between mb-8">
                             <SectionHeader title="TARGET NODE" icon={Shield} color="emerald" />
                             <div className="flex items-center gap-2">
@@ -288,9 +288,9 @@ const NetworkForm = ({ formData, setFormData, editingId, isSubmitting, onSubmit,
                             <div>
                                 <label className={labelClasses}>Connectivity (Host:Port)</label>
                                 <div className="flex items-center gap-3">
-                                    <input name="target_db_host" value={formData.target_db_host} onChange={handleChange} className={`${inputClasses} flex-1`} placeholder="localhost" />
+                                    <input name="target_db_host" value={formData.target_db_host} onChange={handleChange} className={`${inputClasses} flex-1 min-w-0`} placeholder="localhost" />
                                     <span className="text-slate-500 font-bold">:</span>
-                                    <input name="target_db_port" value={formData.target_db_port} onChange={handleChange} className={`${inputClasses} w-24`} placeholder="5432" />
+                                    <input name="target_db_port" value={formData.target_db_port} onChange={handleChange} className={`${inputClasses} w-32 min-w-0`} placeholder="5432" />
                                 </div>
                             </div>
 

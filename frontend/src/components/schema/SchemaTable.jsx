@@ -44,29 +44,29 @@ const SchemaTable = ({
     return (
         <div className="space-y-4">
             {/* High Density Header Section (Based on Image 1) */}
-            <div className={`p-6 rounded-2xl border transition-all ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-white border-slate-200 shadow-sm'}`}>
+            <div className={`p-6 rounded-2xl border transition-all ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-white border-slate-300 shadow-sm'}`}>
                 <div className="flex flex-col md:flex-row md:items-end justify-end gap-4 mb-6">
                     <div className="space-y-4 max-w-md w-full">
                         <div className="flex items-center gap-4">
-                            <label className={`text-sm font-medium w-24 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Search 1 :</label>
+                            <label className={`text-sm font-medium w-24 ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Search 1 :</label>
                             <input
                                 type="text"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className={`flex-1 px-3 py-1.5 rounded border focus:ring-1 focus:ring-blue-500 outline-none transition-all ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-yellow-50 border-slate-300 shadow-inner'}`}
+                                className={`flex-1 px-3 py-1.5 rounded border focus:ring-1 focus:ring-blue-500 outline-none transition-all ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-slate-50 border-slate-400 text-slate-900 focus:bg-white'}`}
                             />
                         </div>
                         <div className="flex items-center gap-4">
-                            <label className={`text-sm font-medium w-24 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Search 2 :</label>
+                            <label className={`text-sm font-medium w-24 ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Search 2 :</label>
                             <input
                                 type="text"
                                 value={searchTerm2}
                                 onChange={(e) => setSearchTerm2(e.target.value)}
-                                className={`flex-1 px-3 py-1.5 rounded border focus:ring-1 focus:ring-blue-500 outline-none transition-all ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-yellow-50 border-slate-300 shadow-inner'}`}
+                                className={`flex-1 px-3 py-1.5 rounded border focus:ring-1 focus:ring-blue-500 outline-none transition-all ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-slate-50 border-slate-400 text-slate-900 focus:bg-white'}`}
                             />
                         </div>
                         <div className="pl-28">
-                            <button className={`px-6 py-1 rounded border font-medium text-sm transition-all ${isDark ? 'bg-slate-700 border-slate-600 text-white hover:bg-slate-600' : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'}`}>
+                            <button className={`px-6 py-1 rounded border font-bold text-sm transition-all ${isDark ? 'bg-slate-700 border-slate-600 text-white hover:bg-slate-600' : 'bg-white border-slate-400 text-slate-700 hover:bg-slate-50 shadow-sm'}`}>
                                 Search
                             </button>
                         </div>
@@ -105,7 +105,7 @@ const SchemaTable = ({
                             const val = parseInt(e.target.value);
                             if (val > 0 && val <= totalPages) setCurrentPage(val);
                         }}
-                        className={`w-10 px-1 py-0.5 border text-center ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-yellow-50 border-slate-300'}`}
+                        className={`w-10 px-1 py-0.5 border text-center font-bold ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-400 text-slate-900'}`}
                     />
                     <span className={isDark ? 'text-slate-400' : 'text-slate-600'}> of {totalPages} ]</span>
                 </div>
@@ -114,7 +114,7 @@ const SchemaTable = ({
                 <div className="overflow-x-auto rounded border border-slate-200 dark:border-slate-800">
                     <table className="w-full text-xs font-medium border-collapse">
                         <thead>
-                            <tr className={`border-b ${isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-slate-800 text-white border-slate-300'}`}>
+                            <tr className={`border-b ${isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-slate-100 text-slate-700 border-slate-300'}`}>
                                 <th className="px-2 py-2 text-center border-r w-8"></th>
                                 <th className="px-4 py-2 text-left border-r w-20">ID</th>
                                 <th className="px-4 py-2 text-left border-r">Name</th>
@@ -126,7 +126,7 @@ const SchemaTable = ({
                             {paginatedSchemas.map((schema, idx) => (
                                 <tr
                                     key={schema.id}
-                                    className={`group cursor-pointer hover:bg-blue-500/10 transition-colors ${idx % 2 === 0 ? (isDark ? 'bg-slate-800/20' : 'bg-white') : (isDark ? 'bg-slate-800/40' : 'bg-slate-100')}`}
+                                    className={`group cursor-pointer hover:bg-blue-500/10 transition-colors ${idx % 2 === 0 ? (isDark ? 'bg-slate-800/20' : 'bg-white') : (isDark ? 'bg-slate-800/40' : 'bg-slate-50')}`}
                                     onClick={() => onView(schema)}
                                 >
                                     <td className="px-2 py-1.5 text-center border-r">
@@ -137,15 +137,15 @@ const SchemaTable = ({
                                             onChange={() => onView(schema)}
                                         />
                                     </td>
-                                    <td className="px-4 py-1.5 border-r font-mono text-slate-500">{schema.id}</td>
+                                    <td className="px-4 py-1.5 border-r font-mono text-slate-700 font-bold">#{schema.id}</td>
                                     <td className="px-4 py-1.5 border-r">
                                         <div className="flex items-center gap-2">
                                             {getSourceIcon(schema.source_type)}
-                                            <span className={isDark ? 'text-slate-200' : 'text-slate-800'}>{schema.name}</span>
+                                            <span className={`font-medium ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{schema.name}</span>
                                         </div>
                                     </td>
-                                    <td className="px-4 py-1.5 border-r text-slate-500">admin</td>
-                                    <td className="px-4 py-1.5 text-slate-500">administrator</td>
+                                    <td className="px-4 py-1.5 border-r text-slate-700 font-medium">admin</td>
+                                    <td className="px-4 py-1.5 text-slate-700 font-medium">administrator</td>
                                 </tr>
                             ))}
                         </tbody>

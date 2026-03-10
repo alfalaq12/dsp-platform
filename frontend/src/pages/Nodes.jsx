@@ -30,7 +30,7 @@ const MetricBar = ({ label, value, color, icon: Icon, isDark }) => {
     const percentage = Math.min(Math.max(value, 0), 100);
     return (
         <div className="flex flex-col gap-1.5 min-w-[120px]">
-            <div className="flex justify-between items-center text-[10px] uppercase tracking-wider opacity-60 font-bold">
+            <div className={`flex justify-between items-center text-[10px] uppercase tracking-wider font-bold ${isDark ? 'opacity-60' : 'text-slate-700'}`}>
                 <span className="flex items-center gap-1">
                     {Icon && <Icon className="w-3 h-3" />} {label}
                 </span>
@@ -86,7 +86,7 @@ const NodeRow = ({ agent, onRename, onUpdateNotes, onPromote, onDelete, isDark }
         >
             {/* ID */}
             <td className="py-4 px-4 whitespace-nowrap">
-                <span className={`text-[10px] font-mono p-1 rounded ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>
+                <span className={`text-[10px] font-mono p-1 rounded font-bold ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-800'}`}>
                     #{agent.id}
                 </span>
             </td>
@@ -132,7 +132,7 @@ const NodeRow = ({ agent, onRename, onUpdateNotes, onPromote, onDelete, isDark }
                     </form>
                 ) : (
                     <div className="flex items-center gap-2 group/notes max-w-[250px]">
-                        <span className={`text-sm truncate opacity-70 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        <span className={`text-sm truncate ${isDark ? 'text-slate-400 opacity-70' : 'text-slate-700 font-medium'}`}>
                             {agent.notes || 'No description...'}
                         </span>
                         <button onClick={() => setIsEditingNotes(true)} className="opacity-0 group-hover/notes:opacity-100 p-1 text-blue-500 transition-opacity flex-shrink-0">
@@ -171,8 +171,8 @@ const NodeRow = ({ agent, onRename, onUpdateNotes, onPromote, onDelete, isDark }
             {/* Software Version */}
             <td className="py-4 px-4 whitespace-nowrap">
                 <div className="flex items-center gap-2">
-                    <Layers className="w-4 h-4 opacity-40" />
-                    <span className={`text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                    <Layers className={`w-4 h-4 ${isDark ? 'opacity-40' : 'text-slate-500'}`} />
+                    <span className={`text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
                         v{agent.software_version || '1.0.0'}
                     </span>
                 </div>
@@ -181,16 +181,16 @@ const NodeRow = ({ agent, onRename, onUpdateNotes, onPromote, onDelete, isDark }
             {/* ADDR */}
             <td className="py-4 px-4 whitespace-nowrap">
                 <div className="flex flex-col gap-0.5">
-                    <span className={`text-sm font-mono font-bold ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>
+                    <span className={`text-sm font-mono font-bold ${isDark ? 'text-blue-400' : 'text-blue-700'}`}>
                         {agent.ip_address || '0.0.0.0'}
                     </span>
-                    <span className="text-[10px] opacity-40 uppercase tracking-tighter">Network Node</span>
+                    <span className={`text-[10px] uppercase tracking-tighter font-bold ${isDark ? 'opacity-40' : 'text-slate-500'}`}>Network Node</span>
                 </div>
             </td>
 
             {/* Last Seen */}
             <td className="py-4 px-4 whitespace-nowrap">
-                <div className="flex items-center gap-2 opacity-60">
+                <div className={`flex items-center gap-2 ${isDark ? 'opacity-60' : 'text-slate-700 font-bold'}`}>
                     <Calendar className="w-3.5 h-3.5" />
                     <span className="text-xs">
                         {agent.last_seen ? new Date(agent.last_seen).toLocaleTimeString() : '--:--:--'}
@@ -335,7 +335,7 @@ export default function Nodes() {
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className={`w-full pl-11 pr-4 py-3 text-sm rounded-2xl border transition-all ${isDark
                                 ? 'bg-slate-900/60 border-slate-800 text-white focus:border-blue-500 focus:bg-slate-900'
-                                : 'bg-white border-slate-200 text-slate-800 focus:border-blue-400 shadow-sm'
+                                : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-blue-400 focus:bg-white shadow-sm'
                                 }`}
                         />
                     </div>
@@ -364,14 +364,14 @@ export default function Nodes() {
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ delay: i * 0.1 }}
                         key={i}
-                        className={`p-6 rounded-[2rem] border overflow-hidden relative group ${isDark ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-100 shadow-xl shadow-slate-200/50'
+                        className={`p-6 rounded-[2rem] border overflow-hidden relative group ${isDark ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200 shadow-xl shadow-slate-200/40'
                             }`}
                     >
                         <div className={`absolute top-0 right-0 w-24 h-24 ${s.bg} rounded-full blur-3xl -mr-12 -mt-12 transition-transform group-hover:scale-150 duration-700`} />
                         <div className="relative flex justify-between items-center">
                             <div>
-                                <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-1">{s.label}</p>
-                                <p className="text-3xl font-black">{s.val}</p>
+                                <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${isDark ? 'opacity-40' : 'text-slate-700'}`}>{s.label}</p>
+                                <p className={`text-3xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>{s.val}</p>
                             </div>
                             <div className={`p-4 rounded-2xl ${s.bg} ${s.color}`}>
                                 <s.icon className="w-6 h-6" />
@@ -384,12 +384,12 @@ export default function Nodes() {
             {/* Futuristic Table Container */}
             <div className={`rounded-[2.5rem] border overflow-hidden transition-all ${isDark
                 ? 'bg-slate-900/40 border-slate-800 shadow-2xl'
-                : 'bg-white border-slate-100 shadow-2xl shadow-blue-900/5'
+                : 'bg-white border-slate-300 shadow-2xl shadow-blue-900/5'
                 }`}>
                 <div className="overflow-x-auto">
                     <table className="w-full border-collapse">
                         <thead>
-                            <tr className={`${isDark ? 'bg-slate-800/40 text-slate-400' : 'bg-slate-50 text-slate-600'}`}>
+                            <tr className={`${isDark ? 'bg-slate-800/40 text-slate-400' : 'bg-slate-100 text-slate-700 font-bold'}`}>
                                 <th className="py-5 px-4 text-left text-[10px] font-black uppercase tracking-[0.2em] w-16">ID</th>
                                 <th className="py-5 px-4 text-left text-[10px] font-black uppercase tracking-[0.2em]">Node / Identity</th>
                                 <th className="py-5 px-4 text-left text-[10px] font-black uppercase tracking-[0.2em]">Notes / Description</th>
@@ -439,14 +439,14 @@ export default function Nodes() {
                 </div>
 
                 {/* Footer / Pagination Area (Placeholder for consistency with image) */}
-                <div className={`p-6 border-t flex justify-between items-center text-[10px] font-bold tracking-widest uppercase ${isDark ? 'border-slate-800 bg-slate-900/60' : 'border-slate-50 bg-slate-50/50'
+                <div className={`p-6 border-t flex justify-between items-center text-[10px] font-black tracking-widest uppercase ${isDark ? 'border-slate-800 bg-slate-900/60' : 'border-slate-300 bg-slate-100'
                     }`}>
                     <div className="flex items-center gap-4">
-                        <span className="opacity-40 tracking-[0.3em]">Sector 7G-Alpha</span>
+                        <span className={`tracking-[0.3em] ${isDark ? 'opacity-40' : 'text-slate-600'}`}>Sector 7G-Alpha</span>
                         <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
                         <span className="text-blue-500">Sync Pipeline Active</span>
                     </div>
-                    <div className="flex gap-6 opacity-40">
+                    <div className={`flex gap-6 ${isDark ? 'opacity-40' : 'text-slate-600'}`}>
                         <span>Page 1 of 1</span>
                         <span>{(filteredNetworks || []).length} Nodes Identified</span>
                     </div>

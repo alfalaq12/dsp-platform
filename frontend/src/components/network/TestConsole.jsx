@@ -23,6 +23,8 @@ const TestConsole = ({ network, agentName, dbConfig, onClose, addToast }) => {
     const [activeTab, setActiveTab] = useState('result');
     const [dbMetadata, setDbMetadata] = useState(null);
     const [limit, setLimit] = useState(1000);
+    const [connectionStatus, setConnectionStatus] = useState('connecting'); // 'connecting', 'connected', 'failed'
+    const [isInitialLoading, setIsInitialLoading] = useState(true);
 
     // Saved Queries Logic
     const [savedQueries, setSavedQueries] = useState(() => {
@@ -34,14 +36,25 @@ const TestConsole = ({ network, agentName, dbConfig, onClose, addToast }) => {
     const executeQueryMutation = useExecuteQuery();
     const isLoading = executeQueryMutation.isPending;
 
+    // Run connection test on mount
+    useEffect(() => {
+        handleRun('SELECT 1;');
+    }, []);
+
     // Run query handler
     const handleRun = async (overrideQuery) => {
         const queryToRun = overrideQuery || query;
         if (!queryToRun?.trim()) return;
 
         setError(null);
-        setResults(null);
+        // Don't clear results if it's the invisible connection test
+        if (overrideQuery !== 'SELECT 1;' || !isInitialLoading) setResults(null);
         setActiveTab('result');
+
+        // If it's the test query, set connecting status
+        if (queryToRun === 'SELECT 1;' && isInitialLoading) {
+            setConnectionStatus('connecting');
+        }
 
         try {
             const response = await executeQueryMutation.mutateAsync({
@@ -53,6 +66,11 @@ const TestConsole = ({ network, agentName, dbConfig, onClose, addToast }) => {
             });
 
             if (response.data.success) {
+                if (queryToRun === 'SELECT 1;') {
+                    setConnectionStatus('connected');
+                }
+
+                // Set results for real user queries or successful initial test (as initial rows)
                 setResults(response.data.results || []);
                 setRowCount(response.data.row_count || 0);
                 setDuration(response.data.duration || 0);
@@ -62,14 +80,22 @@ const TestConsole = ({ network, agentName, dbConfig, onClose, addToast }) => {
                     setDbMetadata(response.data.metadata);
                 }
 
-                if (addToast) addToast(`Query executed successfully`, 'success');
+                if (!isInitialLoading && addToast) {
+                    addToast(`Query executed successfully`, 'success');
+                }
             } else {
+                if (queryToRun === 'SELECT 1;') setConnectionStatus('failed');
                 setError(response.data.error || 'Unknown query error');
             }
         } catch (err) {
+            if (overrideQuery === 'SELECT 1;') setConnectionStatus('failed');
             const errMsg = err.response?.data?.error || err.message;
             setError(errMsg);
-            if (addToast) addToast(`Query failed: ${errMsg}`, 'error');
+            if (!isInitialLoading && addToast) {
+                addToast(`Query failed: ${errMsg}`, 'error');
+            }
+        } finally {
+            if (isInitialLoading) setIsInitialLoading(false);
         }
     };
 
@@ -124,16 +150,16 @@ const TestConsole = ({ network, agentName, dbConfig, onClose, addToast }) => {
     };
 
     const MetaRow = ({ label, value }) => (
-        <div className="flex items-start gap-4 text-xs font-mono py-1 border-b border-slate-700/30 last:border-0">
-            <span className="w-32 font-bold text-slate-500 uppercase">{label}</span>
-            <span className="text-slate-400">:</span>
-            <span className={`flex-1 truncate ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{value || '-'}</span>
+        <div className={`flex items-start gap-4 text-xs font-mono py-1 border-b last:border-0 ${isDark ? 'border-slate-700/30' : 'border-slate-200'}`}>
+            <span className={`w-32 font-bold uppercase ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>{label}</span>
+            <span className={isDark ? 'text-slate-400' : 'text-slate-400'}>:</span>
+            <span className={`flex-1 truncate ${isDark ? 'text-slate-300' : 'text-slate-700 font-medium'}`}>{value || '-'}</span>
         </div>
     );
 
     return (
         <div className={`fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md transition-all duration-300`}>
-            <div className={`relative flex flex-col w-full ${isMaximized ? 'h-full' : 'max-w-6xl h-[92vh]'} ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} rounded-3xl shadow-2xl border flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300`}>
+            <div className={`relative flex flex-col w-full ${isMaximized ? 'h-full' : 'max-w-6xl h-[92vh]'} ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-300 shadow-2xl'} rounded-3xl border flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300`}>
 
                 {/* Refined Header per Image 2 */}
                 <div className={`px-8 py-6 border-b flex flex-col gap-6 ${isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
@@ -145,12 +171,25 @@ const TestConsole = ({ network, agentName, dbConfig, onClose, addToast }) => {
                             <div>
                                 <h3 className={`text-xl font-black italic tracking-tighter ${isDark ? 'text-white' : 'text-slate-900'}`}>SQL CONSOLE</h3>
                                 <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Connected to {agentName || 'LOCAL'} HUB</span>
+                                    <div className={`w-2 h-2 rounded-full animate-pulse ${connectionStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' :
+                                        connectionStatus === 'failed' ? 'bg-rose-500' : 'bg-amber-500'
+                                        }`}></div>
+                                    <span className={`text-[10px] font-bold uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-600'}`}>
+                                        {connectionStatus === 'connected' ? 'DB LINK ESTABLISHED' :
+                                            connectionStatus === 'failed' ? 'DB LINK FAILED' : 'NEGOTIATING DB LINK...'}
+                                    </span>
+                                    <span className="text-[10px] text-slate-700">|</span>
+                                    <span className={`text-[10px] font-bold uppercase tracking-widest ${isDark ? 'text-slate-500 opacity-60' : 'text-slate-600'}`}>Connected to {agentName || 'LOCAL'} HUB</span>
                                 </div>
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
+                            {connectionStatus === 'connected' && (
+                                <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                                    <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Stable</span>
+                                </div>
+                            )}
                             <button onClick={() => setIsMaximized(!isMaximized)} className={`p-2 rounded-xl transition-all ${isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-200 text-slate-600'}`}>
                                 {isMaximized ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
                             </button>
@@ -161,17 +200,19 @@ const TestConsole = ({ network, agentName, dbConfig, onClose, addToast }) => {
                     </div>
 
                     {/* Meta Data Panel (From Reference Image) */}
-                    <div className={`grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-1 p-6 rounded-2xl border ${isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-100 border-slate-200'}`}>
+                    <div className={`grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-1 p-6 rounded-2xl border transition-all ${connectionStatus === 'failed' ? 'border-rose-500/30 bg-rose-500/5' :
+                        isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-100 border-slate-300'
+                        }`}>
                         <div className="space-y-1">
                             <MetaRow label="NODE" value={agentName || 'MASTER HOST'} />
-                            <MetaRow label="DB" value={dbConfig ? `jdbc:${dbConfig.driver}://${dbMetadata?.host || dbConfig.host}:${dbMetadata?.port || dbConfig.port}/${dbMetadata?.db_name || dbConfig.db_name} | user:${dbMetadata?.user || dbConfig.user}` : '-'} />
-                            <MetaRow label="Server Host" value={dbMetadata?.host || dbConfig?.host} />
+                            <MetaRow label="DB" value={dbConfig ? `jdbc:${dbConfig.driver}://${dbConfig.host || 'localhost'}:${dbConfig.port || (dbConfig.driver === 'postgres' ? '5432' : '3306')}/${dbConfig.db_name} | user:${dbConfig.db_user || dbConfig.user}` : '-'} />
+                            <MetaRow label="Server Host" value={dbMetadata?.host || dbConfig?.host || dbConfig?.db_host} />
                         </div>
-                        <div className="space-y-1 text-emerald-500">
-                            <MetaRow label="Server Port" value={dbMetadata?.port || dbConfig?.port} />
-                            <MetaRow label="Database Name" value={dbMetadata?.db_name || dbConfig?.db_name} />
-                            <MetaRow label="DB PRODUCT" value={dbMetadata?.product} />
-                            <MetaRow label="DRIVER" value={dbMetadata?.driver?.toUpperCase() + " Driver " + (dbConfig?.driver === 'postgres' ? '42.2.19' : 'Native')} />
+                        <div className={`space-y-1 ${connectionStatus === 'connected' ? 'text-emerald-500' : connectionStatus === 'failed' ? 'text-rose-500' : 'text-slate-500'}`}>
+                            <MetaRow label="Server Port" value={dbMetadata?.port || dbConfig?.port || dbConfig?.db_port} />
+                            <MetaRow label="Database Name" value={dbMetadata?.db_name || dbConfig?.db_name || dbConfig?.db_name} />
+                            <MetaRow label="DB PRODUCT" value={dbMetadata?.product || (connectionStatus === 'connecting' ? 'Querying...' : '-')} />
+                            <MetaRow label="DRIVER" value={dbMetadata?.driver ? (dbMetadata.driver.toUpperCase() + " Driver") : (dbConfig?.db_driver || dbConfig?.driver || 'undefined').toUpperCase() + " Driver"} />
                         </div>
                     </div>
                 </div>
@@ -184,8 +225,8 @@ const TestConsole = ({ network, agentName, dbConfig, onClose, addToast }) => {
 
                         {/* Editor Section */}
                         <div className="lg:col-span-2 flex flex-col gap-4">
-                            <div className={`relative rounded-2xl border-2 transition-all overflow-hidden ${isDark ? 'bg-slate-950 border-slate-800 focus-within:border-blue-500/50' : 'bg-slate-100 border-slate-200 focus-within:border-blue-500'}`}>
-                                <div className={`flex items-center justify-between px-6 py-3 border-b ${isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-slate-200/50 border-slate-200'}`}>
+                            <div className={`relative rounded-2xl border-2 transition-all overflow-hidden ${isDark ? 'bg-slate-950 border-slate-800 focus-within:border-blue-500/50' : 'bg-white border-slate-300 focus-within:border-blue-500 shadow-sm'}`}>
+                                <div className={`flex items-center justify-between px-6 py-3 border-b ${isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
                                     <div className="flex items-center gap-3">
                                         <Layout className="w-4 h-4 text-blue-500" />
                                         <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Query Statement</span>
