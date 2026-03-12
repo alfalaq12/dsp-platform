@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import api from '../services/api';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -13,6 +14,15 @@ export default function Terminal() {
     const [historyIndex, setHistoryIndex] = useState(-1);
     const outputRef = useRef(null);
     const inputRef = useRef(null);
+
+    const location = useLocation();
+
+    // Init from navigation state
+    useEffect(() => {
+        if (location.state?.agentName) {
+            setSelectedAgent(location.state.agentName);
+        }
+    }, [location.state]);
 
     // Fetch connected agents
     useEffect(() => {

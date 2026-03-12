@@ -127,11 +127,13 @@ function Schema() {
     const onFormSave = async (data) => {
         setIsSubmitting(true);
         try {
+            // Strip id and timestamps from payload to avoid conflicts
+            const { id, created_at, updated_at, ...saveData } = data;
             if (editingId) {
-                await updateSchemaMutation.mutateAsync({ id: editingId, data });
+                await updateSchemaMutation.mutateAsync({ id: editingId, data: saveData });
                 addToast('Schema updated successfully!', 'success');
             } else {
-                await createSchemaMutation.mutateAsync(data);
+                await createSchemaMutation.mutateAsync(saveData);
                 addToast('Schema created successfully!', 'success');
             }
             resetForm();
@@ -148,11 +150,22 @@ function Schema() {
             addToast('Please select a schema to edit', 'warning');
             return;
         }
+
+        let finalSchema = { ...schema };
+        // Auto-convert legacy SQL schemas to Rules format for editing compatibility
+        if ((!schema.rules || schema.rules.length === 0) && schema.sql_command) {
+            finalSchema.rules = [{
+                source_query: schema.sql_command,
+                target_table: schema.target_table || '',
+                truncate: false,
+                notes: 'Auto-converted from legacy format'
+            }];
+        } else {
+            finalSchema.rules = schema.rules || [];
+        }
+
         setEditingId(schema.id);
-        setFormData({
-            ...schema,
-            rules: schema.rules || []
-        });
+        setFormData(finalSchema);
         setViewMode('form');
     };
 
@@ -235,7 +248,7 @@ function Schema() {
                         onEdit={handleEdit}
                         onDelete={handleDeleteClick}
                         onDuplicate={handleDuplicate}
-                        onView={(s) => setSelectedSchemaForView(s)}
+                        onView={(s) => { if (s) setSelectedSchemaForView(s); }}
                         onNew={() => {
                             resetForm();
                             setViewMode('form');
@@ -366,9 +379,10 @@ function Schema() {
                 onClose={() => setDeleteTarget(null)}
                 onConfirm={handleDeleteConfirm}
                 title="Delete Schema"
-                message={`Are you sure?`}
+                message={`Are you sure you want to delete "${deleteTarget?.name}"?`}
                 confirmText="Delete"
                 isLoading={isLoading}
+                isDark={isDark}
             />
         </div>
     );

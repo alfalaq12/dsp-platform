@@ -26,7 +26,7 @@ export const queryKeys = {
 // Stale Time Configuration (in milliseconds)
 // ============================================
 const STALE_TIME = {
-  frequent: 30 * 1000,      // 30 seconds - for frequently changing data
+  frequent: 10 * 1000,      // 10 seconds - for frequently changing data
   standard: 60 * 1000,      // 1 minute - default
   rare: 5 * 60 * 1000,      // 5 minutes - for rarely changing data
 };
@@ -85,7 +85,7 @@ export const useNetworks = () => {
       const { data } = await api.getNetworks();
       return data;
     },
-    staleTime: STALE_TIME.standard,
+    staleTime: STALE_TIME.frequent,
   });
 };
 

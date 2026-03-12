@@ -212,7 +212,7 @@ const NodeRow = ({ agent, onRename, onUpdateNotes, onPromote, onDelete, isDark }
                         <Share2 className="w-4 h-4" />
                     </button>
                     <button
-                        onClick={() => {/* Open Terminal */ }}
+                        onClick={() => navigate('/terminal', { state: { agentName: agent.name } })}
                         title="Node Terminal"
                         className={`p-2.5 rounded-xl transition-all duration-300 ${isDark
                             ? 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
@@ -293,9 +293,9 @@ export default function Nodes() {
     };
 
     const filteredNetworks = (networks || []).filter(n =>
-        n.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        n.ip_address.includes(searchQuery) ||
-        (n.notes && n.notes.toLowerCase().includes(searchQuery.toLowerCase()))
+        (n.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (n.ip_address || '').includes(searchQuery) ||
+        (n.notes || '').toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     return (

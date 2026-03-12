@@ -133,7 +133,6 @@ const SchemaTable = ({
                                         } hover:bg-blue-500/10`}
                                     onClick={() => {
                                         setSelectedSchema(schema);
-                                        onView(schema);
                                     }}
                                 >
                                     <td className="px-2 py-1.5 text-center border-r">
@@ -144,7 +143,6 @@ const SchemaTable = ({
                                             className="w-3 h-3 cursor-pointer"
                                             onChange={() => {
                                                 setSelectedSchema(schema);
-                                                onView(schema);
                                             }}
                                         />
                                     </td>

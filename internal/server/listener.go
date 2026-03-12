@@ -723,7 +723,9 @@ func (al *AgentListener) updateJobLog(logID float64, isPartial bool, status stri
 				jobLog.Status = "running"
 			}
 		} else {
-			jobLog.Status = status
+			if jobLog.Status != "failed" {
+				jobLog.Status = status
+			}
 			jobLog.CompletedAt = time.Now()
 			jobLog.Duration = time.Since(jobLog.StartedAt).Milliseconds()
 		}
@@ -757,9 +759,11 @@ func (al *AgentListener) updateJobStatus(jobID uint, isPartial bool, status stri
 				job.Status = "running"
 			}
 		} else {
-			job.Status = status
+			if job.Status != "failed" {
+				job.Status = status
+			}
+			job.LastRun = time.Now()
 		}
-
 		// Update checkpoint if applicable and it's not empty, and if it's greater than current
 		if len(newCheckpoint) > 0 && newCheckpoint[0] != "" {
 			if job.LastCheckpoint == "" || newCheckpoint[0] > job.LastCheckpoint {
