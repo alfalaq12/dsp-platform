@@ -2324,7 +2324,7 @@ func executeRunQuery(conn net.Conn, msg AgentMessage) {
 		}
 	}
 
-	results, err := db.ExecuteQuery(query)
+	results, columnTypes, err := db.ExecuteQueryExtended(query)
 	duration := time.Since(startTime).Milliseconds()
 
 	if err != nil {
@@ -2338,6 +2338,7 @@ func executeRunQuery(conn net.Conn, msg AgentMessage) {
 	// Format response with metadata
 	response.Data["success"] = true
 	response.Data["results"] = results
+	response.Data["columns"] = columnTypes // Include types for UI
 	response.Data["row_count"] = len(results)
 	response.Data["duration"] = duration
 	response.Data["metadata"] = map[string]interface{}{

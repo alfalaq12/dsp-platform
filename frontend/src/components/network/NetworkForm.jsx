@@ -90,7 +90,9 @@ const NetworkForm = ({ formData, setFormData, editingId, isSubmitting, onSubmit,
         };
 
         setTestConfig(config);
-        setTestAgent(formData.agent_name || 'LOCAL');
+        // If testing target, it's usually on Master host
+        const agent = isTarget ? 'MASTER' : (formData.agent_name || formData.name || 'LOCAL');
+        setTestAgent(agent);
         setShowTestConsole(true);
     };
 

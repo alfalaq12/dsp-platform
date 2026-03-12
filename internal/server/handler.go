@@ -1681,11 +1681,17 @@ func (h *Handler) TestNetworkConnection(c *gin.Context) {
 		},
 	}
 
-	result, err := h.agentListener.SendCommandAndWait(network.Name, command, 10*time.Second)
+	// Routing logic: use AgentName if available, else fallback to Name
+	targetAgent := network.AgentName
+	if targetAgent == "" {
+		targetAgent = network.Name
+	}
+
+	result, err := h.agentListener.SendCommandAndWait(targetAgent, command, 10*time.Second)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"error":   fmt.Sprintf("Test failed: %v", err),
+			"error":   fmt.Sprintf("Test failed for agent [%s]: %v", targetAgent, err),
 		})
 		return
 	}
@@ -2936,12 +2942,6 @@ func (h *Handler) ExecuteQuery(c *gin.Context) {
 	userID := c.GetUint("user_id")
 	username := c.GetString("username")
 
-	// Check if agent is connected
-	if h.agentListener == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Agent listener not available"})
-		return
-	}
-
 	// Create audit log entry
 	auditLog := core.AuditLog{
 		UserID:    userID,
@@ -2955,6 +2955,107 @@ func (h *Handler) ExecuteQuery(c *gin.Context) {
 		CreatedAt: time.Now(),
 	}
 	h.db.Create(&auditLog)
+
+	// HANDLE LOCAL/MASTER EXECUTION
+	if agentName == "LOCAL" || agentName == "MASTER" || agentName == "MASTER HOST" {
+		startTime := time.Now()
+
+		// Build DB config from request
+		dbCfg := database.Config{
+			Driver: "postgres", // default
+		}
+
+		if d, ok := req.DBConfig["driver"].(string); ok && d != "" {
+			dbCfg.Driver = d
+		}
+		if h_host, ok := req.DBConfig["host"].(string); ok && h_host != "" {
+			dbCfg.Host = h_host
+		}
+		if p, ok := req.DBConfig["port"].(string); ok && p != "" {
+			dbCfg.Port = p
+		}
+		if u, ok := req.DBConfig["user"].(string); ok && u != "" {
+			dbCfg.User = u
+		}
+		if p, ok := req.DBConfig["password"].(string); ok && p != "" {
+			dbCfg.Password = p
+		}
+		if dn, ok := req.DBConfig["db_name"].(string); ok && dn != "" {
+			dbCfg.DBName = dn
+		}
+		if s, ok := req.DBConfig["sslmode"].(string); ok && s != "" {
+			dbCfg.SSLMode = s
+		}
+
+		// Connect locally
+		conn, err := database.Connect(dbCfg)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"error":   fmt.Sprintf("Local connect failed: %v", err),
+			})
+			return
+		}
+		defer conn.Close()
+
+		// Get Metadata (Product Version)
+		dbProduct := "Master Local Execution"
+		versionQuery := ""
+		switch dbCfg.Driver {
+		case "postgres":
+			versionQuery = "SELECT version()"
+		case "mysql":
+			versionQuery = "SELECT version()"
+		case "sqlserver", "mssql":
+			versionQuery = "SELECT @@VERSION"
+		}
+
+		if versionQuery != "" {
+			metaResults, err := conn.ExecuteQuery(versionQuery)
+			if err == nil && len(metaResults) > 0 {
+				for _, v := range metaResults[0] {
+					dbProduct = fmt.Sprintf("%v", v)
+					break
+				}
+			}
+		}
+
+		results, columnTypes, err := conn.ExecuteQueryExtended(req.Query)
+		duration := time.Since(startTime).Milliseconds()
+
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success":  false,
+				"error":    err.Error(),
+				"duration": duration,
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success":   true,
+			"results":   results,
+			"columns":   columnTypes, // Full metadata including types
+			"row_count": len(results),
+			"duration":  duration,
+			"metadata": map[string]interface{}{
+				"product": dbProduct,
+				"driver":  dbCfg.Driver,
+				"host":    dbCfg.Host,
+				"port":    dbCfg.Port,
+				"db_name": dbCfg.DBName,
+				"user":    dbCfg.User,
+			},
+		})
+		return
+	}
+
+	// REGULAR AGENT EXECUTION
+	// Check if agent is connected
+	if h.agentListener == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Agent listener not available"})
+		return
+	}
 
 	// Send command to agent
 	command := core.AgentMessage{

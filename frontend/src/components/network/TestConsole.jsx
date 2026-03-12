@@ -25,6 +25,7 @@ const TestConsole = ({ network, agentName, dbConfig, onClose, addToast }) => {
     const [limit, setLimit] = useState(1000);
     const [connectionStatus, setConnectionStatus] = useState('connecting'); // 'connecting', 'connected', 'failed'
     const [isInitialLoading, setIsInitialLoading] = useState(true);
+    const [columnTypes, setColumnTypes] = useState([]);
 
     // Saved Queries Logic
     const [savedQueries, setSavedQueries] = useState(() => {
@@ -72,6 +73,7 @@ const TestConsole = ({ network, agentName, dbConfig, onClose, addToast }) => {
 
                 // Set results for real user queries or successful initial test (as initial rows)
                 setResults(response.data.results || []);
+                setColumnTypes(response.data.columns || []); // Extract new column types
                 setRowCount(response.data.row_count || 0);
                 setDuration(response.data.duration || 0);
 
@@ -339,7 +341,14 @@ const TestConsole = ({ network, agentName, dbConfig, onClose, addToast }) => {
                                                 <th className="px-4 py-2 text-[10px] font-black text-blue-500 uppercase border-r border-slate-800 bg-slate-800/20 w-12 text-center">#</th>
                                                 {Object.keys(results[0]).map(col => (
                                                     <th key={col} className="px-4 py-2 text-[10px] font-black text-slate-400 border-r last:border-0 border-slate-800 uppercase tracking-tighter">
-                                                        {col}
+                                                        <div className="flex flex-col">
+                                                            <span>{col}</span>
+                                                            {columnTypes && columnTypes.find(c => c.name === col) && (
+                                                                <span className="text-[9px] font-mono text-blue-500/60 normal-case mt-0.5">
+                                                                    {columnTypes.find(c => c.name === col).type.toLowerCase()}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </th>
                                                 ))}
                                             </tr>

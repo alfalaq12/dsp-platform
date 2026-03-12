@@ -150,7 +150,69 @@ func (c *Connection) ExecuteQuery(query string, args ...interface{}) ([]map[stri
 	return results, nil
 }
 
-// ExecuteQueryWithBatch executes SQL query and processes results in batches
+// ExecuteQueryExtended executes SQL query and returns results as map and column types
+func (c *Connection) ExecuteQueryExtended(query string, args ...interface{}) ([]map[string]interface{}, []map[string]string, error) {
+	rows, err := c.DB.Query(query, args...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("query execution failed: %w", err)
+	}
+	defer rows.Close()
+
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get columns: %w", err)
+	}
+
+	columnTypes, err := rows.ColumnTypes()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get column types: %w", err)
+	}
+
+	meta := make([]map[string]string, len(columns))
+	for i, ct := range columnTypes {
+		meta[i] = map[string]string{
+			"name": ct.Name(),
+			"type": ct.DatabaseTypeName(),
+		}
+	}
+
+	var results []map[string]interface{}
+
+	for rows.Next() {
+		values := make([]interface{}, len(columns))
+		valuePtrs := make([]interface{}, len(columns))
+
+		for i := range values {
+			valuePtrs[i] = &values[i]
+		}
+
+		if err := rows.Scan(valuePtrs...); err != nil {
+			return nil, nil, fmt.Errorf("failed to scan row: %w", err)
+		}
+
+		row := make(map[string]interface{})
+		for i, col := range columns {
+			var v interface{}
+			val := values[i]
+
+			if b, ok := val.([]byte); ok {
+				v = string(b)
+			} else {
+				v = val
+			}
+
+			row[col] = v
+		}
+
+		results = append(results, row)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, nil, fmt.Errorf("row iteration error: %w", err)
+	}
+
+	return results, meta, nil
+}
 // This prevents high memory usage for large datasets
 func (c *Connection) ExecuteQueryWithBatch(query string, batchSize int, callback func([]map[string]interface{}) error) error {
 	rows, err := c.DB.Query(query)
