@@ -277,6 +277,11 @@ func setupRouter(handler *server.Handler) *gin.Engine {
 		api.POST("/jobs/:id/run", auth.RequireRole("admin"), handler.RunJob)
 		api.POST("/jobs/:id/abort", auth.RequireRole("admin"), handler.AbortJob)
 		api.POST("/jobs/:id/toggle", auth.RequireRole("admin"), handler.ToggleJob)
+		api.POST("/jobs/:id/reset", auth.RequireRole("admin"), handler.ResetJob)
+		api.POST("/jobs/:id/signal", auth.RequireRole("admin"), handler.SignalUpdate)
+		api.POST("/jobs/signal-global", auth.RequireRole("admin"), handler.SignalUpdateGlobal)
+		api.POST("/schemas/:id/run-jobs", auth.RequireRole("admin"), handler.StartSchemaJobs)
+		api.GET("/jobs/:id/compare", auth.RequireRole("admin"), handler.GetCompareResult)
 
 		// Agent config endpoint
 		api.GET("/jobs/agent/:name", handler.GetAgentJobs)

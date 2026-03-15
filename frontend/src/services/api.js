@@ -54,6 +54,11 @@ export const deleteJob = (id) => api.delete(`/jobs/${id}`);
 export const runJob = (id) => api.post(`/jobs/${id}/run`);
 export const abortJob = (id) => api.post(`/jobs/${id}/abort`);
 export const toggleJob = (id) => api.post(`/jobs/${id}/toggle`);
+export const resetJob = (id) => api.post(`/jobs/${id}/reset`);
+export const signalUpdate = (id) => api.post(`/jobs/${id}/signal`);
+export const signalUpdateGlobal = () => api.post('/jobs/signal-global');
+export const startSchemaJobs = (id) => api.post(`/schemas/${id}/run-jobs`);
+export const getCompareResult = (id) => api.get(`/jobs/${id}/compare`);
 export const getNotifications = () => api.get('/notifications');
 
 // Settings

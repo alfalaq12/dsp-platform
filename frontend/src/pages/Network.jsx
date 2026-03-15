@@ -30,6 +30,8 @@ function Network() {
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState(null);
     const [formData, setFormData] = useState({ ...INITIAL_FORM_DATA });
+    const [search1, setSearch1] = useState('');
+    const [search2, setSearch2] = useState('');
 
     // UX states
     const [isLoading, setIsLoading] = useState(false);
@@ -243,77 +245,90 @@ function Network() {
     // ===== Render =====
 
     return (
-        <div className="space-y-6">
+        <div className="h-full">
             <ToastContainer toasts={toasts} removeToast={removeToast} />
 
-            {/* Page Header */}
-            <div className={`relative overflow-hidden rounded-2xl p-8 border hover:shadow-xl transition-all duration-300 ${isDark ? 'bg-gradient-to-br from-slate-800 via-slate-800/95 to-slate-900 border-slate-700/50' : 'bg-gradient-to-br from-white via-purple-50/30 to-blue-50/20 border-slate-200/60 shadow-lg'}`}>
-                <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-purple-500/10 to-blue-500/10 rounded-full blur-3xl"></div>
-                <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div>
-                        <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium mb-3 ${isDark ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>
-                            <NetworkIcon className="w-3 h-3" /> Connectivity
+            {!showForm ? (
+                <div className={`min-h-screen animate-fade-in ${isDark ? 'bg-slate-950' : 'bg-slate-50'}`}>
+                    <div className="max-w-7xl mx-auto p-6 lg:p-8 space-y-8">
+                        {/* Page Header */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div>
+                                <h1 className={`text-3xl font-bold tracking-tight ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>Network Management</h1>
+                                <p className={isDark ? 'text-slate-400 mt-1' : 'text-slate-500 mt-1'}>Manage database connections and file servers</p>
+                            </div>
+                            <div>
+                                {userRole === 'admin' && (
+                                    <button
+                                        onClick={() => {
+                                            resetForm();
+                                            setShowForm(true);
+                                        }}
+                                        className={`px-6 py-2.5 text-white rounded-xl font-bold transition-all shadow-md flex items-center gap-2 ${
+                                            isDark ? 'bg-blue-700 hover:bg-blue-600 shadow-blue-900/20' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200'
+                                        }`}
+                                    >
+                                        <Plus className="w-5 h-5" />
+                                        New Network
+                                    </button>
+                                )}
+                            </div>
                         </div>
-                        <h1 className={`text-3xl font-bold mb-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>Network Management</h1>
-                        <p className={isDark ? 'text-slate-400' : 'text-slate-600'}>Manage database connections and file servers</p>
+
+                        {/* Data Table Container */}
+                        <div className={`rounded-3xl border shadow-xl overflow-hidden ${
+                            isDark ? 'bg-slate-900 border-slate-800 shadow-black/20' : 'bg-white border-slate-200 shadow-slate-200/50'
+                        }`}>
+                            <NetworkTable
+                                networks={networks}
+                                currentPage={currentPage}
+                                itemsPerPage={itemsPerPage}
+                                userRole={userRole}
+                                testingNetwork={testingNetwork}
+                                testingTargetNetwork={testingTargetNetwork}
+                                reversingNetwork={reversingNetwork}
+                                cloningNetwork={cloningNetwork}
+                                onTestSource={handleTestConnection}
+                                onTestTarget={handleTestTargetConnection}
+                                onReverse={handleReverseNetwork}
+                                onView={setSelectedNetwork}
+                                onAdd={() => { resetForm(); setShowForm(true); }}
+                                onEdit={handleEdit}
+                                onClone={handleClone}
+                                onDelete={setDeleteTarget}
+                            />
+                        </div>
+
+                        {/* Pagination */}
+                        {(networks || []).length > 0 && (
+                            <Pagination
+                                currentPage={currentPage}
+                                totalItems={(networks || []).length}
+                                itemsPerPage={itemsPerPage}
+                                onPageChange={setCurrentPage}
+                                onItemsPerPageChange={setItemsPerPage}
+                            />
+                        )}
+
+                        {(networks || []).length === 0 && (
+                            <div className="text-center py-12 text-slate-400">
+                                <NetworkIcon className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                                <p>No networks yet. Create one to get started.</p>
+                            </div>
+                        )}
                     </div>
-                    {userRole === 'admin' && (
-                        <button onClick={() => setShowForm(!showForm)}
-                            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white rounded-xl transition-all duration-200 shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 hover:-translate-y-0.5">
-                            <Plus className="w-5 h-5" /><span className="font-medium">New Network</span>
-                        </button>
-                    )}
                 </div>
-            </div>
-
-            {/* Network Form (extracted component) */}
-            {showForm && (
-                <NetworkForm
-                    formData={formData}
-                    setFormData={setFormData}
-                    editingId={editingId}
-                    isSubmitting={isSubmitting}
-                    onSubmit={handleSubmit}
-                    onCancel={resetForm}
-                    addToast={addToast}
-                />
-            )}
-
-            {/* Network Table + Cards (extracted component) */}
-            <NetworkTable
-                networks={networks}
-                currentPage={currentPage}
-                itemsPerPage={itemsPerPage}
-                userRole={userRole}
-                testingNetwork={testingNetwork}
-                testingTargetNetwork={testingTargetNetwork}
-                reversingNetwork={reversingNetwork}
-                cloningNetwork={cloningNetwork}
-                onTestSource={handleTestConnection}
-                onTestTarget={handleTestTargetConnection}
-                onReverse={handleReverseNetwork}
-                onView={setSelectedNetwork}
-                onAdd={() => { resetForm(); setShowForm(true); }}
-                onEdit={handleEdit}
-                onClone={handleClone}
-                onDelete={setDeleteTarget}
-            />
-
-            {/* Pagination */}
-            {(networks || []).length > 0 && (
-                <Pagination
-                    currentPage={currentPage}
-                    totalItems={(networks || []).length}
-                    itemsPerPage={itemsPerPage}
-                    onPageChange={setCurrentPage}
-                    onItemsPerPageChange={setItemsPerPage}
-                />
-            )}
-
-            {(networks || []).length === 0 && (
-                <div className="text-center py-12 text-slate-400">
-                    <NetworkIcon className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>No networks yet. Create one to get started.</p>
+            ) : (
+                <div className="h-full animate-slide-up">
+                    <NetworkForm
+                        formData={formData}
+                        setFormData={setFormData}
+                        editingId={editingId}
+                        isSubmitting={isSubmitting}
+                        onSubmit={handleSubmit}
+                        onCancel={resetForm}
+                        addToast={addToast}
+                    />
                 </div>
             )}
 

@@ -76,7 +76,7 @@ export default function NetworkTable({
     const { isDark } = useTheme();
     const [search1, setSearch1] = useState('');
     const [search2, setSearch2] = useState('');
-    const [selectedId, setSelectedId] = useState(null);
+    const [selectedIds, setSelectedIds] = useState([]);
 
     const networkList = networks || [];
     const filtered = networkList.filter(n => {
@@ -88,7 +88,23 @@ export default function NetworkTable({
 
     const paged = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
+    const selectedId = selectedIds[0];
     const selectedNetwork = networkList.find(n => n.id === selectedId);
+
+    const toggleSelectAll = () => {
+        if (selectedIds.length === paged.length) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(paged.map(n => n.id));
+        }
+    };
+
+    const toggleSelectRow = (id, e) => {
+        e.stopPropagation();
+        setSelectedIds(prev => 
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
+    };
 
     return (
         <div className="space-y-4">
@@ -127,7 +143,14 @@ export default function NetworkTable({
                     <table className="w-full border-collapse text-left">
                         <thead>
                             <tr className={`text-[10px] font-bold uppercase tracking-wider border-b ${isDark ? 'bg-slate-800/50 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-700 border-slate-300'}`}>
-                                <th className="p-2 w-8"></th>
+                                <th className="p-2 w-8">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={selectedIds.length === paged.length && paged.length > 0}
+                                        onChange={toggleSelectAll}
+                                        className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" 
+                                    />
+                                </th>
                                 <th className="p-2 border-r border-slate-300/30">ID</th>
                                 <th className="p-2 border-r border-slate-300/30">SID</th>
                                 <th className="p-2 border-r border-slate-300/30">Schedule</th>
@@ -147,17 +170,20 @@ export default function NetworkTable({
                                 return (
                                     <tr
                                         key={n.id}
-                                        onClick={() => setSelectedId(n.id)}
-                                        className={`group cursor-pointer border-b last:border-0 transition-colors ${selectedId === n.id
+                                        onClick={(e) => toggleSelectRow(n.id, e)}
+                                        className={`group cursor-pointer border-b last:border-0 transition-colors ${selectedIds.includes(n.id)
                                             ? (isDark ? 'bg-blue-500/20' : 'bg-blue-50')
                                             : (isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50')
                                             } ${isDark ? 'border-slate-800/50' : 'border-slate-100'}`}
                                     >
                                         <td className="p-2 text-center">
-                                            <div className={`w-3.5 h-3.5 rounded-full border-2 transition-all ${selectedId === n.id
-                                                ? 'border-blue-500 bg-blue-500 ring-2 ring-blue-500/20'
-                                                : (isDark ? 'border-slate-700' : 'border-slate-400')
-                                                }`} />
+                                            <input 
+                                                type="checkbox" 
+                                                checked={selectedIds.includes(n.id)}
+                                                onChange={(e) => toggleSelectRow(n.id, e)}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" 
+                                            />
                                         </td>
                                         <td className={`p-2 text-[11px] font-mono ${isDark ? 'opacity-60 text-slate-400' : 'text-slate-900 font-black opacity-100'}`}>#{n.id}</td>
                                         <td className={`p-2 text-[11px] font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{job.name || 'kosong'}</td>
@@ -204,8 +230,8 @@ export default function NetworkTable({
                     </button>
                     <button
                         onClick={() => selectedNetwork && onEdit(selectedNetwork)}
-                        disabled={!selectedId}
-                        className={`px-4 py-2 text-xs font-bold rounded-lg border transition-all ${!selectedId ? 'opacity-30 cursor-not-allowed' : (isDark ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white' : 'bg-slate-100 border-slate-300 hover:bg-slate-200 text-slate-700 shadow-sm')
+                        disabled={selectedIds.length !== 1}
+                        className={`px-4 py-2 text-xs font-bold rounded-lg border transition-all ${selectedIds.length !== 1 ? 'opacity-30 cursor-not-allowed' : (isDark ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white' : 'bg-slate-100 border-slate-300 hover:bg-slate-200 text-slate-700 shadow-sm')
                             }`}
                     >
                         Edit
@@ -220,11 +246,11 @@ export default function NetworkTable({
                     </button>
                     <button
                         onClick={() => selectedNetwork && onDelete(selectedNetwork)}
-                        disabled={!selectedId}
-                        className={`px-4 py-2 text-xs font-bold rounded-lg border transition-all ${!selectedId ? 'opacity-30 cursor-not-allowed' : (isDark ? 'bg-rose-500/10 border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white' : 'bg-rose-100 border-rose-300 text-rose-700 hover:bg-rose-600 hover:text-white shadow-sm')
+                        disabled={selectedIds.length === 0}
+                        className={`px-4 py-2 text-xs font-bold rounded-lg border transition-all ${selectedIds.length === 0 ? 'opacity-30 cursor-not-allowed' : (isDark ? 'bg-rose-500/10 border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white' : 'bg-rose-100 border-rose-300 text-rose-700 hover:bg-rose-600 hover:text-white shadow-sm')
                             }`}
                     >
-                        Delete
+                        Delete {selectedIds.length > 1 ? `(${selectedIds.length})` : ''}
                     </button>
                 </div>
 

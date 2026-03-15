@@ -15,6 +15,10 @@ type Schema struct {
 	// Source Type: query, file, javascript, api
 	SourceType string `json:"source_type" gorm:"default:'query'"`
 
+	// Redesign fields
+	OwnerID  uint   `json:"owner_id" gorm:"index"`   // ID of the Network/Agent that owns this schema
+	DBSchema string `json:"db_schema" gorm:"index"` // Database schema name (e.g. 'public', 'dbo')
+
 	// Rules for extraction (1:N)
 	Rules []SchemaRule `json:"rules" gorm:"foreignKey:SchemaID;constraint:OnDelete:CASCADE"`
 
@@ -183,6 +187,33 @@ type Job struct {
 	Incremental      bool   `json:"incremental" gorm:"default:false"`
 	CheckpointColumn string `json:"checkpoint_column"` // e.g., "id" or "updated_at"
 	LastCheckpoint   string `json:"last_checkpoint"`   // Stores the actual ca_pointer value
+
+	// Enterprise Metrics (Jobs Page Redesign)
+	SourceNode string `json:"source_node"` // Snapshots
+	TargetNode string `json:"target_node"`
+	DestTable  string `json:"dest_table"`
+
+	UL_Rows  int    `json:"ul_rows"`
+	UL_Speed int    `json:"ul_speed"`
+	UL_Start string `json:"ul_start"`
+	UL_End   string `json:"ul_end"`
+
+	EX_Rows  int    `json:"ex_rows"`
+	EX_Segs  int    `json:"ex_segs"`
+	EX_Start string `json:"ex_start"`
+	EX_End   string `json:"ex_end"`
+
+	StatusESAC string `json:"status_esac"` // Shorthand codes
+	StatusESAV string `json:"status_esav"`
+	StatusXS   string `json:"status_xs"`
+	StatusXE   string `json:"status_xe"`
+
+	UL_EM string `json:"ul_em"` // Upload Error Message
+	EX_EM string `json:"ex_em"` // Extraction Error Message
+
+	SourceConn string `json:"source_conn"`
+	TargetConn string `json:"target_conn"`
+	User       string `json:"user_display"` // Display name of the user who ran it
 
 	// Relations
 	Schema  *Schema `json:"schema,omitempty" gorm:"foreignKey:SchemaID"` // Optional relation

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Edit, Trash2, Database, Eye, Code, FileSpreadsheet, Download, Search, CheckSquare, Square, Loader2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Database, Eye, Code, FileSpreadsheet, Download, Search, Filter, CheckSquare, Square, Loader2 } from 'lucide-react';
 import { useSchemas, useNetworks, useCreateSchema, useUpdateSchema, useDeleteSchema, useDiscoverTables, useBulkCreateSchemas, useNetworkSchemas } from '../hooks/useQueries';
 import { useToast, ToastContainer, ConfirmModal, ViewModal } from '../components/Toast';
 import { useTheme } from '../contexts/ThemeContext';
@@ -226,34 +226,94 @@ function Schema() {
             <ToastContainer toasts={toasts} removeToast={removeToast} />
 
             {viewMode === 'list' ? (
-                <div className="space-y-6 animate-fade-in p-6 lg:p-8">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Schema Management</h1>
-                            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Manage and configure data extraction rules</p>
+                <div className={`min-h-screen animate-fade-in ${isDark ? 'bg-slate-950' : 'bg-slate-50'}`}>
+                    <div className="max-w-7xl mx-auto p-6 lg:p-8 space-y-8">
+                        {/* Page Header */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div>
+                                <h1 className={`text-3xl font-bold tracking-tight ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>Schema Management</h1>
+                                <p className={isDark ? 'text-slate-400 mt-1' : 'text-slate-500 mt-1'}>Manage and configure data extraction rules</p>
+                            </div>
+                            <div>
+                                <button
+                                    onClick={() => setShowImportModal(true)}
+                                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl border font-semibold transition-all shadow-sm ${
+                                        isDark 
+                                            ? 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700' 
+                                            : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                                    }`}
+                                >
+                                    <Download className="w-4 h-4" />
+                                    Import Tables
+                                </button>
+                            </div>
                         </div>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => setShowImportModal(true)}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${isDark ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/30' : 'bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100'}`}
-                            >
-                                <Download className="w-4 h-4" />
-                                Import Tables
-                            </button>
+
+                        {/* Top Action Bar */}
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                            <div>
+                                <button
+                                    onClick={() => {
+                                        resetForm();
+                                        setViewMode('form');
+                                    }}
+                                    className={`px-6 py-2.5 text-white rounded-xl font-bold transition-all shadow-md flex items-center gap-2 ${
+                                        isDark ? 'bg-blue-700 hover:bg-blue-600 shadow-blue-900/20' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200'
+                                    }`}
+                                >
+                                    <Plus className="w-5 h-5" />
+                                    New Schema
+                                </button>
+                            </div>
+
+                            <div className={`flex flex-col sm:flex-row items-center gap-2 p-1.5 rounded-2xl border shadow-sm w-full lg:w-auto ${
+                                isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+                            }`}>
+                                <div className="relative flex-1 sm:w-64">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search by Name..."
+                                        className={`w-full pl-9 pr-4 py-2 border-transparent rounded-xl text-sm transition-all outline-none ${
+                                            isDark ? 'bg-slate-800 text-slate-200 focus:bg-slate-700' : 'bg-slate-50 text-slate-900 focus:bg-white focus:border-blue-500'
+                                        }`}
+                                    />
+                                </div>
+                                <div className="relative flex-1 sm:w-64">
+                                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search by Group..."
+                                        className={`w-full pl-9 pr-4 py-2 border-transparent rounded-xl text-sm transition-all outline-none ${
+                                            isDark ? 'bg-slate-800 text-slate-200 focus:bg-slate-700' : 'bg-slate-50 text-slate-900 focus:bg-white focus:border-blue-500'
+                                        }`}
+                                    />
+                                </div>
+                                <button className={`w-full sm:w-auto px-6 py-2 text-white rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
+                                    isDark ? 'bg-blue-700 hover:bg-blue-600' : 'bg-blue-600 hover:bg-blue-700'
+                                }`}>
+                                    Search
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Data Table Container */}
+                        <div className={`rounded-3xl border shadow-xl overflow-hidden ${
+                            isDark ? 'bg-slate-900 border-slate-800 shadow-black/20' : 'bg-white border-slate-200 shadow-slate-200/50'
+                        }`}>
+                            <SchemaTable
+                                schemas={schemas}
+                                onEdit={handleEdit}
+                                onDelete={handleDeleteClick}
+                                onDuplicate={handleDuplicate}
+                                onView={(s) => { if (s) setSelectedSchemaForView(s); }}
+                                onNew={() => {
+                                    resetForm();
+                                    setViewMode('form');
+                                }}
+                            />
                         </div>
                     </div>
-
-                    <SchemaTable
-                        schemas={schemas}
-                        onEdit={handleEdit}
-                        onDelete={handleDeleteClick}
-                        onDuplicate={handleDuplicate}
-                        onView={(s) => { if (s) setSelectedSchemaForView(s); }}
-                        onNew={() => {
-                            resetForm();
-                            setViewMode('form');
-                        }}
-                    />
                 </div>
             ) : (
                 <div className="h-full animate-slide-up">

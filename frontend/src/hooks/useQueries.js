@@ -249,6 +249,38 @@ export const useToggleJob = () => {
   });
 };
 
+export const useResetJob = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.resetJob,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+    },
+  });
+};
+
+export const useSignalUpdate = () => {
+  return useMutation({
+    mutationFn: api.signalUpdate,
+  });
+};
+
+export const useSignalUpdateGlobal = () => {
+  return useMutation({
+    mutationFn: api.signalUpdateGlobal,
+  });
+};
+
+export const useStartSchemaJobs = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.startSchemaJobs,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+    },
+  });
+};
+
 // ============================================
 // Notification Hooks
 // ============================================
