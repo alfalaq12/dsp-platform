@@ -43,11 +43,41 @@ function Schema() {
     const [tableSearchQuery, setTableSearchQuery] = useState('');
     const [selectedDbSchema, setSelectedDbSchema] = useState(''); // Database schema filter (e.g., 'public', 'mrz')
 
+    const [searchName, setSearchName] = useState('');
+    const [searchGroup, setSearchGroup] = useState('');
+    const [activeSearchName, setActiveSearchName] = useState('');
+    const [activeSearchGroup, setActiveSearchGroup] = useState('');
+
+    const handleSearch = () => {
+        setActiveSearchName(searchName);
+        setActiveSearchGroup(searchGroup);
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            handleSearch();
+        }
+    };
+
     // React Query hooks
     const { data: allSchemasData } = useSchemas();
     const { data: networksData } = useNetworks();
-    const schemas = allSchemasData || [];
+    const rawSchemas = allSchemasData || [];
     const allNetworks = networksData || [];
+    
+    // Filter schemas based on search
+    const schemas = rawSchemas.filter(s => {
+        const matchesName = !activeSearchName || 
+            (s.name && s.name.toLowerCase().includes(activeSearchName.toLowerCase())) ||
+            (s.target_table && s.target_table.toLowerCase().includes(activeSearchName.toLowerCase()));
+            
+        const actualGroup = s.group || 'General';
+        const matchesGroup = !activeSearchGroup || 
+            actualGroup.toLowerCase().includes(activeSearchGroup.toLowerCase());
+            
+        return matchesName && matchesGroup;
+    });
+    
     const createSchemaMutation = useCreateSchema();
     const updateSchemaMutation = useUpdateSchema();
     const deleteSchemaMutation = useDeleteSchema();
@@ -274,6 +304,9 @@ function Schema() {
                                     <input
                                         type="text"
                                         placeholder="Search by Name..."
+                                        value={searchName}
+                                        onChange={(e) => setSearchName(e.target.value)}
+                                        onKeyDown={handleKeyDown}
                                         className={`w-full pl-9 pr-4 py-2 border-transparent rounded-xl text-sm transition-all outline-none ${
                                             isDark ? 'bg-slate-800 text-slate-200 focus:bg-slate-700' : 'bg-slate-50 text-slate-900 focus:bg-white focus:border-blue-500'
                                         }`}
@@ -284,12 +317,17 @@ function Schema() {
                                     <input
                                         type="text"
                                         placeholder="Search by Group..."
+                                        value={searchGroup}
+                                        onChange={(e) => setSearchGroup(e.target.value)}
+                                        onKeyDown={handleKeyDown}
                                         className={`w-full pl-9 pr-4 py-2 border-transparent rounded-xl text-sm transition-all outline-none ${
                                             isDark ? 'bg-slate-800 text-slate-200 focus:bg-slate-700' : 'bg-slate-50 text-slate-900 focus:bg-white focus:border-blue-500'
                                         }`}
                                     />
                                 </div>
-                                <button className={`w-full sm:w-auto px-6 py-2 text-white rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
+                                <button 
+                                    onClick={handleSearch}
+                                    className={`w-full sm:w-auto px-6 py-2 text-white rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
                                     isDark ? 'bg-blue-700 hover:bg-blue-600' : 'bg-blue-600 hover:bg-blue-700'
                                 }`}>
                                     Search

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Plus, Network as NetworkIcon, Circle } from 'lucide-react';
+import { Plus, Network as NetworkIcon, Circle, Search, Filter } from 'lucide-react';
 import { useNetworks, useCreateNetwork, useUpdateNetwork, useDeleteNetwork, useTestNetworkConnection, useTestNetworkTargetConnection, useReverseNetwork, useCloneNetwork } from '../hooks/useQueries';
 import { useToast, ToastContainer, ConfirmModal, ViewModal } from '../components/Toast';
 import Pagination from '../components/Pagination';
@@ -30,8 +30,21 @@ function Network() {
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState(null);
     const [formData, setFormData] = useState({ ...INITIAL_FORM_DATA });
-    const [search1, setSearch1] = useState('');
-    const [search2, setSearch2] = useState('');
+    const [searchName, setSearchName] = useState('');
+    const [searchNotes, setSearchNotes] = useState('');
+    const [activeSearchName, setActiveSearchName] = useState('');
+    const [activeSearchNotes, setActiveSearchNotes] = useState('');
+
+    const handleSearch = () => {
+        setActiveSearchName(searchName);
+        setActiveSearchNotes(searchNotes);
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            handleSearch();
+        }
+    };
 
     // UX states
     const [isLoading, setIsLoading] = useState(false);
@@ -50,7 +63,18 @@ function Network() {
     const [itemsPerPage, setItemsPerPage] = useState(5);
 
     // React Query hooks
-    const { data: networks = [] } = useNetworks();
+    const { data: rawNetworks = [] } = useNetworks();
+
+    // Filter networks based on search
+    const networks = Array.isArray(rawNetworks) ? rawNetworks.filter(n => {
+        const contentName = `${n.id || ''} ${n.name || ''} ${n.agent_name || ''} ${n.ip_address || ''}`.toLowerCase();
+        const contentNotes = `${n.notes || ''}`.toLowerCase();
+        
+        const matchesName = !activeSearchName || contentName.includes(activeSearchName.toLowerCase());
+        const matchesNotes = !activeSearchNotes || contentNotes.includes(activeSearchNotes.toLowerCase());
+            
+        return matchesName && matchesNotes;
+    }) : [];
     const createNetworkMutation = useCreateNetwork();
     const updateNetworkMutation = useUpdateNetwork();
     const deleteNetworkMutation = useDeleteNetwork();
@@ -257,6 +281,10 @@ function Network() {
                                 <h1 className={`text-3xl font-bold tracking-tight ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>Network Management</h1>
                                 <p className={isDark ? 'text-slate-400 mt-1' : 'text-slate-500 mt-1'}>Manage database connections and file servers</p>
                             </div>
+                        </div>
+
+                        {/* Top Action Bar */}
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                             <div>
                                 {userRole === 'admin' && (
                                     <button
@@ -272,6 +300,44 @@ function Network() {
                                         New Network
                                     </button>
                                 )}
+                            </div>
+
+                            <div className={`flex flex-col sm:flex-row items-center gap-2 p-1.5 rounded-2xl border shadow-sm w-full lg:w-auto ${
+                                isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+                            }`}>
+                                <div className="relative flex-1 sm:w-64">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search ID/Name/IP..."
+                                        value={searchName}
+                                        onChange={(e) => setSearchName(e.target.value)}
+                                        onKeyDown={handleKeyDown}
+                                        className={`w-full pl-9 pr-4 py-2 border-transparent rounded-xl text-sm transition-all outline-none ${
+                                            isDark ? 'bg-slate-800 text-slate-200 focus:bg-slate-700' : 'bg-slate-50 text-slate-900 focus:bg-white focus:border-blue-500'
+                                        }`}
+                                    />
+                                </div>
+                                <div className="relative flex-1 sm:w-64">
+                                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search Notes..."
+                                        value={searchNotes}
+                                        onChange={(e) => setSearchNotes(e.target.value)}
+                                        onKeyDown={handleKeyDown}
+                                        className={`w-full pl-9 pr-4 py-2 border-transparent rounded-xl text-sm transition-all outline-none ${
+                                            isDark ? 'bg-slate-800 text-slate-200 focus:bg-slate-700' : 'bg-slate-50 text-slate-900 focus:bg-white focus:border-blue-500'
+                                        }`}
+                                    />
+                                </div>
+                                <button 
+                                    onClick={handleSearch}
+                                    className={`w-full sm:w-auto px-6 py-2 text-white rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
+                                    isDark ? 'bg-blue-700 hover:bg-blue-600' : 'bg-blue-600 hover:bg-blue-700'
+                                }`}>
+                                    Search
+                                </button>
                             </div>
                         </div>
 
