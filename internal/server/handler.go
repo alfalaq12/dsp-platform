@@ -139,6 +139,23 @@ func (h *Handler) GetSchemas(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Fetch users to map Creator
+	var users []core.User
+	h.db.Find(&users)
+	userMap := make(map[uint]string)
+	for _, u := range users {
+		userMap[u.ID] = u.Username
+	}
+
+	for i := range schemas {
+		if name, ok := userMap[schemas[i].CreatedBy]; ok {
+			schemas[i].Creator = name
+		} else {
+			schemas[i].Creator = "System"
+		}
+	}
+
 	c.JSON(http.StatusOK, schemas)
 }
 
@@ -185,6 +202,7 @@ func (h *Handler) CreateSchema(c *gin.Context) {
 		})
 	}()
 
+	schema.Creator = c.GetString("username")
 	c.JSON(http.StatusCreated, schema)
 }
 
@@ -250,6 +268,11 @@ func (h *Handler) UpdateSchema(c *gin.Context) {
 			CreatedAt: time.Now(),
 		})
 	}()
+
+	var user core.User
+	if err := h.db.First(&user, schema.CreatedBy).Error; err == nil {
+		schema.Creator = user.Username
+	}
 
 	c.JSON(http.StatusOK, schema)
 }

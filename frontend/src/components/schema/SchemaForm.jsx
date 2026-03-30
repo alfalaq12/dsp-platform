@@ -21,6 +21,7 @@ const SchemaForm = ({
         source_type: 'query', // 'query' for SQL, 'javascript' for JS
         owner_id: 1000,
         db_schema: '',
+        group: 'General',
         rules: []
     });
 
@@ -33,6 +34,7 @@ const SchemaForm = ({
                 source_type: schema.source_type || 'query',
                 owner_id: schema.owner_id !== undefined ? Number(schema.owner_id) : 1000,
                 db_schema: schema.db_schema || '',
+                group: schema.group || 'General',
                 rules: schema.rules || []
             });
         }
@@ -159,6 +161,18 @@ const SchemaForm = ({
                             type="text"
                             value={formData.name}
                             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            className={`border px-2 py-0.5 text-[11px] font-bold flex-1 max-w-sm focus:outline-none ${isDark ? 'bg-yellow-900/20 border-slate-700 text-yellow-100' : 'bg-[#ffffcc] border-slate-600 text-slate-900'}`}
+                        />
+                    </div>
+
+                    <div className="flex items-center gap-2 md:row-start-2 md:col-start-2">
+                        <label className={`text-[11px] font-bold w-32 flex-shrink-0 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Group</label>
+                        <span className={`text-[11px] font-bold mr-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>:</span>
+                        <input
+                            type="text"
+                            value={formData.group}
+                            onChange={(e) => setFormData({ ...formData, group: e.target.value })}
+                            placeholder="General"
                             className={`border px-2 py-0.5 text-[11px] font-bold flex-1 max-w-sm focus:outline-none ${isDark ? 'bg-yellow-900/20 border-slate-700 text-yellow-100' : 'bg-[#ffffcc] border-slate-600 text-slate-900'}`}
                         />
                     </div>

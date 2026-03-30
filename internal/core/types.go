@@ -18,6 +18,10 @@ type Schema struct {
 	// Redesign fields
 	OwnerID  uint   `json:"owner_id" gorm:"index"`   // ID of the Network/Agent that owns this schema
 	DBSchema string `json:"db_schema" gorm:"index"` // Database schema name (e.g. 'public', 'dbo')
+	Group    string `json:"group" gorm:"default:'General'"` // Group category
+
+	// Virtual fields for JSON
+	Creator string `json:"creator" gorm:"-"`
 
 	// Rules for extraction (1:N)
 	Rules []SchemaRule `json:"rules" gorm:"foreignKey:SchemaID;constraint:OnDelete:CASCADE"`
