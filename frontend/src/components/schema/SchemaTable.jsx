@@ -42,14 +42,7 @@ const SchemaTable = ({
         }
     };
 
-    // Dummy data for visual demonstration as requested
-    const dummyData = [
-        { id: 1, name: 'User Transactions', group: 'Finance', creator: 'John Doe', source_type: 'database' },
-        { id: 2, name: 'Inventory Logs', group: 'Logistics', creator: 'Jane Smith', source_type: 'database' },
-        { id: 3, name: 'Customer Profiles', group: 'CRM', creator: 'Admin', source_type: 'database' }
-    ];
-
-    const displaySchemas = safeSchemas.length > 0 ? paginatedSchemas : dummyData;
+    const displaySchemas = paginatedSchemas;
 
     const toggleSelectAll = () => {
         if (selectedIds.length === displaySchemas.length) {

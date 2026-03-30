@@ -1417,3 +1417,30 @@ func (al *AgentListener) ExecuteTargetQuery(query string, networkID uint) error 
 	_, err := connSpec.DB.Exec(query)
 	return err
 }
+
+// ExecutePreJobQueries handles TRUNCATE and UploadPreQuery on the target DB
+func (al *AgentListener) ExecutePreJobQueries(networkID uint, tableName string, truncate bool, uploadPreQuery string) error {
+	var errs []string
+
+	// 1. Execute TRUNCATE if requested
+	if truncate && tableName != "" {
+		truncateQuery := fmt.Sprintf("TRUNCATE TABLE %s", tableName)
+		log.Printf("ExecutePreJobQueries: Executing TRUNCATE for table %s on network %d", tableName, networkID)
+		if err := al.ExecuteTargetQuery(truncateQuery, networkID); err != nil {
+			errs = append(errs, fmt.Sprintf("Failed to truncate table %s: %v", tableName, err))
+		}
+	}
+
+	// 2. Execute UploadPreQuery if provided
+	if uploadPreQuery != "" {
+		log.Printf("ExecutePreJobQueries: Executing UploadPreQuery for table %s on network %d", tableName, networkID)
+		if err := al.ExecuteTargetQuery(uploadPreQuery, networkID); err != nil {
+			errs = append(errs, fmt.Sprintf("Failed to execute UploadPreQuery for table %s: %v", tableName, err))
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf(strings.Join(errs, "; "))
+	}
+	return nil
+}

@@ -204,15 +204,10 @@ func (s *Scheduler) runJob(job core.Job) {
 				},
 			}
 
-			// Execute Target-side Pre-Query if provided
-			if rule.UploadPreQuery != "" {
-				log.Printf("Scheduler: Executing UploadPreQuery for rule %s", rule.TargetTable)
-				err := s.agentListener.ExecuteTargetQuery(rule.UploadPreQuery, job.NetworkID)
-				if err != nil {
-					log.Printf("Scheduler: Failed to execute UploadPreQuery for rule %s: %v", rule.TargetTable, err)
-					// We continue anyway, or maybe we should fail the rule?
-					// For now, let's just log and continue.
-				}
+			// Execute Pre-Job Queries (Truncate and/or UploadPreQuery)
+			log.Printf("Scheduler: Executing Pre-Job Queries for rule %s", rule.TargetTable)
+			if err := s.agentListener.ExecutePreJobQueries(job.NetworkID, rule.TargetTable, rule.Truncate, rule.UploadPreQuery); err != nil {
+				log.Printf("Scheduler: Failed to execute Pre-Job Queries for rule %s: %v", rule.TargetTable, err)
 			}
 
 			err := s.agentListener.SendCommandToAgent(job.Network.Name, command)

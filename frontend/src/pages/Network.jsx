@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Plus, Network as NetworkIcon, Circle, Search, Filter } from 'lucide-react';
+import { Plus, Network as NetworkIcon, Circle, Search, Filter, Clipboard, ClipboardPaste } from 'lucide-react';
 import { useNetworks, useCreateNetwork, useUpdateNetwork, useDeleteNetwork, useTestNetworkConnection, useTestNetworkTargetConnection, useReverseNetwork, useCloneNetwork } from '../hooks/useQueries';
 import { useToast, ToastContainer, ConfirmModal, ViewModal } from '../components/Toast';
 import Pagination from '../components/Pagination';
@@ -55,6 +55,7 @@ function Network() {
     const [testingTargetNetwork, setTestingTargetNetwork] = useState(null);
     const [reversingNetwork, setReversingNetwork] = useState(null);
     const [cloningNetwork, setCloningNetwork] = useState(null);
+    const [hasCopied, setHasCopied] = useState(false);
     const { toasts, addToast, removeToast } = useToast();
     const userRole = localStorage.getItem('role') || 'viewer';
 
@@ -266,6 +267,44 @@ function Network() {
         } finally { setCloningNetwork(null); }
     };
 
+    const handleCopyConfig = (network) => {
+        if (!network) {
+            addToast('Please select a network to copy', 'warning');
+            return;
+        }
+        // Strip system fields and serialize to clipboard
+        const { id, created_at, updated_at, created_by, updated_by, status, last_seen, ip_address, jobs, ...config } = network;
+        const json = JSON.stringify(config, null, 2);
+        navigator.clipboard.writeText(json).then(() => {
+            setHasCopied(true);
+            addToast(`Configuration for "${network.name}" copied to clipboard!`, 'success');
+            setTimeout(() => setHasCopied(false), 3000);
+        }).catch(() => {
+            addToast('Failed to copy to clipboard', 'error');
+        });
+    };
+
+    const handlePasteConfig = async () => {
+        try {
+            const text = await navigator.clipboard.readText();
+            const config = JSON.parse(text);
+            // Pre-fill form with pasted config, append (Paste) to name
+            const pastedData = { ...INITIAL_FORM_DATA };
+            for (const key of Object.keys(pastedData)) {
+                if (config[key] !== undefined) {
+                    pastedData[key] = config[key];
+                }
+            }
+            pastedData.name = (config.name || 'Untitled') + ' (Paste)';
+            setFormData(pastedData);
+            setEditingId(null);
+            setShowForm(true);
+            addToast('Configuration pasted! Review and save.', 'info');
+        } catch (error) {
+            addToast('Failed to paste. Make sure clipboard contains valid network config JSON.', 'error');
+        }
+    };
+
     // ===== Render =====
 
     return (
@@ -298,6 +337,19 @@ function Network() {
                                     >
                                         <Plus className="w-5 h-5" />
                                         New Network
+                                    </button>
+                                )}
+                                {userRole === 'admin' && (
+                                    <button
+                                        onClick={handlePasteConfig}
+                                        className={`px-5 py-2.5 rounded-xl font-bold transition-all shadow-sm flex items-center gap-2 border ${
+                                            isDark 
+                                                ? 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700' 
+                                                : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                                        }`}
+                                    >
+                                        <ClipboardPaste className="w-5 h-5" />
+                                        Paste Config
                                     </button>
                                 )}
                             </div>
@@ -361,6 +413,7 @@ function Network() {
                                 onAdd={() => { resetForm(); setShowForm(true); }}
                                 onEdit={handleEdit}
                                 onClone={handleClone}
+                                onCopyConfig={handleCopyConfig}
                                 onDelete={setDeleteTarget}
                             />
                         </div>

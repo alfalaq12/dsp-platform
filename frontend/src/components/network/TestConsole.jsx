@@ -151,245 +151,218 @@ const TestConsole = ({ network, agentName, dbConfig, onClose, addToast }) => {
         link.click();
     };
 
-    const MetaRow = ({ label, value }) => (
-        <div className={`flex items-start gap-4 text-xs font-mono py-1 border-b last:border-0 ${isDark ? 'border-slate-700/30' : 'border-slate-200'}`}>
-            <span className={`w-32 font-bold uppercase ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>{label}</span>
-            <span className={isDark ? 'text-slate-400' : 'text-slate-400'}>:</span>
-            <span className={`flex-1 truncate ${isDark ? 'text-slate-300' : 'text-slate-700 font-medium'}`}>{value || '-'}</span>
+    const MetaBadge = ({ label, value, className = "" }) => (
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-mono border ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-600'} ${className}`}>
+            <span className={`font-semibold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{label}</span>
+            <span className="truncate max-w-[150px]">{value || '-'}</span>
         </div>
     );
 
     return (
-        <div className={`fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md transition-all duration-300`}>
-            <div className={`relative flex flex-col w-full ${isMaximized ? 'h-full' : 'max-w-6xl h-[92vh]'} ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-300 shadow-2xl'} rounded-3xl border flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300`}>
-
-                {/* Refined Header per Image 2 */}
-                <div className={`px-8 py-6 border-b flex flex-col gap-6 ${isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg">
-                                <Terminal className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <h3 className={`text-xl font-black italic tracking-tighter ${isDark ? 'text-white' : 'text-slate-900'}`}>SQL CONSOLE</h3>
-                                <div className="flex items-center gap-2">
-                                    <div className={`w-2 h-2 rounded-full animate-pulse ${connectionStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' :
-                                        connectionStatus === 'failed' ? 'bg-rose-500' : 'bg-amber-500'
-                                        }`}></div>
-                                    <span className={`text-[10px] font-bold uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-600'}`}>
-                                        {connectionStatus === 'connected' ? 'DB LINK ESTABLISHED' :
-                                            connectionStatus === 'failed' ? 'DB LINK FAILED' : 'NEGOTIATING DB LINK...'}
-                                    </span>
-                                    <span className="text-[10px] text-slate-700">|</span>
-                                    <span className={`text-[10px] font-bold uppercase tracking-widest ${isDark ? 'text-slate-500 opacity-60' : 'text-slate-600'}`}>Connected to {agentName || 'LOCAL'} HUB</span>
-                                </div>
-                            </div>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-900/40 backdrop-blur-sm transition-opacity">
+            <div className={`relative w-full ${isMaximized ? 'h-full max-h-screen rounded-none' : 'max-w-6xl h-[88vh] rounded-2xl'} flex flex-col overflow-hidden shadow-2xl transition-all duration-300 ${isDark ? 'bg-[#0f172a] border border-slate-800' : 'bg-white border border-slate-200'}`}>
+                
+                {/* Header */}
+                <div className={`flex items-center justify-between px-6 py-4 border-b ${isDark ? 'bg-slate-900 border-slate-800/60' : 'bg-white border-slate-100'}`}>
+                    <div className="flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm ${isDark ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>
+                            <Terminal className="w-5 h-5" />
                         </div>
-                        <div className="flex items-center gap-2">
-                            {connectionStatus === 'connected' && (
-                                <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-                                    <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                                    <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Stable</span>
+                        <div>
+                            <div className="flex items-center gap-3">
+                                <h3 className={`text-lg font-semibold tracking-tight ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>SQL Console</h3>
+                                <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium tracking-wide uppercase ${
+                                    connectionStatus === 'connected' ? (isDark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600') :
+                                    connectionStatus === 'failed'   ? (isDark ? 'bg-rose-500/10 text-rose-400'     : 'bg-rose-50 text-rose-600') :
+                                                                      (isDark ? 'bg-amber-500/10 text-amber-400'   : 'bg-amber-50 text-amber-600')
+                                }`}>
+                                    <div className={`w-1.5 h-1.5 rounded-full ${
+                                        connectionStatus === 'connected' ? 'bg-emerald-500' :
+                                        connectionStatus === 'failed' ? 'bg-rose-500' : 'bg-amber-500 animate-pulse'
+                                    }`} />
+                                    {connectionStatus === 'connected' ? 'Connected' : connectionStatus === 'failed' ? 'Disconnected' : 'Connecting...'}
                                 </div>
-                            )}
-                            <button onClick={() => setIsMaximized(!isMaximized)} className={`p-2 rounded-xl transition-all ${isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-200 text-slate-600'}`}>
-                                {isMaximized ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
-                            </button>
-                            <button onClick={onClose} className={`p-2 rounded-xl transition-all ${isDark ? 'hover:bg-red-500/10 text-slate-400 hover:text-red-400' : 'hover:bg-red-50 text-slate-600 hover:text-red-600'}`}>
-                                <X className="w-6 h-6" />
-                            </button>
+                            </div>
+                            <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Network Node: <span className="font-medium text-blue-500">{agentName || 'LOCAL'}</span></p>
                         </div>
                     </div>
-
-                    {/* Meta Data Panel (From Reference Image) */}
-                    <div className={`grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-1 p-6 rounded-2xl border transition-all ${connectionStatus === 'failed' ? 'border-rose-500/30 bg-rose-500/5' :
-                        isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-100 border-slate-300'
-                        }`}>
-                        <div className="space-y-1">
-                            <MetaRow label="NODE" value={agentName || 'MASTER HOST'} />
-                            <MetaRow label="DB" value={dbConfig ? `jdbc:${dbConfig.driver}://${dbConfig.host || 'localhost'}:${dbConfig.port || (dbConfig.driver === 'postgres' ? '5432' : '3306')}/${dbConfig.db_name} | user:${dbConfig.db_user || dbConfig.user}` : '-'} />
-                            <MetaRow label="Server Host" value={dbMetadata?.host || dbConfig?.host || dbConfig?.db_host} />
-                        </div>
-                        <div className={`space-y-1 ${connectionStatus === 'connected' ? 'text-emerald-500' : connectionStatus === 'failed' ? 'text-rose-500' : 'text-slate-500'}`}>
-                            <MetaRow label="Server Port" value={dbMetadata?.port || dbConfig?.port || dbConfig?.db_port} />
-                            <MetaRow label="Database Name" value={dbMetadata?.db_name || dbConfig?.db_name || dbConfig?.db_name} />
-                            <MetaRow label="DB PRODUCT" value={dbMetadata?.product || (connectionStatus === 'connecting' ? 'Querying...' : '-')} />
-                            <MetaRow label="DRIVER" value={dbMetadata?.driver ? (dbMetadata.driver.toUpperCase() + " Driver") : (dbConfig?.db_driver || dbConfig?.driver || 'undefined').toUpperCase() + " Driver"} />
-                        </div>
+                    
+                    <div className="flex items-center gap-1.5">
+                        <button onClick={() => setIsMaximized(!isMaximized)} className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`} title={isMaximized ? "Restore down" : "Maximize"}>
+                            {isMaximized ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                        </button>
+                        <button onClick={onClose} className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-red-500/20 text-slate-400 hover:text-red-400' : 'hover:bg-red-50 text-slate-500 hover:text-red-600'}`} title="Close console">
+                            <X className="w-5 h-5" />
+                        </button>
                     </div>
                 </div>
 
-                {/* Main Body */}
-                <div className="flex-1 overflow-hidden flex flex-col p-8 gap-8">
+                {/* Meta Information Bar */}
+                <div className={`px-6 py-3 border-b flex flex-wrap gap-2 ${isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-slate-50/50 border-slate-100'}`}>
+                    <MetaBadge label="Host" value={dbMetadata?.host || dbConfig?.host || dbConfig?.db_host || 'localhost'} />
+                    <MetaBadge label="Port" value={dbMetadata?.port || dbConfig?.port || dbConfig?.db_port} />
+                    <MetaBadge label="Database" value={dbMetadata?.db_name || dbConfig?.db_name} />
+                    <MetaBadge label="Engine" value={dbMetadata?.product || (dbMetadata?.driver || dbConfig?.db_driver || dbConfig?.driver)?.toUpperCase()} />
+                    <MetaBadge label="User" value={dbConfig?.db_user || dbConfig?.user} />
+                </div>
 
-                    {/* Editor & Saved Queries Control Area */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-                        {/* Editor Section */}
-                        <div className="lg:col-span-2 flex flex-col gap-4">
-                            <div className={`relative rounded-2xl border-2 transition-all overflow-hidden ${isDark ? 'bg-slate-950 border-slate-800 focus-within:border-blue-500/50' : 'bg-white border-slate-300 focus-within:border-blue-500 shadow-sm'}`}>
-                                <div className={`flex items-center justify-between px-6 py-3 border-b ${isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                                    <div className="flex items-center gap-3">
-                                        <Layout className="w-4 h-4 text-blue-500" />
-                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Query Statement</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[10px] text-slate-500 font-bold">Rows:</span>
-                                        <input
-                                            type="number"
-                                            value={limit}
-                                            onChange={(e) => setLimit(e.target.value)}
-                                            className="w-16 bg-transparent border-b border-slate-700 text-[10px] px-1 focus:outline-none"
-                                        />
-                                    </div>
-                                </div>
-                                <textarea
-                                    value={query}
-                                    onChange={(e) => setQuery(e.target.value)}
-                                    className={`w-full h-40 px-6 py-4 bg-transparent border-none focus:ring-0 font-mono text-sm resize-none ${isDark ? 'text-white' : 'text-slate-900'} placeholder-slate-700`}
-                                    placeholder="SELECT * FROM table..."
+                {/* Main Content Area */}
+                <div className="flex-1 overflow-hidden flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-200 dark:divide-slate-800">
+                    
+                    {/* Left Panel: Query Editor */}
+                    <div className="flex-1 flex flex-col min-h-0 bg-transparent">
+                        <div className={`px-4 py-2 border-b flex justify-between items-center ${isDark ? 'border-slate-800 bg-slate-900/50' : 'border-slate-100 bg-white'}`}>
+                            <div className="flex items-center gap-2">
+                                <Layout className={`w-3.5 h-3.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+                                <span className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Query Editor</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Limit:</span>
+                                <input
+                                    type="number"
+                                    value={limit}
+                                    onChange={(e) => setLimit(e.target.value)}
+                                    className={`w-16 h-6 px-1.5 text-xs rounded border focus:outline-none focus:ring-1 focus:ring-blue-500 ${isDark ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white border-slate-200 text-slate-700'}`}
                                 />
                             </div>
-
-                            {/* Buttons per Reference */}
-                            <div className="flex flex-wrap gap-2">
-                                <button onClick={() => handleRun()} disabled={isLoading} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2">
-                                    {isLoading ? <div className="animate-spin w-3 h-3 border-2 border-white/30 border-t-white rounded-full"></div> : <Play className="w-3 h-3 fill-current" />}
-                                    RUN
-                                </button>
-                                <button onClick={handleClipboard} className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all border ${isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 shadow-sm'}`}>
-                                    CLIPBOARD
-                                </button>
-                                <button onClick={handlePasteAndRun} className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all border ${isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 shadow-sm'}`}>
-                                    PASTE & RUN
-                                </button>
-                                <button onClick={handleSaveQuery} className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all border ${isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 shadow-sm'}`}>
-                                    SAVE
-                                </button>
-                                <button onClick={handleExportCSV} className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all border ${isDark ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/20' : 'bg-emerald-50 border-emerald-100 text-emerald-600 hover:bg-emerald-100'}`}>
-                                    EXPORT
-                                </button>
-                                <button onClick={onClose} className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all border ${isDark ? 'bg-red-500/10 border-red-500/30 text-red-500 hover:bg-red-500/20' : 'bg-red-50 border-red-100 text-red-600 hover:bg-red-100'}`}>
-                                    BACK
-                                </button>
-                            </div>
+                        </div>
+                        
+                        {/* SQL Textarea */}
+                        <div className={`flex-1 relative ${isDark ? 'bg-slate-900/30' : 'bg-slate-50/30'}`}>
+                            <textarea
+                                value={query}
+                                onChange={(e) => setQuery(e.target.value)}
+                                className={`w-full h-full p-4 bg-transparent border-none focus:ring-0 font-mono text-sm resize-none outline-none ${isDark ? 'text-blue-100' : 'text-slate-800'} placeholder-slate-400 dark:placeholder-slate-600`}
+                                placeholder="Type your SQL query here... (e.g., SELECT * FROM users)"
+                                spellCheck="false"
+                            />
                         </div>
 
-                        {/* Saved Queries Section (Right Panel) */}
-                        <div className={`rounded-2xl border-2 p-6 flex flex-col gap-4 ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                            <div className="flex items-center gap-2 mb-2">
-                                <Bookmark className="w-4 h-4 text-orange-500" />
-                                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Run Saved Query</span>
+                        {/* Editor Action Bar */}
+                        <div className={`px-4 py-3 border-t flex flex-wrap items-center justify-between gap-4 ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'}`}>
+                            <div className="flex items-center gap-2">
+                                <button onClick={() => handleRun()} disabled={isLoading} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs font-semibold shadow-sm transition-colors flex items-center gap-2">
+                                    {isLoading ? <div className="animate-spin w-3.5 h-3.5 border-2 border-blue-200 border-t-white rounded-full" /> : <Play className="w-3.5 h-3.5 fill-current" />}
+                                    Run Query
+                                </button>
+                                <button onClick={handleSaveQuery} disabled={!query.trim()} className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors border flex items-center gap-1.5 ${isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+                                    <Save className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Save</span>
+                                </button>
+                                <button onClick={handlePasteAndRun} className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors border flex items-center gap-1.5 ${isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+                                    <Clipboard className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Paste & Run</span>
+                                </button>
                             </div>
-
-                            <select
-                                value={selectedSavedKey}
-                                onChange={(e) => {
-                                    setSelectedSavedKey(e.target.value);
-                                    const saved = savedQueries.find(q => q.name === e.target.value);
-                                    if (saved) {
-                                        setQuery(saved.query);
-                                        handleRun(saved.query);
-                                    }
-                                }}
-                                className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all text-sm ${isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
-                            >
-                                <option value="">[select one]</option>
-                                {savedQueries.map(q => (
-                                    <option key={q.name} value={q.name}>{q.name}</option>
-                                ))}
-                            </select>
-
-                            <button onClick={handleDeleteSaved} disabled={!selectedSavedKey} className={`w-full py-2.5 rounded-xl text-xs font-black transition-all border ${selectedSavedKey ? 'bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-500/20' : 'bg-slate-800 text-slate-600 border-slate-700 cursor-not-allowed'}`}>
-                                DELETE SAVED
-                            </button>
-
-                            <div className="flex-1 flex flex-col items-center justify-center opacity-30 text-center">
-                                <History className="w-12 h-12 mb-2" />
-                                <span className="text-[10px] uppercase font-bold tracking-widest">Recent Activity</span>
+                            
+                            <div className="flex items-center gap-2">
+                                {savedQueries.length > 0 && (
+                                    <div className="flex items-center gap-2 mr-2">
+                                        <History className={`w-3.5 h-3.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                                        <select
+                                            value={selectedSavedKey}
+                                            onChange={(e) => {
+                                                setSelectedSavedKey(e.target.value);
+                                                const saved = savedQueries.find(q => q.name === e.target.value);
+                                                if (saved) {
+                                                    setQuery(saved.query);
+                                                }
+                                            }}
+                                            className={`max-w-[140px] px-2 py-1.5 rounded-lg text-xs border outline-none ${isDark ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white border-slate-200 text-slate-700'}`}
+                                        >
+                                            <option value="">Saved Queries...</option>
+                                            {savedQueries.map(q => (
+                                                <option key={q.name} value={q.name}>{q.name}</option>
+                                            ))}
+                                        </select>
+                                        {selectedSavedKey && (
+                                            <button onClick={handleDeleteSaved} className="p-1.5 rounded text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors" title="Delete selected query">
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
 
-                    {/* Result Table Area (Glassmorphism Table) */}
-                    <div className="flex-1 overflow-hidden flex flex-col">
-                        <div className={`flex items-center justify-between px-6 py-2 border-b-2 ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-200 border-slate-300'} mb-4`}>
-                            <div className="flex items-center gap-4">
-                                <span className="text-xs font-black tracking-widest text-blue-500">RESULT <span className="text-slate-500 font-normal">(time={duration} ms)</span></span>
+                    {/* Right Panel: Data Results */}
+                    <div className="flex-1 flex flex-col min-h-0 bg-transparent">
+                        {/* Results Header */}
+                        <div className={`px-4 py-2 border-b flex justify-between items-center ${isDark ? 'border-slate-800 bg-slate-900/50' : 'border-slate-100 bg-white'}`}>
+                            <div className="flex items-center gap-2">
+                                <TableIcon className={`w-3.5 h-3.5 ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
+                                <span className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Results</span>
+                                {duration !== null && (
+                                    <span className={`text-[10px] ml-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>({duration}ms)</span>
+                                )}
                             </div>
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{rowCount} ENTRIES</span>
+                            <div className="flex items-center gap-3">
+                                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
+                                    {rowCount} rows
+                                </span>
+                                {results?.length > 0 && (
+                                    <button onClick={handleExportCSV} className={`flex items-center gap-1 text-[10px] font-medium transition-colors ${isDark ? 'text-emerald-400 hover:text-emerald-300' : 'text-emerald-600 hover:text-emerald-700'}`}>
+                                        <Download className="w-3 h-3" /> Export CSV
+                                    </button>
+                                )}
+                            </div>
                         </div>
 
-                        <div className={`flex-1 rounded-2xl border-2 overflow-hidden flex flex-col ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`}>
+                        {/* Results Table Area */}
+                        <div className={`flex-1 overflow-auto ${isDark ? 'bg-[#0f172a]' : 'bg-slate-50/50'}`}>
                             {error ? (
-                                <div className="p-8 flex items-center justify-center h-full">
-                                    <div className={`max-w-md w-full p-6 rounded-2xl border ${isDark ? 'bg-red-500/10 border-red-500/20' : 'bg-red-50 border-red-200'}`}>
-                                        <div className="flex gap-4">
-                                            <AlertCircle className="w-6 h-6 text-red-500 shrink-0" />
-                                            <div>
-                                                <h4 className="text-red-500 font-bold uppercase text-xs mb-1">Execution Error</h4>
-                                                <p className={`text-xs font-mono break-all ${isDark ? 'text-red-200' : 'text-red-700'}`}>{error}</p>
-                                            </div>
+                                <div className="h-full flex items-center justify-center p-6">
+                                    <div className={`max-w-md w-full p-5 rounded-xl border flex gap-3 ${isDark ? 'bg-rose-500/5 border-rose-500/20' : 'bg-rose-50 border-rose-100'}`}>
+                                        <AlertCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+                                        <div>
+                                            <h4 className={`text-sm font-semibold mb-1 ${isDark ? 'text-rose-400' : 'text-rose-700'}`}>Query Error</h4>
+                                            <p className={`text-xs font-mono break-words leading-relaxed ${isDark ? 'text-rose-300/80' : 'text-rose-600/90'}`}>{error}</p>
                                         </div>
                                     </div>
                                 </div>
                             ) : results && results.length > 0 ? (
-                                <div className="overflow-auto h-full">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead className={`sticky top-0 ${isDark ? 'bg-slate-900' : 'bg-slate-100'} z-10`}>
-                                            <tr className="border-b-2 border-slate-800">
-                                                <th className="px-4 py-2 text-[10px] font-black text-blue-500 uppercase border-r border-slate-800 bg-slate-800/20 w-12 text-center">#</th>
+                                <table className="w-full text-left border-collapse whitespace-nowrap">
+                                    <thead className={`sticky top-0 z-10 ${isDark ? 'bg-slate-900 shadow-sm' : 'bg-white shadow-sm'}`}>
+                                        <tr>
+                                            <th className={`px-4 py-2 text-[10px] font-semibold tracking-wider text-center border-b ${isDark ? 'text-slate-500 border-slate-800' : 'text-slate-400 border-slate-200'} w-12`}>#</th>
+                                            {Object.keys(results[0]).map(col => (
+                                                <th key={col} className={`px-4 py-2 text-xs font-medium border-b ${isDark ? 'text-slate-300 border-slate-800' : 'text-slate-700 border-slate-200'}`}>
+                                                    <div className="flex flex-col">
+                                                        <span>{col}</span>
+                                                        {columnTypes && columnTypes.find(c => c.name === col) && (
+                                                            <span className={`text-[9px] font-mono mt-0.5 ${isDark ? 'text-indigo-400/70' : 'text-indigo-500/70'}`}>
+                                                                {columnTypes.find(c => c.name === col).type.toLowerCase()}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody className="text-xs">
+                                        {results.map((row, i) => (
+                                            <tr key={i} className={`group border-b transition-colors ${isDark ? 'border-slate-800/60 hover:bg-slate-800/30' : 'border-slate-200 hover:bg-blue-50/50'}`}>
+                                                <td className={`px-4 py-2 text-[10px] font-medium text-center ${isDark ? 'text-slate-600 group-hover:text-slate-400' : 'text-slate-400 group-hover:text-slate-500'}`}>{i + 1}</td>
                                                 {Object.keys(results[0]).map(col => (
-                                                    <th key={col} className="px-4 py-2 text-[10px] font-black text-slate-400 border-r last:border-0 border-slate-800 uppercase tracking-tighter">
-                                                        <div className="flex flex-col">
-                                                            <span>{col}</span>
-                                                            {columnTypes && columnTypes.find(c => c.name === col) && (
-                                                                <span className="text-[9px] font-mono text-blue-500/60 normal-case mt-0.5">
-                                                                    {columnTypes.find(c => c.name === col).type.toLowerCase()}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </th>
+                                                    <td key={col} className={`px-4 py-2 font-mono ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                                        {row[col] === null ? <span className={`italic text-[10px] ${isDark ? 'text-rose-400/50' : 'text-rose-500/50'}`}>NULL</span> : String(row[col])}
+                                                    </td>
                                                 ))}
                                             </tr>
-                                        </thead>
-                                        <tbody>
-                                            {results.map((row, i) => (
-                                                <tr key={i} className={`group ${isDark ? 'hover:bg-blue-500/10' : 'hover:bg-blue-50'} border-b border-slate-800/50 last:border-0 transition-colors`}>
-                                                    <td className="px-4 py-2 text-[10px] font-bold text-slate-600 border-r border-slate-800/50 text-center bg-slate-800/5">{i + 1}</td>
-                                                    {Object.keys(results[0]).map(col => (
-                                                        <td key={col} className={`px-4 py-2 text-xs font-mono border-r last:border-0 border-slate-800/50 whitespace-nowrap ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                                                            {row[col] === null ? <span className="text-red-500/50 italic text-[10px]">NULL</span> : String(row[col])}
-                                                        </td>
-                                                    ))}
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                        ))}
+                                    </tbody>
+                                </table>
                             ) : (
-                                <div className="flex-1 flex flex-col items-center justify-center py-20 opacity-20 text-slate-500">
-                                    <Database className="w-16 h-16 mb-4" />
-                                    <p className="text-xs font-bold uppercase tracking-widest">No Data Available</p>
+                                <div className="h-full flex flex-col items-center justify-center p-6 text-center">
+                                    <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${isDark ? 'bg-slate-800/50 text-slate-600' : 'bg-slate-100 text-slate-400'}`}>
+                                        <Database className="w-8 h-8" />
+                                    </div>
+                                    <h4 className={`text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>No Data</h4>
+                                    <p className={`text-xs max-w-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+                                        {isInitialLoading ? "Executing test connection..." : "Run a query to see the results here."}
+                                    </p>
                                 </div>
                             )}
                         </div>
-                    </div>
-                </div>
-
-                {/* Footer Bar */}
-                <div className={`px-8 py-3 border-t flex items-center justify-between ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                    <div className="flex items-center gap-6 text-[10px] font-black tracking-widest text-slate-500 uppercase">
-                        <div className="flex items-center gap-2">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                            <span>System Ready</span>
-                        </div>
-                        <div className="border-l border-slate-800 pl-6">
-                            <span>Isolation: Read Committed</span>
-                        </div>
-                    </div>
-                    <div className="text-[10px] font-black text-blue-500 px-4 py-1 rounded-full bg-blue-500/10 border border-blue-500/20">
-                        V1.2.0-PRO
                     </div>
                 </div>
             </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Save, X, Plus, Trash2, Database, Table, Code,
-    ChevronDown, ChevronUp, Info, Copy, Clipboard,
+    ChevronDown, ChevronUp, Info, Copy, Clipboard, ClipboardPaste,
     ArrowRight, Settings, MessageSquare, Terminal, Search
 } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -78,6 +78,38 @@ const SchemaForm = ({
             return;
         }
         onSave(formData);
+    };
+
+    const handleExportClipboard = () => {
+        const json = JSON.stringify(formData, null, 2);
+        navigator.clipboard.writeText(json).then(() => {
+            alert('Schema configuration copied to clipboard!');
+        }).catch(err => {
+            console.error('Failed to copy:', err);
+            alert('Failed to copy to clipboard');
+        });
+    };
+
+    const handleImportClipboard = async () => {
+        try {
+            const text = await navigator.clipboard.readText();
+            const imported = JSON.parse(text);
+            
+            // Basic validation
+            if (!imported.name && !imported.rules) {
+                throw new Error('Invalid schema format');
+            }
+
+            setFormData(prev => ({
+                ...prev,
+                ...imported,
+                id: prev.id // Preserve current ID if editing
+            }));
+            alert('Schema imported from clipboard!');
+        } catch (err) {
+            console.error('Failed to import:', err);
+            alert('Failed to import from clipboard. Please ensure you have valid JSON.');
+        }
     };
 
     return (
@@ -173,12 +205,22 @@ const SchemaForm = ({
 
                 {/* Clipboard Buttons */}
                 <div className="flex gap-1 pt-2">
-                    <button className={`px-3 py-1 border text-[11px] font-medium flex items-center gap-1 shadow-sm hover:opacity-80 ${isDark ? 'bg-slate-700 border-slate-600 text-slate-300' : 'bg-slate-200 border-slate-400 text-slate-700'}`}>
+                    <div className="flex gap-1 pt-2">
+                    <button 
+                        onClick={handleExportClipboard}
+                        className={`px-3 py-1 border text-[11px] font-medium flex items-center gap-1 shadow-sm hover:opacity-80 ${isDark ? 'bg-slate-700 border-slate-600 text-slate-300' : 'bg-slate-200 border-slate-400 text-slate-700'}`}
+                    >
+                        <Clipboard className="w-3 h-3" />
                         Clipboard Export
                     </button>
-                    <button className={`px-3 py-1 border text-[11px] font-medium flex items-center gap-1 shadow-sm hover:opacity-80 ${isDark ? 'bg-slate-700 border-slate-600 text-slate-300' : 'bg-slate-200 border-slate-400 text-slate-700'}`}>
+                    <button 
+                        onClick={handleImportClipboard}
+                        className={`px-3 py-1 border text-[11px] font-medium flex items-center gap-1 shadow-sm hover:opacity-80 ${isDark ? 'bg-slate-700 border-slate-600 text-slate-300' : 'bg-slate-200 border-slate-400 text-slate-700'}`}
+                    >
+                        <ClipboardPaste className="w-3 h-3" />
                         Clipboard Import
                     </button>
+                </div>
                 </div>
 
                 {/* Rules Table */}

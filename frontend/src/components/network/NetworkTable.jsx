@@ -19,7 +19,8 @@ import {
     ChevronRight,
     User,
     Plus,
-    Monitor
+    Monitor,
+    Clipboard
 } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -71,6 +72,7 @@ export default function NetworkTable({
     onAdd,
     onEdit,
     onClone,
+    onCopyConfig,
     onDelete
 }) {
     const { isDark } = useTheme();
@@ -185,6 +187,18 @@ export default function NetworkTable({
                     >
                         {cloningNetwork === selectedId ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
                         Duplicate
+                    </button>
+                    <button
+                        onClick={() => selectedNetwork && onCopyConfig(selectedNetwork)}
+                        disabled={!selectedId}
+                        className={`flex items-center gap-2 px-4 py-2 border rounded-xl text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                            isDark 
+                                ? 'border-slate-700 text-slate-300 hover:bg-slate-800' 
+                                : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                    >
+                        <Clipboard className="w-4 h-4" />
+                        Copy Config
                     </button>
                     <button
                         onClick={onAdd}

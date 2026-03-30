@@ -1070,23 +1070,80 @@ func (h *Handler) RunJob(c *gin.Context) {
 		command.Data["source_type"] = "javascript"
 	}
 
-	if err := h.agentListener.SendCommandToAgent(agentName, command); err != nil {
-		job.Status = "failed"
-		h.db.Save(&job)
-		jobLog.Status = "failed"
-		jobLog.ErrorMessage = fmt.Sprintf("Failed to send command to agent: %v", err)
-		jobLog.CompletedAt = time.Now()
-		h.db.Save(&jobLog)
+	if job.Schema != nil && len(job.Schema.Rules) > 0 && job.Schema.SourceType != "javascript" {
+		// Multi-rule schema: process each rule and send an individual command
+		for _, rule := range job.Schema.Rules {
+			log.Printf("RunJob: Executing Pre-Job Queries for rule %s", rule.TargetTable)
+			if err := h.agentListener.ExecutePreJobQueries(job.NetworkID, rule.TargetTable, rule.Truncate, rule.UploadPreQuery); err != nil {
+				log.Printf("RunJob: Failed to execute Pre-Job Queries for rule %s: %v", rule.TargetTable, err)
+			}
 
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":  fmt.Sprintf("Failed to send command to agent: %v", err),
-			"job":    job,
-			"log_id": jobLog.ID,
-		})
-		return
+			// Clone command data for this specific rule
+			ruleCmdData := make(map[string]interface{})
+			for k, v := range command.Data {
+				ruleCmdData[k] = v
+			}
+
+			// Handle incremental ca_pointer replacement for rule.SourceQuery
+			sourceQuery := rule.SourceQuery
+			if job.Incremental && job.CheckpointColumn != "" && sourceQuery != "" {
+				checkpointVal := job.LastCheckpoint
+				if checkpointVal == "" {
+					checkpointVal = "0"
+				}
+				sourceQuery = strings.ReplaceAll(sourceQuery, "{{ca_pointer}}", checkpointVal)
+				sourceQuery = strings.ReplaceAll(sourceQuery, "{{CA_POINTER}}", checkpointVal)
+				sourceQuery = strings.ReplaceAll(sourceQuery, "{{Ca_Pointer}}", checkpointVal)
+			}
+
+			// Map schema logic securely into standard schema packet that Agent expects
+			ruleCmdData["name"] = rule.TargetTable
+			ruleCmdData["target_table"] = rule.TargetTable
+			ruleCmdData["query"] = sourceQuery
+			ruleCmdData["schema"] = map[string]interface{}{
+				"id":           rule.ID,
+				"name":         job.Schema.Name + " - " + rule.TargetTable,
+				"sql_command":  sourceQuery,
+				"target_table": rule.TargetTable,
+				"truncate":     rule.Truncate,
+				"extract_pre":  rule.ExtractPreQuery,
+				"extract_post": rule.ExtractPostQuery,
+				"upload_pre":   rule.UploadPreQuery,
+				"upload_post":  rule.UploadPostQuery,
+			}
+
+			ruleCmd := core.AgentMessage{
+				Type:      "RUN_JOB",
+				Timestamp: time.Now(),
+				Data:      ruleCmdData,
+			}
+
+			if err := h.agentListener.SendCommandToAgent(agentName, ruleCmd); err != nil {
+				log.Printf("RunJob: Failed to send rule %s to agent %s: %v", rule.TargetTable, agentName, err)
+				// We don't fail the whole API request, just log it.
+			} else {
+				log.Printf("Sent RUN_JOB command to agent %s for job %d (rule: %s)", agentName, job.ID, rule.TargetTable)
+			}
+		}
+	} else {
+		// Single legacy rule / non-schema job
+		if err := h.agentListener.SendCommandToAgent(agentName, command); err != nil {
+			job.Status = "failed"
+			h.db.Save(&job)
+			jobLog.Status = "failed"
+			jobLog.ErrorMessage = fmt.Sprintf("Failed to send command to agent: %v", err)
+			jobLog.CompletedAt = time.Now()
+			h.db.Save(&jobLog)
+
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":  fmt.Sprintf("Failed to send command to agent: %v", err),
+				"job":    job,
+				"log_id": jobLog.ID,
+			})
+			return
+		}
+		log.Printf("Sent RUN_JOB command to agent %s for job %d", agentName, job.ID)
 	}
-
-	log.Printf("Sent RUN_JOB command to agent %s for job %d", agentName, job.ID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": fmt.Sprintf("Job %d command sent to agent %s", job.ID, agentName),
